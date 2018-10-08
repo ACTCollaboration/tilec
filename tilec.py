@@ -38,10 +38,10 @@ can use for minimizing weights in ILC.
 """
 
 def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
-    '''
+    """Atmospheric noise model
     rms_noise in muK-arcmin
     [(lknee/ells)^(-alpha) + 1] * rms_noise**2
-    '''
+    """
     atm_factor = (lknee*np.nan_to_num(1./ells))**(-alpha) if lknee>1.e-3 else 0.
     rms = rms_noise * (1./60.)*(np.pi/180.)
     wnoise = ells*0.+rms**2.
@@ -49,6 +49,9 @@ def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
 
 
 def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lknee_guess=3000,alpha_guess=-4):
+    """Obtain a white noise + lknee + alpha fit to a 2D noise power spectrum
+    The white noise part is inferred from the mean of lmax-wnoise_annulus < ells < lmax
+    """
     from scipy.optimize import curve_fit
     fbin_edges = np.arange(lmin,lmax,bin_annulus)
     modlmap = npower.modlmap()
@@ -63,6 +66,11 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
 
 def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
                   lknee_guess=3000,alpha_guess=-4,nparams=None,modlmap=None,verbose=False,method="fft"):
+    """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
+    Most arguments are for the radial fitting part.
+    A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
+    Watch for ringing in the final output.
+    """
     shape,wcs = n2d.shape,n2d.wcs
     if modlmap is None: modlmap = enmap.modlmap(shape,wcs)
     Ny,Nx = shape[-2:]
@@ -80,91 +88,3 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     return ndown*nfitted,nparams
 
 
-def noise_from_splits(splits,fourier_calc=None,nthread=0,do_cross=True):
-    """
-    Calculate noise power spectra by subtracting cross power of splits 
-    from autopower of splits. Optionally calculate cross power spectra
-    of T,E,B from I,Q,U.
-
-    splits -- (nsplits,ncomp,Ny,Nx) arrays
-
-    ncomp can be 1 for T only, or 3 for I,Q,U
-    ncomp could be > 3 for e.g. I1,Q1,U1,I2,Q2,U2 for 2 arrays
-
-    """
-
-    try:
-        wcs = splits.wcs
-    except:
-        wcs = splits[0].wcs
-        
-    splits = enmap.enmap(np.asarray(splits),wcs).astype(np.float32)
-    assert splits.ndim==3 or splits.ndim==4
-    if splits.ndim == 3: splits = splits[:,None,:,:]
-    ncomp = splits.shape[1]
-    ndim = splits.ndim
-        
-    if fourier_calc is None:
-        shape = splits.shape[-3:] if do_cross else splits.shape[-2:]
-        fourier_calc = FourierCalc(shape,wcs)
-    
-    Nsplits = splits.shape[0]
-
-    if do_cross: assert ncomp==3 or ncomp==1
-
-
-    # Get fourier transforms of I,Q,U
-    ksplits = [fourier_calc.iqu2teb(split, nthread=nthread, normalize=False, rot=False) for split in splits]
-    del splits
-    
-    if do_cross:
-        kteb_splits = []
-        # Rotate I,Q,U to T,E,B for cross power (not necssary for noise)
-        for ksplit in ksplits:
-            kteb_splits.append( ksplit.copy())
-            if (ndim==3 and ncomp==3):
-                kteb_splits[-1][...,-2:,:,:] = enmap.map_mul(fourier_calc.rot, kteb_splits[-1][...,-2:,:,:])
-            
-    # get auto power of I,Q,U
-    auto = 0.
-    for ksplit in ksplits:
-        auto += fourier_calc.power2d(kmap=ksplit)[0]
-    auto /= Nsplits
-
-    # do cross powers of I,Q,U
-    Ncrosses = (Nsplits*(Nsplits-1)/2)
-    cross = 0.
-    for i in range(len(ksplits)):
-        for j in range(i+1,len(ksplits)):
-            cross += fourier_calc.power2d(kmap=ksplits[i],kmap2=ksplits[j])[0]
-    cross /= Ncrosses
-        
-    if do_cross:
-        # do cross powers of T,E,B
-        cross_teb = 0.
-        for i in range(len(ksplits)):
-            for j in range(i+1,len(ksplits)):
-                cross_teb += fourier_calc.power2d(kmap=kteb_splits[i],kmap2=kteb_splits[j])[0]
-        cross_teb /= Ncrosses
-    else:
-        cross_teb = None
-    del ksplits
-
-    # get noise model for I,Q,U
-    noise = (auto-cross)/Nsplits
-
-    # return I,Q,U noise model and T,E,B cross-power
-    return noise,cross_teb
-
-
-def fit_radial(power2d,lknee_guess,alpha_guess,wnoise):
-    pass
-
-def get_noise_cov(imaps):
-    """
-    imaps - (nsplits,narrays,Ny,Nx)
-    """
-
-    npow = maps.noise_from_splits(imaps,fourier_calc=None,nthread=0,do_cross=False)
-
-    
