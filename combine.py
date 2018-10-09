@@ -2,7 +2,7 @@ import tilec
 import argparse, yaml
 import numpy as np
 from sotools import enmap
-from orphics import maps
+from orphics import maps,io
 
 # Parse command line
 parser = argparse.ArgumentParser(description='Make ILC maps.')
@@ -50,7 +50,11 @@ def ncalc(ai,aj):
     For i x j element of Cov
     """
     iksplits,iwins = get_splits(ai) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
-    jksplits,jwins = get_splits(aj) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
+    if aj!=ai:
+        jksplits,jwins = get_splits(aj) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
+    else:
+        jksplits = iksplits.copy()
+        jwins = iwins.copy()
     nisplits = iksplits.shape[0]
     njsplits = jksplits.shape[0]
     autos = 0. ; crosses = 0.
@@ -67,7 +71,7 @@ def ncalc(ai,aj):
     crosses /= ncrosses
     scov = crosses
     ncov = autos-crosses
-    return scov,ncov
+    return enmap.enmap(scov,wcs),enmap.enmap(ncov,wcs)
 
     
 
@@ -82,12 +86,19 @@ for aindex1 in range(narrays):
         scov,ncov = ncalc(aindex1,aindex2)
         print("Signal avg...")
         
-        Scov[aindex1,aindex2] = tilec.signal_average(scov)
+        Scov[aindex1,aindex2] = tilec.signal_average(scov,bin_width=200)
         if aindex1!=aindex2: Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
         print("Noise avg...")
 
         Ncov[aindex1,aindex2],_ = tilec.noise_average(ncov)
         if aindex1!=aindex2: Ncov[aindex2,aindex1] = Ncov[aindex1,aindex2].copy()
+
+        # io.plot_img(np.log10(np.fft.fftshift(scov)),"scov.png",aspect='auto')
+        io.plot_img(np.log10(np.fft.fftshift(Scov[aindex1,aindex2])),"dscov.png",aspect='auto')
+        # io.plot_img(np.log10(np.fft.fftshift(ncov)),"ncov.png",aspect='auto',lim=[-5,1])
+        io.plot_img(np.log10(np.fft.fftshift(Ncov[aindex1,aindex2])),"dncov.png",aspect='auto',lim=[-5,1])
+        io.plot_img(np.log10(np.fft.fftshift(Scov[aindex1,aindex2]+Ncov[aindex1,aindex2])),"dsncov.png",aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(ncov/Ncov[aindex1,aindex2])),"rcov.png",aspect='auto',lim=[-5,1])
         
 
 
