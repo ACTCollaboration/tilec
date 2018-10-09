@@ -88,3 +88,13 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     return ndown*nfitted,nparams
 
 
+def signal_average(cov,bin_edges=None,bin_width=40):
+    modlmap = cov.modlmap()
+    if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
+    binner = stats.bin2D(modlmap,bin_edges)
+    cents,c1d = binner.bin(cov)
+    outcov = cov.copy()*0 # set to zero?!
+    for k,(bleft,bright) in enumerate(zip(bin_edges[:-1],bin_edges[1:])):
+        sel = np.logical_and(modlmap>=bleft,modlmap<bright)
+        outcov[sel] = c1d[k]
+    return outcov

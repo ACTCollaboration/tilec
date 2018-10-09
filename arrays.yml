@@ -1,0 +1,88 @@
+
+
+arrays:
+
+  - name: s15_pa3_90
+    froot: /home/msyriac/data/act/maps/mr3/
+    coadd: s15_deep56_pa3_f090_nohwp_night_3pass_4way_coadd_map_srcfree.fits
+    cinvvar: s15_deep56_pa3_f090_nohwp_night_3pass_4way_coadd_map_ivar.fits
+    splits: s15_deep56_pa3_f090_nohwp_night_3pass_4way_set%d_map_srcfree.fits
+    sinvvars: s15_deep56_pa3_f090_nohwp_night_3pass_4way_set%d_ivar.fits
+    nsplits: 4
+    xmask: /home/msyriac/data/act/maps/steve/deep56_forecast_180223_master_apo_w0.fits
+    beam:
+
+  - name: s15_pa3_150
+    froot: /home/msyriac/data/act/maps/mr3/
+    coadd: s15_deep56_pa3_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
+    cinvvar: s15_deep56_pa3_f150_nohwp_night_3pass_4way_coadd_map_ivar.fits
+    splits: s15_deep56_pa3_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
+    sinvvars: s15_deep56_pa3_f150_nohwp_night_3pass_4way_set%d_ivar.fits
+    nsplits: 4
+    xmask: /home/msyriac/data/act/maps/steve/deep56_forecast_180223_master_apo_w0.fits
+    beam:
+
+  - name: s15_pa2
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: s15_pa1
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: s14_pa2
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: s14_pa1
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+      
+    
+  - name: lfi_70
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: hfi_100
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: hfi_143
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: hfi_217
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+
+  - name: hfi_353
+    froot: 
+    coadd: 
+    splits:
+    invvars:
+    beam:
+      
