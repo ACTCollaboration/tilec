@@ -224,12 +224,13 @@ if make_cov:
 Cov = np.load("cov.npy")
 Cov = np.rollaxis(Cov,2)
 try:
-    raise
-    icinv = np.linalg.inv(Cov)
+    icinv = np.load("icinv.npy")
+    #raise
+    #icinv = np.linalg.inv(Cov)
 except:
     print("Couldn't invert with np.linalg.inv. Trying eigpow")
     icinv = utils.eigpow(Cov,-1)
-
+    np.save("icinv.npy",icinv)
 
 Cinv = np.rollaxis(icinv,0,3)
 ikmaps,_ = get_coadds()
@@ -240,25 +241,22 @@ bmask = maps.binary_mask(enmap.read_map(xmaskfname()))
 yresponses = gnu(freqs,tcmb=2.7255)
 cresponses = yresponses*0.+1.
 
-def process(kouts,name="default",ellmax=None,y=False):
+def process(kouts,name="default",ellmax=None,y=False,y_ellmin=400):
     ellmax = lmax if ellmax is None else ellmax
     ksilc = enmap.zeros((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
     ksilc[modlmap.reshape(-1)<lmax] = np.nan_to_num(kouts.copy())
     ksilc = enmap.enmap(ksilc.reshape((Ny,Nx)),wcs)
     ksilc[modlmap>ellmax] = 0
+    if y: ksilc[modlmap<y_ellmin] = 0
     msilc = np.nan_to_num(fft.ifft(ksilc,axes=[-2,-1],normalize=True).real * bmask)
     p2d = fc.f2power(ksilc,ksilc)
 
     bin_edges = np.arange(100,3000,40)
     binner = stats.bin2D(modlmap,bin_edges)
     cents,p1d = binner.bin(p2d)
-    theory = cosmology.default_theory()
-    ells = np.arange(0,3000,1)
-    cltt = theory.lCl('TT',ells)
 
-    pl = io.Plotter(yscale='log')
+    pl = io.Plotter(yscale='log',xlabel='l',ylabel='C')
     pl.add(cents,p1d*cents**2.)
-    pl.add(ells,cltt*ells**2.)
     pl.done("p1d_%s.png" % name)
     
     
