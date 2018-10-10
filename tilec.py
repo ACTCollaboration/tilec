@@ -1,6 +1,6 @@
 from __future__ import print_function
 from orphics import maps,io,cosmology,stats
-from sotools import enmap
+from pixell import enmap
 import numpy as np
 import os,sys
 
@@ -65,7 +65,7 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
 
 
 def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
-                  lknee_guess=3000,alpha_guess=-4,nparams=None,modlmap=None,verbose=False,method="fft"):
+                  lknee_guess=3000,alpha_guess=-4,nparams=None,modlmap=None,verbose=False,method="fft",radial_fit=True):
     """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
     Most arguments are for the radial fitting part.
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
@@ -74,12 +74,16 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     shape,wcs = n2d.shape,n2d.wcs
     if modlmap is None: modlmap = enmap.modlmap(shape,wcs)
     Ny,Nx = shape[-2:]
-    if nparams is None:
-        if verbose: print("Radial fitting...")
-        nparams = fit_noise_1d(n2d,lmin=lmin,lmax=lmax,wnoise_annulus=wnoise_annulus,
-                            bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess)
-    wfit,lfit,afit = nparams
-    nfitted = rednoise(modlmap,wfit,lfit,afit)
+    if radial_fit:
+        if nparams is None:
+            if verbose: print("Radial fitting...")
+            nparams = fit_noise_1d(n2d,lmin=lmin,lmax=lmax,wnoise_annulus=wnoise_annulus,
+                                bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess)
+        wfit,lfit,afit = nparams
+        nfitted = rednoise(modlmap,wfit,lfit,afit)
+    else:
+        nparams = None
+        nfitted = 1.
     nflat = enmap.enmap(np.nan_to_num(n2d/nfitted),wcs)
     oshape = (Ny//dfact[0],Nx//dfact[1])
     if verbose: print("Resampling...")

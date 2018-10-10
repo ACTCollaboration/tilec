@@ -1,0 +1,4 @@
+*.png
+*.npy
+debug.py
+.ipynb*
