@@ -51,6 +51,8 @@ def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
 def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lknee_guess=3000,alpha_guess=-4):
     """Obtain a white noise + lknee + alpha fit to a 2D noise power spectrum
     The white noise part is inferred from the mean of lmax-wnoise_annulus < ells < lmax
+    
+    npower is 2d noise power
     """
     from scipy.optimize import curve_fit
     fbin_edges = np.arange(lmin,lmax,bin_annulus)
@@ -70,6 +72,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     Most arguments are for the radial fitting part.
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
     Watch for ringing in the final output.
+    n2d noise power
     """
     shape,wcs = n2d.shape,n2d.wcs
     if modlmap is None: modlmap = enmap.modlmap(shape,wcs)
@@ -84,7 +87,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     else:
         nparams = None
         nfitted = 1.
-    nflat = enmap.enmap(np.nan_to_num(n2d/nfitted),wcs)
+    nflat = enmap.enmap(np.nan_to_num(n2d/nfitted),wcs) # flattened 2d noise power
     oshape = (Ny//dfact[0],Nx//dfact[1])
     if verbose: print("Resampling...")
     nint = enmap.resample(enmap.enmap(np.fft.fftshift(nflat),wcs), oshape, method=method)
