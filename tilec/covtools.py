@@ -105,3 +105,34 @@ def signal_average(cov,bin_edges=None,bin_width=40):
         sel = np.logical_and(modlmap>=bleft,modlmap<bright)
         outcov[sel] = c1d[k]
     return outcov
+
+
+def ncalc(ai,aj):
+    """
+    Cross spectrum and noise power calculator
+    For i x j element of Cov
+    ai and aj are array indices
+    """
+    iksplits,iwins = get_splits(ai) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
+    if aj!=ai:
+        jksplits,jwins = get_splits(aj) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
+    else:
+        jksplits = iksplits.copy()
+        jwins = iwins.copy()
+    nisplits = iksplits.shape[0]
+    njsplits = jksplits.shape[0]
+    autos = 0. ; crosses = 0.
+    nautos = 0 ; ncrosses = 0
+    for p in range(nisplits):
+        for q in range(p,njsplits):
+            if p==q:
+                nautos += 1
+                autos += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
+            else:
+                ncrosses += 1
+                crosses += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
+    autos /= nautos
+    crosses /= ncrosses
+    scov = crosses
+    ncov = autos-crosses
+    return enmap.enmap(scov,wcs),enmap.enmap(ncov,wcs),enmap.enmap(autos,wcs)

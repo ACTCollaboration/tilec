@@ -1,4 +1,4 @@
-import tilec
+from tilec import utils as tutils,covtool,fg
 import argparse, yaml
 import numpy as np
 from pixell import enmap,fft,utils
@@ -17,14 +17,6 @@ Issues:
 Do super simple sims first
 
 """
-# Set up SZ frequency dependence
-def gnu(nu_ghz,tcmb=2.7255):
-    nu = 1e9*np.asarray(nu_ghz)
-    hplanck = 6.62607e-34
-    kboltzmann = 1.38065e-23 
-    x = hplanck*nu/kboltzmann/tcmb
-    coth = np.cosh(x/2.)/np.sinh(x/2.)
-    return x*coth-4.
 
 # Parse command line
 parser = argparse.ArgumentParser(description='Make ILC maps.')
@@ -45,81 +37,6 @@ for i in range(narrays):
     f = darrays[arrays[i]]['freq']
     freqs.append(f)
     
-def get_beams(ai,aj): # get beam fwhm for array indices ai and aj
-    return darrays[arrays[ai]]['beam'],darrays[arrays[aj]]['beam']
-def isplanck(aindex): # is array index ai a planck array?
-    name = darrays[arrays[aindex]]['name'].lower()
-    return True if ("hfi" in name) or ("lfi" in name) else False
-def is90150(ai,aj): # is array index ai,aj an act 150/90 combination?
-    iname = darrays[arrays[ai]]['name'].lower()
-    jname = darrays[arrays[aj]]['name'].lower()
-    return True if (("90" in iname) and ("150" in jname)) or (("90" in jname) and ("150" in iname)) else False
-# Functions for filenames corresponding to an array index
-def coaddfname(aindex): return darrays[arrays[aindex]]['froot'] + darrays[arrays[aindex]]['coadd']
-def cinvvarfname(aindex): return darrays[arrays[aindex]]['froot'] + darrays[arrays[aindex]]['cinvvar']
-def splitfname(aindex,split):
-    try: splitstart = darrays[arrays[aindex]]['splitstart']
-    except: splitstart = 0
-    return darrays[arrays[aindex]]['froot'] + darrays[arrays[aindex]]['splits'] % (split + splitstart)
-def sinvvarfname(aindex,split):
-    try: splitstart = darrays[arrays[aindex]]['splitstart']
-    except: splitstart = 0
-    return darrays[arrays[aindex]]['froot'] + darrays[arrays[aindex]]['sinvvars'] % (split + splitstart)
-def get_nsplits(aindex): return darrays[arrays[aindex]]['nsplits']
-def xmaskfname(): return config['xmask']
-
-
-def get_splits(ai):
-    """
-    Should also beam deconvolve and low pass here
-    ai is index of array (in the "arrays" list that you specified as an argument)
-    Return (nsplits,Ny,Nx) ndmap
-    """
-    nsplits = get_nsplits(ai)
-    ksplits = []
-    wins = []
-    mask = enmap.read_map(xmaskfname()) # steve's mask
-    for i in range(nsplits):
-        # iwin = enmap.read_map(sinvvarfname(ai,i))
-        iwin = 1. # window function is 1
-        window = mask*iwin
-        wins.append(window)
-        imap = enmap.read_map(splitfname(ai,i),sel=np.s_[0,:,:]) # document sel usage
-        _,_,ksplit = fc.power2d(window*imap)
-        ksplits.append(ksplit)
-    ksplits = enmap.enmap(np.stack(ksplits),wcs)
-    wins = enmap.enmap(np.stack(wins),wcs)
-    return ksplits,wins
-
-def ncalc(ai,aj):
-    """
-    Cross spectrum and noise power calculator
-    For i x j element of Cov
-    ai and aj are array indices
-    """
-    iksplits,iwins = get_splits(ai) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
-    if aj!=ai:
-        jksplits,jwins = get_splits(aj) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
-    else:
-        jksplits = iksplits.copy()
-        jwins = iwins.copy()
-    nisplits = iksplits.shape[0]
-    njsplits = jksplits.shape[0]
-    autos = 0. ; crosses = 0.
-    nautos = 0 ; ncrosses = 0
-    for p in range(nisplits):
-        for q in range(p,njsplits):
-            if p==q:
-                nautos += 1
-                autos += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
-            else:
-                ncrosses += 1
-                crosses += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
-    autos /= nautos
-    crosses /= ncrosses
-    scov = crosses
-    ncov = autos-crosses
-    return enmap.enmap(scov,wcs),enmap.enmap(ncov,wcs),enmap.enmap(autos,wcs)
 
     
 # Get the common map geometry from the coadd map of the first array
