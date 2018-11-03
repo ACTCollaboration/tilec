@@ -92,7 +92,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     if verbose: print("Resampling...")
     nint = enmap.resample(enmap.enmap(np.fft.fftshift(nflat),wcs), oshape, method=method)
     ndown = enmap.enmap(np.fft.ifftshift(enmap.resample(nint,shape,method=method)),wcs)
-    return ndown*nfitted,nparams
+    return ndown*nfitted,nfitted,nparams
 
 
 def signal_average(cov,bin_edges=None,bin_width=40):
@@ -107,32 +107,24 @@ def signal_average(cov,bin_edges=None,bin_width=40):
     return outcov
 
 
-def ncalc(ai,aj):
+
+def get_anisotropic_noise_template(shape,wcs,template_file=None,tmin=0,tmax=100):
     """
-    Cross spectrum and noise power calculator
-    For i x j element of Cov
-    ai and aj are array indices
+    This function reads in a 2D PS unredenned template and returns a full 2D noise PS.
+    It doesn't use the template in the most sensible way though.
     """
-    iksplits,iwins = get_splits(ai) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
-    if aj!=ai:
-        jksplits,jwins = get_splits(aj) # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
-    else:
-        jksplits = iksplits.copy()
-        jwins = iwins.copy()
-    nisplits = iksplits.shape[0]
-    njsplits = jksplits.shape[0]
-    autos = 0. ; crosses = 0.
-    nautos = 0 ; ncrosses = 0
-    for p in range(nisplits):
-        for q in range(p,njsplits):
-            if p==q:
-                nautos += 1
-                autos += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
-            else:
-                ncrosses += 1
-                crosses += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
-    autos /= nautos
-    crosses /= ncrosses
-    scov = crosses
-    ncov = autos-crosses
-    return enmap.enmap(scov,wcs),enmap.enmap(ncov,wcs),enmap.enmap(autos,wcs)
+    if template_file is None:
+        template_file = "data/anisotropy_template.fits"
+    template = np.nan_to_num(enmap.read_map(template_file))
+    template[template<tmin] = tmin
+    template[template>tmax] = tmax
+    ops = enmap.enmap(enmap.resample(template,shape),wcs) # interpolate to new geometry
+    return ops
+
+def get_anisotropic_noise(shape,wcs,rms,lknee,alpha,template_file=None,tmin=0,tmax=100):
+    """
+    This function reads in a 2D PS unredenned template and returns a full 2D noise PS.
+    It doesn't use the template in the most sensible way though.
+    """
+    ops = get_anisotropic_noise_template(shape,wcs,template_file,tmin,tmax)
+    return rednoise(enmap.modlmap(shape,wcs),rms,lknee,alpha)*ops

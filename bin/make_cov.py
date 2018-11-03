@@ -24,17 +24,12 @@ parser.add_argument("arrays", type=str,help='List of arrays named in arrays.yml.
 args = parser.parse_args()
 
 # Load dictionary of array specs from yaml file
-arrays = args.arrays.split(',')
-with open("arrays.yml") as f:
-    config = yaml.safe_load(f)
-darrays = {}
-for d in config['arrays']:
-    darrays[d['name']] = d.copy()
+config = tutils.Config(arrays = args.arrays.split(','))
     
 narrays = len(arrays)
 freqs = []
 for i in range(narrays):
-    f = darrays[arrays[i]]['freq']
+    f = config.darrays[arrays[i]]['freq']
     freqs.append(f)
     
 
