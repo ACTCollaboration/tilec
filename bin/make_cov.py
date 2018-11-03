@@ -94,18 +94,18 @@ for aindex1 in range(narrays):
         ifwhm,jfwhm = get_beams(aindex1,aindex2)
         dncov /= np.nan_to_num(maps.gauss_beam(modlmap,ifwhm)*maps.gauss_beam(modlmap,jfwhm))
         dscov /= np.nan_to_num(maps.gauss_beam(modlmap,ifwhm)*maps.gauss_beam(modlmap,jfwhm))
-        dncov[sel] = 1e90 #np.inf # inf gives invertible matrix but nonsensical output, 1e90 gives noninvertible, but with eigpow sensible
-        dscov[sel] = 1e90 #np.inf
+        # dncov[sel] = 1e90 #np.inf # inf gives invertible matrix but nonsensical output, 1e90 gives noninvertible, but with eigpow sensible
+        # dscov[sel] = 1e90 #np.inf
 
         # io.plot_img((np.fft.fftshift(ncov)),"tuncov%d%d.png"%(aindex1,aindex2),aspect='auto')
         # io.plot_img(np.log10(np.fft.fftshift(scov+ncov)),"udsncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
-        io.plot_img(np.log10(np.fft.fftshift(ncov)),"uncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
-        io.plot_img(np.log10(np.fft.fftshift(scov)),"usncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(ncov)),"uncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(scov)),"usncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
 
-        io.plot_img(np.log10(np.fft.fftshift(dscov+dncov)),"dsncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
-        io.plot_img(np.log10(np.fft.fftshift(dncov)),"dncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
-        io.plot_img(np.log10(np.fft.fftshift(dscov)),"dsncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
-        io.plot_img(np.log10(np.fft.fftshift(ncov/dncov)),"rcov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(dscov+dncov)),"dsncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(dncov)),"dncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(dscov)),"dsncov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
+        # io.plot_img(np.log10(np.fft.fftshift(ncov/dncov)),"rcov%d%d.png"%(aindex1,aindex2),aspect='auto',lim=[-5,1])
 
 
         Scov[aindex1,aindex2] = dscov[modlmap<lmax].reshape(-1)

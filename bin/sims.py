@@ -91,6 +91,8 @@ for k,imap in enumerate(imaps):
     for j in range(imap.shape[0]):
         io.plot_img(imap[j],"test_%d_%d.png" % (k,j))
 
+
+
 # cobj = HILC(shape,wcs,response_dict)
 # cov = HILC.learn(arrays)
 # kmap = HILC.solve("cmb",deproject="y")
