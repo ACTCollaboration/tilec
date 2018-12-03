@@ -67,7 +67,9 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
 
 
 def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
-                  lknee_guess=3000,alpha_guess=-4,nparams=None,modlmap=None,verbose=False,method="fft",radial_fit=True):
+                  lknee_guess=3000,alpha_guess=-4,nparams=None,modlmap=None,
+                  verbose=False,method="fft",radial_fit=True,
+                  oshape=None,upsample=True):
     """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
     Most arguments are for the radial fitting part.
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
@@ -88,10 +90,17 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
         nparams = None
         nfitted = 1.
     nflat = enmap.enmap(np.nan_to_num(n2d/nfitted),wcs) # flattened 2d noise power
-    oshape = (Ny//dfact[0],Nx//dfact[1])
+    if oshape is None: oshape = (Ny//dfact[0],Nx//dfact[1])
     if verbose: print("Resampling...")
-    nint = enmap.resample(enmap.enmap(np.fft.fftshift(nflat),wcs), oshape, method=method)
-    ndown = enmap.enmap(np.fft.ifftshift(enmap.resample(nint,shape,method=method)),wcs)
+    nint = enmap.resample(enmap.enmap(nflat,wcs), oshape, method=method)
+    if not(upsample):
+        if radial_fit:
+            nshape,nwcs = nint.shape,nint.wcs
+            modlmap = enmap.modlmap(nshape,nwcs)
+            nfitted = rednoise(modlmap,wfit,lfit,afit)
+        ndown = nint
+    else:
+        ndown = enmap.enmap(enmap.resample(nint,shape,method=method),wcs)
     return ndown*nfitted,nfitted,nparams
 
 
