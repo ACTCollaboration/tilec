@@ -5,7 +5,7 @@ import numpy as np
 import os,sys
 import healpy as hp
 
-croot = "/global/project/projectdirs/sobs/v4_sims/SOV3_Planck_sims/"
+croot = "/home/msyriac/data/sims/sehgal/colin/"
 
 
 hfile = croot + "healpix_4096_KappaeffLSStoCMBfullsky.fits" #"143_skymap_healpix_Nside4096_DeltaT_uK_SimLensCMB_tSZrescale0p75_CIBrescale0p75_Comm_synchffAME_rad_pts_fluxcut148_7mJy_lininterp.fits"
@@ -19,4 +19,4 @@ omap = reproject.enmap_from_healpix(hmap, shape, wcs, rot=None)
 
 box = np.deg2rad([[-1,-1],[10,10]])
 cmap = omap.submap(box)
-io.hplot(cmap,"cmap.png")
+io.hplot(cmap,"cmap")
