@@ -5,16 +5,18 @@ from pixell import enmap,enplot
 from szar import foregrounds as fgs
 
 class FlatSim(object):
-    def __init__(self,shape,wcs,beams,rmss,lknees,alphas,aniss,inhoms,nsplits,response_dict,ps_dict,ellmin=100):
+    def __init__(self,shape,wcs,beams,rmss,lknees,alphas,aniss,inhoms,nsplits,plancks,response_dict,ps_dict,ellmin=100):
         """
         TODO: inhomogenity
         noise cross covariance
         """
-
+        self.fc = maps.FourierCalc(shape,wcs)
+        self.narrays = len(beams)
         self.modlmap = enmap.modlmap(shape,wcs)
         self.beams = beams
         self.inhoms = inhoms
         self.nsplits = nsplits
+        self.plancks = plancks.astype(np.bool)
         self.ngens = []
         antemplate = covtools.get_anisotropic_noise_template(shape,wcs)
         for rms,lknee,alpha,anis in zip(rmss,lknees,alphas,aniss):
@@ -60,39 +62,3 @@ class FlatSim(object):
         return arrays
         
 
-shape,wcs = maps.rect_geometry(width_deg=10.,px_res_arcmin=0.5)
-
-params = np.loadtxt("input/simple_sim.txt")
-beams = params[:,0]
-freqs = params[:,1]
-rmss = params[:,2]
-lknees = params[:,3]
-alphas = params[:,4]
-inhoms = params[:,5]
-aniss = params[:,6]
-nsplits = params[:,7].astype(np.int)
-
-tcmb = 2.7255e6
-response_dict = {}
-response_dict['cmb'] = np.ones(shape=(beams.size,))
-response_dict['y'] = fgs.ffunc(freqs)*tcmb
-response_dict['dust'] = fgs.cib_nu(freqs)
-theory = cosmology.default_theory()
-ells = np.arange(0,8000,1)
-cltt = theory.lCl('TT',ells)
-ps_dict = {}
-ps_dict['cmb'] = cltt
-ps_dict['y'] = fgs.power_y(ells)
-ps_dict['dust'] = fgs.power_cibp_raw(ells)+fgs.power_cibc_raw(ells)
-
-sobj = FlatSim(shape,wcs,beams,rmss,lknees,alphas,aniss,inhoms,nsplits,response_dict,ps_dict)
-imaps = sobj.get_maps(seed=100)
-for k,imap in enumerate(imaps):
-    for j in range(imap.shape[0]):
-        io.plot_img(imap[j],"test_%d_%d.png" % (k,j))
-
-
-
-# cobj = HILC(shape,wcs,response_dict)
-# cov = HILC.learn(arrays)
-# kmap = HILC.solve("cmb",deproject="y")
