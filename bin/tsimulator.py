@@ -1,5 +1,5 @@
 from __future__ import print_function
-from orphics import maps,io,cosmology,lensing,stats
+from orphics import maps,io,cosmology,lensing,stats,mpi
 from pixell import enmap,lensing as enlensing,utils
 import numpy as np
 import os,sys
@@ -8,7 +8,8 @@ from tilec import utils as tutils,covtools
 
 beams,freqs,noises,lknees,alphas,nsplits = np.loadtxt("input/simple_sim.txt",unpack=True)
 
-    
+nsims = 2000
+comm,rank,my_tasks = mpi.distribute(nsims)
 
 def process(kmaps,ellmax=None):
     ellmax = lmax if ellmax is None else ellmax
@@ -64,7 +65,6 @@ class TSimulator(object):
         self.lensed = lensed
         tcmb = 2.726e6
         self.y = tsz/tcmb/fg.ffunc(self.nu0)
-        
         observed = []
         for array in self.arrays:
             scaled_tsz = tsz * fg.ffunc(self.freqs[array]) / fg.ffunc(self.nu0)
@@ -78,9 +78,8 @@ class TSimulator(object):
         return observed
 
 
-lmax = 2000
-nsims = 5
-shape,wcs = maps.rect_geometry(width_deg=10.,height_deg=10.,px_res_arcmin=2.0)
+lmax = 4000
+shape,wcs = maps.rect_geometry(width_deg=35.,height_deg=15.,px_res_arcmin=1.5)
 ells = np.arange(0,lmax,1)
 theory = cosmology.default_theory()
 
@@ -135,9 +134,10 @@ bin_edges = np.arange(100,lmax-500,40)
 binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
-s = stats.Stats()
+s = stats.Stats(comm)
 
-for i in range(nsims):
+for task in my_tasks:
+    i = task
     isim = tsim.get_sim(i)
     coadds = []
     ikmaps = []
@@ -180,31 +180,31 @@ for i in range(nsims):
     compute(iksilc,iklensed,"cmb_silc_cross")
     iksilc = process(maps.cilc(kmaps,Cinv,cresponses,yresponses))
     compute(iksilc,iklensed,"cmb_cilc_cross")
-    print(i)
+    if rank==0: print ("Rank 0 done with task ", task+1, " / " , len(my_tasks))
 
 s.get_stats()
 
+if rank==0:
+    cmb_silc_cross = s.stats["cmb_silc_cross"]['mean']
+    cmb_cilc_cross = s.stats["cmb_cilc_cross"]['mean']
+    y_silc_cross = s.stats["y_silc_cross"]['mean']
+    y_cilc_cross = s.stats["y_cilc_cross"]['mean']
+    ells = np.arange(0,lmax,1)
+    cltt = theory.lCl('TT',ells)
+    clyy = fg.power_y(ells)
 
-cmb_silc_cross = s.stats["cmb_silc_cross"]['mean']
-cmb_cilc_cross = s.stats["cmb_cilc_cross"]['mean']
-y_silc_cross = s.stats["y_silc_cross"]['mean']
-y_cilc_cross = s.stats["y_cilc_cross"]['mean']
-ells = np.arange(0,lmax,1)
-cltt = theory.lCl('TT',ells)
-clyy = fg.power_y(ells)
-
-pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
-pl.add(ells,cltt)
-pl.add(cents,cmb_silc_cross,marker="o",ls="none")
-pl.add(cents+10,cmb_cilc_cross,marker="o",ls="none")
-pl.done("cmb_cross.png")
-
-
-pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
-pl.add(ells,clyy)
-pl.add(cents,y_silc_cross,marker="o",ls="none")
-pl.add(cents+10,y_cilc_cross,marker="o",ls="none")
-pl.done("y_cross.png")
+    pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
+    pl.add(ells,cltt)
+    pl.add(cents,cmb_silc_cross,marker="o",ls="none",label='standard')
+    pl.add(cents+10,cmb_cilc_cross,marker="o",ls="none",label='constrained')
+    pl.done(io.dout_dir+"cmb_cross.png")
 
 
-    
+    pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
+    pl.add(ells,clyy)
+    pl.add(cents,y_silc_cross,marker="o",ls="none",label='standard')
+    pl.add(cents+10,y_cilc_cross,marker="o",ls="none",label='constrained')
+    pl.done(io.dout_dir+"y_cross.png")
+
+
+
