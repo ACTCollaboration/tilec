@@ -151,3 +151,50 @@ class Config(object):
         else:
             return enmap.enmap(scov,self.wcs),enmap.enmap(ncov,self.wcs),enmap.enmap(autos,self.wcs)
             
+
+
+def ncalc(splits,coadds,ai,aj,fc,do_coadd_noise=True):
+    """
+    Cross spectrum and noise power calculator
+    For i x j element of Cov
+    ai and aj are array indices
+    """
+    iksplits = splits[ai] # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
+    if aj!=ai:
+        jksplits = splits[aj] # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
+    else:
+        jksplits = iksplits.copy()
+    nisplits = len(iksplits)
+    njsplits = len(jksplits)
+    autos = 0. ; crosses = 0.
+    nautos = 0 ; ncrosses = 0
+    for p in range(nisplits):
+        for q in range(p,njsplits):
+            if p==q:
+                nautos += 1
+                autos += fc.f2power(iksplits[p],jksplits[q]) 
+            else:
+                ncrosses += 1
+                crosses += fc.f2power(iksplits[p],jksplits[q]) 
+    autos /= nautos
+    crosses /= ncrosses
+    scov = crosses
+    ncov = autos-crosses
+    if do_coadd_noise:
+        assert nisplits==njsplits
+        ikcoadd = coadds[ai]
+        if aj!=ai:
+            jkcoadd = coadds[aj]
+        else:
+            jkcoadd = ikcoadd.copy()
+        npower = 0.
+        for i in range(nisplits):
+            diff1 = iksplits[i] - ikcoadd
+            diff2 = jksplits[i] - jkcoadd
+            npower += (fc.f2power(diff1,diff2) )
+        npower *= 1./((1.-1./nisplits)*nisplits)
+        return enmap.enmap(scov,fc.wcs),enmap.enmap(ncov,fc.wcs),enmap.enmap(autos,fc.wcs),enmap.enmap(npower,fc.wcs)
+    else:
+        return enmap.enmap(scov,fc.wcs),enmap.enmap(ncov,fc.wcs),enmap.enmap(autos,fc.wcs)
+
+        
