@@ -1,4 +1,6 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
 from orphics import maps,io,cosmology,lensing,stats,mpi
 from pixell import enmap,lensing as enlensing,utils
 import numpy as np
@@ -8,7 +10,7 @@ from tilec import utils as tutils,covtools
 
 beams,freqs,noises,lknees,alphas,nsplits = np.loadtxt("input/simple_sim.txt",unpack=True)
 
-nsims = 2000
+nsims = 1
 comm,rank,my_tasks = mpi.distribute(nsims)
 
 def process(kmaps,ellmax=None):
@@ -23,6 +25,11 @@ def compute(ik1,ik2,tag):
     cents,p1d = binner.bin(pcross2d)
     s.add_to_stats(tag,p1d.copy())
 
+def ncompute(ik,nk,tag):
+    pauto2d = fc.f2power(ik,ik) - fc.f2power(nk,nk)
+    cents,p1d = binner.bin(pauto2d)
+    s.add_to_stats(tag,p1d.copy())
+    
 
 class TSimulator(object):
     def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmax=6000):
@@ -62,20 +69,23 @@ class TSimulator(object):
         kappa,tsz,cib = self.get_corr(seed)
         unlensed = self.cgen.get_map(seed=(self.cseed,seed))
         lensed = self._lens(unlensed,kappa)
-        self.lensed = lensed
+        self.lensed = lensed.copy()
         tcmb = 2.726e6
-        self.y = tsz/tcmb/fg.ffunc(self.nu0)
+        self.y = tsz.copy()/tcmb/fg.ffunc(self.nu0)
         observed = []
+        noises = []
         for array in self.arrays:
             scaled_tsz = tsz * fg.ffunc(self.freqs[array]) / fg.ffunc(self.nu0)
             scaled_cib = cib * fg.cib_nu(self.freqs[array]) / fg.cib_nu(self.nu0)
-            sky = lensed + scaled_tsz + scaled_cib
+            sky = lensed #+ scaled_tsz + scaled_cib
             beamed = maps.filter_map(sky,self.kbeams[array])
             observed.append([])
+            noises.append([])
             for split in range(self.nsplits[array]):
                 noise = self.ngens[array].get_map(seed=(self.nseed,seed,split))
                 observed[array].append(beamed+noise)
-        return observed
+                noises[array].append(noise)
+        return observed,noises
 
 
 lmax = 4000
@@ -130,7 +140,7 @@ tcmb = 2.726e6
 yresponses = fg.ffunc(tsim.freqs)*tcmb
 cresponses = yresponses*0.+1.
 
-bin_edges = np.arange(100,lmax-500,40)
+bin_edges = np.arange(100,lmax-500,80)
 binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
@@ -138,14 +148,18 @@ s = stats.Stats(comm)
 
 for task in my_tasks:
     i = task
-    isim = tsim.get_sim(i)
+    isim,isimnoise = tsim.get_sim(i)
     coadds = []
     ikmaps = []
+    inkmaps = []
     for array in tsim.arrays:
         coadd = sum(isim[array])/tsim.nsplits[array]
+        ncoadd = sum(isimnoise[array])/tsim.nsplits[array]
         coadds.append(coadd)
         _,_,kcoadd = fc.power2d(coadds[-1])
+        _,_,kncoadd = fc.power2d(ncoadd)
         ikmaps.append(  np.nan_to_num(kcoadd/tsim.kbeams[array]) )
+        inkmaps.append(  np.nan_to_num(kncoadd/tsim.kbeams[array]) )
         
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays) :
@@ -170,16 +184,27 @@ for task in my_tasks:
     Cinv = np.rollaxis(icinv,0,3)
     ikmaps = np.stack(ikmaps)
     ikmaps[:,modlmap>lmax] = 0
+    inkmaps = np.stack(inkmaps)
+    inkmaps[:,modlmap>lmax] = 0
     kmaps = ikmaps.reshape((narrays,Ny*Nx))[:,modlmap.reshape(-1)<lmax]
+    nkmaps = inkmaps.reshape((narrays,Ny*Nx))[:,modlmap.reshape(-1)<lmax]
     iksilc = process(maps.silc(kmaps,Cinv,yresponses))
+    inksilc = process(maps.silc(nkmaps,Cinv,yresponses))
     compute(iksilc,iky,"y_silc_cross")
+    ncompute(iksilc,inksilc,"y_silc_auto")
     iksilc = process(maps.cilc(kmaps,Cinv,yresponses,cresponses))
+    inksilc = process(maps.cilc(nkmaps,Cinv,yresponses,cresponses))
     compute(iksilc,iky,"y_cilc_cross")
+    ncompute(iksilc,inksilc,"y_cilc_auto")
     
     iksilc = process(maps.silc(kmaps,Cinv,cresponses))
+    inksilc = process(maps.silc(nkmaps,Cinv,cresponses))
     compute(iksilc,iklensed,"cmb_silc_cross")
+    ncompute(iksilc,inksilc,"cmb_silc_auto")
     iksilc = process(maps.cilc(kmaps,Cinv,cresponses,yresponses))
+    inksilc = process(maps.cilc(nkmaps,Cinv,cresponses,yresponses))
     compute(iksilc,iklensed,"cmb_cilc_cross")
+    ncompute(iksilc,inksilc,"cmb_cilc_auto")
     if rank==0: print ("Rank 0 done with task ", task+1, " / " , len(my_tasks))
 
 s.get_stats()
@@ -189,21 +214,37 @@ if rank==0:
     cmb_cilc_cross = s.stats["cmb_cilc_cross"]['mean']
     y_silc_cross = s.stats["y_silc_cross"]['mean']
     y_cilc_cross = s.stats["y_cilc_cross"]['mean']
+    ecmb_silc_cross = s.stats["cmb_silc_cross"]['errmean']
+    ecmb_cilc_cross = s.stats["cmb_cilc_cross"]['errmean']
+    ey_silc_cross = s.stats["y_silc_cross"]['errmean']
+    ey_cilc_cross = s.stats["y_cilc_cross"]['errmean']
+    cmb_silc_auto = s.stats["cmb_silc_auto"]['mean']
+    cmb_cilc_auto = s.stats["cmb_cilc_auto"]['mean']
+    y_silc_auto = s.stats["y_silc_auto"]['mean']
+    y_cilc_auto = s.stats["y_cilc_auto"]['mean']
+    ecmb_silc_auto = s.stats["cmb_silc_auto"]['errmean']
+    ecmb_cilc_auto = s.stats["cmb_cilc_auto"]['errmean']
+    ey_silc_auto = s.stats["y_silc_auto"]['errmean']
+    ey_cilc_auto = s.stats["y_cilc_auto"]['errmean']
     ells = np.arange(0,lmax,1)
     cltt = theory.lCl('TT',ells)
     clyy = fg.power_y(ells)
 
-    pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
+    pl = io.Plotter(yscale='log',scalefn=lambda x: x**2,xlabel='l',ylabel='D')
     pl.add(ells,cltt)
-    pl.add(cents,cmb_silc_cross,marker="o",ls="none",label='standard')
-    pl.add(cents+10,cmb_cilc_cross,marker="o",ls="none",label='constrained')
+    pl.add_err(cents,cmb_silc_cross,yerr=ecmb_silc_cross,marker="o",ls="none",label='standard')
+    pl.add_err(cents+10,cmb_cilc_cross,yerr=ecmb_cilc_cross,marker="o",ls="none",label='constrained')
+    pl.add_err(cents,cmb_silc_auto,yerr=ecmb_silc_auto,marker="d",ls="none",label='standard')
+    pl.add_err(cents+10,cmb_cilc_auto,yerr=ecmb_cilc_auto,marker="d",ls="none",label='constrained')
     pl.done(io.dout_dir+"cmb_cross.png")
 
 
-    pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
+    pl = io.Plotter(yscale='log',scalefn=lambda x: x**2,xlabel='l',ylabel='D')
     pl.add(ells,clyy)
-    pl.add(cents,y_silc_cross,marker="o",ls="none",label='standard')
-    pl.add(cents+10,y_cilc_cross,marker="o",ls="none",label='constrained')
+    pl.add_err(cents,y_silc_cross,yerr=ey_silc_cross,marker="o",ls="none",label='standard')
+    pl.add_err(cents+10,y_cilc_cross,yerr=ey_cilc_cross,marker="o",ls="none",label='constrained')
+    pl.add_err(cents,y_silc_auto,yerr=ey_silc_auto,marker="d",ls="none",label='standard')
+    pl.add_err(cents+10,y_cilc_auto,yerr=ey_cilc_auto,marker="d",ls="none",label='constrained')
     pl.done(io.dout_dir+"y_cross.png")
 
 
