@@ -15,19 +15,20 @@ Notes:
 
 # cov
 analytic = False
+noise_isotropic = False
+debug_noise = False
 # foregrounds
 fgs = True
 dust = False
 ycibcorr = False
 # analysis
-lmax = 4000
-px = 2.0
-abeam = 0.
+lmax = 6000
+px = 1.0
 # sims
-nsims = 1
+nsims = 5
 # signal cov
-bin_width = 160 # this parameter seems to be important and cause unpredictable noise
-kind = 5
+bin_width = 80 # this parameter seems to be important and cause unpredictable noise
+kind = 0 # higher order interpolation breaks covariance
 # noise cov
 dfact=(16,16)
 
@@ -58,11 +59,13 @@ def ncompute(ik,nk,tag):
     
 
 class TSimulator(object):
-    def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmins,lmaxs,lmax=6000):
+    def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmins,lmaxs):
         self.nu0 = nu0
         self.freqs = freqs
         self.lmins = lmins
         self.lmaxs = lmaxs
+        self.modlmap = enmap.modlmap(shape,wcs)
+        lmax = self.modlmap.max()
         theory = cosmology.default_theory()
         ells = np.arange(0,lmax,1)
         cltt = theory.uCl('TT',ells)
@@ -72,7 +75,6 @@ class TSimulator(object):
         self.fgen = maps.MapGen((ncomp,)+shape[-2:],wcs,pss)
         self.cgen = maps.MapGen(shape[-2:],wcs,cltt[None,None])
         self.shape, self.wcs = shape,wcs
-        self.modlmap = enmap.modlmap(shape,wcs)
         self.arrays = range(len(freqs))
         self.nsplits = nsplits
         self.ngens = []
@@ -154,31 +156,18 @@ ffuncs = {}
 ffuncs['tsz'] = lambda ells,nu1,nu2: fg.power_tsz(ells,nu1,nu2)
 if dust: ffuncs['cib'] = lambda ells,nu1,nu2: fg.power_cibc(ells,nu1,nu2)
 
-# pl = io.Plotter(yscale='log',scalefn=lambda x: x**2)
-# pl.add(ells,cltt,label="tt")
-# pl.add(ells,clss,label="sz")
-# pl.add(ells,-clsc,label="sz x cib")
-# pl.add(ells,clcc,label="cib")
-# pl.done()
-
 ncomp = 3 if dust else 2
 ps = np.zeros((ncomp,ncomp,ells.size))
 ps[0,0] = clkk
 ps[1,1] = clss
-if dust: ps[2,2] = clcc
-if dust: ps[1,2] = ps[2,1] = clsc
 ps[0,1] = ps[1,0] = clks
-if dust: ps[0,2] = ps[2,0] = clkc
+if dust:
+    ps[2,2] = clcc
+    ps[1,2] = ps[2,1] = clsc
+    ps[0,2] = ps[2,0] = clkc
 
-# fgen = maps.MapGen((3,)+shape[-2:],wcs,ps)
-# comps = fgen.get_map(0)
-# io.plot_img(comps[0])
-# io.plot_img(comps[1])
-# io.plot_img(comps[2])
-
-tsim = TSimulator(shape,wcs,beams,freqs,noises,lknees,alphas,nsplits.astype(np.int),ps,nu0,lmins=lmins,lmaxs=lmaxs,lmax=lmax)
+tsim = TSimulator(shape,wcs,beams,freqs,noises,lknees,alphas,nsplits.astype(np.int),ps,nu0,lmins=lmins,lmaxs=lmaxs)
 modlmap = tsim.modlmap
-analysis_beam = maps.gauss_beam(modlmap,abeam)
 fc = maps.FourierCalc(tsim.shape,tsim.wcs)
 narrays = len(tsim.arrays)
 iells = modlmap[modlmap<lmax1].reshape(-1) # unraveled disk
@@ -188,7 +177,7 @@ tcmb = 2.726e6
 yresponses = fg.ffunc(tsim.freqs)*tcmb
 cresponses = yresponses*0.+1.
 
-bin_edges = np.arange(100,lmax-500,80)
+bin_edges = np.arange(200,lmax-50,80)
 binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
@@ -197,11 +186,8 @@ if analytic:
                                  ffuncs,tsim.freqs,tsim.kbeams,
                                  tsim.ps_noises,lmins=lmins,lmaxs=lmaxs,verbose=True)
     Cov = Cov[:,:,modlmap<lmax1].reshape((narrays,narrays,modlmap[modlmap<lmax1].size))
-    # ls = modlmap[modlmap<lmax1].reshape(-1)
-    # Cov = Cov[:,:,np.logical_and(ls>300,ls<200010)]
-    
-    iCov = np.rollaxis(Cov,2)
-    icinv = np.linalg.inv(iCov)
+    # iCov = np.rollaxis(Cov,2)
+    # icinv = np.linalg.inv(iCov)
 
 s = stats.Stats(comm)
 
@@ -230,17 +216,20 @@ for task in my_tasks:
             for aindex2 in range(aindex1,narrays) :
                 scov,ncov,autos = tutils.ncalc(iksplits,aindex1,aindex2,fc)
                 dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind) # need to check this is not zero
-                # dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind) if (aindex1==aindex2)  else 0. # !!!!
-                # io.plot_img(maps.ftrans(dscov))
-                # io.plot_img(maps.ftrans(dncov))
-                # dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,radial_fit=False) if (aindex1==aindex2)  else (0.,None,None)
-                dncov = ncov
-                # if aindex1==aindex2:
-                #     io.plot_img(maps.ftrans(scov),aspect='auto')
-                #     io.plot_img(maps.ftrans(dscov),aspect='auto')
-                #     io.plot_img(maps.ftrans(ncov),aspect='auto')
-                #     io.plot_img(maps.ftrans(dncov),aspect='auto')
-                #     io.plot_img(maps.ftrans(tsim.ps_noises[aindex1]),aspect='auto')
+                if noise_isotropic:
+                    dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind) if (aindex1==aindex2)  else 0.
+                else:
+                    dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
+                                                       radial_fit=True if tsim.nsplits[aindex1]==4 else False,lmax=lmax,
+                                                       wnoise_annulus=500,
+                                                       bin_annulus=bin_width) if (aindex1==aindex2)  else (0.,None,None)
+                if debug_noise:
+                    if aindex1==aindex2:
+                        io.plot_img(maps.ftrans(scov),aspect='auto')
+                        io.plot_img(maps.ftrans(dscov),aspect='auto')
+                        io.plot_img(maps.ftrans(ncov),aspect='auto')
+                        io.plot_img(maps.ftrans(dncov),aspect='auto')
+                        io.plot_img(maps.ftrans(tsim.ps_noises[aindex1]),aspect='auto')
                 dncov = np.nan_to_num(dncov)
                 dscov = np.nan_to_num(dscov)
                 if aindex1==aindex2:
@@ -253,12 +242,8 @@ for task in my_tasks:
                     Ncov[aindex2,aindex1] = Ncov[aindex1,aindex2].copy()
                 
         Cov = Scov + Ncov
-        # ls = modlmap[modlmap<lmax1].reshape(-1)
-        # Cov = Cov[:,:,np.logical_and(ls>500,ls<610)]
-        # print(Cov.shape)
-        # print(Cov[:,:,0])
-        iCov = np.rollaxis(Cov,2)
-        icinv = np.linalg.inv(iCov)
+        # iCov = np.rollaxis(Cov,2)
+        # icinv = np.linalg.inv(iCov)
         
     ls = modlmap[modlmap<lmax1].reshape(-1)
     hilc = ilc.HILC(ls,np.array(tsim.lbeams),Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1)
