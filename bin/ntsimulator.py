@@ -6,7 +6,7 @@ from pixell import enmap,lensing as enlensing,utils
 import numpy as np
 import os,sys
 from szar import foregrounds as fg
-from tilec import utils as tutils,covtools
+from tilec import utils as tutils,covtools,ilc
 
 """
 Notes:
@@ -20,8 +20,8 @@ fgs = True
 dust = False
 ycibcorr = False
 # analysis
-lmax = 6000
-px = 1.5
+lmax = 4000
+px = 2.0
 abeam = 0.
 # sims
 nsims = 1
@@ -77,14 +77,16 @@ class TSimulator(object):
         self.nsplits = nsplits
         self.ngens = []
         self.kbeams = []
+        self.lbeams = []
         self.ps_noises = []
         for array in self.arrays:
             ps_noise = cosmology.noise_func(ells,0.,noises[array],lknee=lknees[array],alpha=alphas[array])
-            ps_noise[ells<lmins[array]] = 0
-            ps_noise[ells>lmaxs[array]] = 0
+            # ps_noise[ells<lmins[array]] = 0
+            # ps_noise[ells>lmaxs[array]] = 0
             self.ps_noises.append(maps.interp(ells,ps_noise.copy())(self.modlmap))
             self.ngens.append( maps.MapGen(shape[-2:],wcs,ps_noise[None,None]*nsplits[array]) )
             self.kbeams.append( maps.gauss_beam(self.modlmap,beams[array]) )
+            self.lbeams.append( maps.gauss_beam(self.modlmap,beams[array])[self.modlmap<lmax1].reshape(-1) )
 
     def get_corr(self,seed):
         fmap = self.fgen.get_map(seed=(self.kseed,seed),scalar=True)
@@ -123,6 +125,8 @@ class TSimulator(object):
                 noise = self.ngens[array].get_map(seed=(self.nseed,seed,split,array))
                 observed[array].append(beamed+noise)
                 noises[array].append(noise)
+            observed[array] = enmap.enmap(np.stack(observed[array]),self.wcs)
+            noises[array] = enmap.enmap(np.stack(noises[array]),self.wcs)
         return observed,noises
 
 
@@ -189,52 +193,61 @@ binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
 if analytic:
-    Cov = maps.ilc_cov(tsim.modlmap,theory.lCl('TT',tsim.modlmap),
-                       tsim.kbeams,tsim.freqs,tsim.ps_noises,
-                       components,fdict=ffuncs,data=False,verbose=False,
-                       analysis_beam=analysis_beam,lmins=lmins,lmaxs=lmaxs)
+    Cov = ilc.build_analytic_cov(tsim.modlmap,theory.lCl('TT',tsim.modlmap),
+                                 ffuncs,tsim.freqs,tsim.kbeams,
+                                 tsim.ps_noises,lmins=lmins,lmaxs=lmaxs,verbose=True)
     Cov = Cov[:,:,modlmap<lmax1].reshape((narrays,narrays,modlmap[modlmap<lmax1].size))
-    Cov = np.rollaxis(Cov,2)
-    icinv = np.linalg.inv(Cov)
-    Cinv = np.rollaxis(icinv,0,3)
-
+    # ls = modlmap[modlmap<lmax1].reshape(-1)
+    # Cov = Cov[:,:,np.logical_and(ls>300,ls<200010)]
+    
+    iCov = np.rollaxis(Cov,2)
+    icinv = np.linalg.inv(iCov)
 
 s = stats.Stats(comm)
 
 for task in my_tasks:
     isim,isimnoise = tsim.get_sim(task)
-    coadds = []
     ikmaps = []
     inkmaps = []
+    iksplits = []
     for array in tsim.arrays:
-        coadd = sum(isim[array])/tsim.nsplits[array]
+        iksplits.append([])
+        for split in range(tsim.nsplits[array]):
+            _,_,ksplit = fc.power2d(isim[array][split])
+            iksplits[array].append(ksplit.copy())
+        iksplits[array] = enmap.enmap(np.stack(iksplits[array]),tsim.wcs)
+            
+        kcoadd = sum(iksplits[array])/tsim.nsplits[array]
         ncoadd = sum(isimnoise[array])/tsim.nsplits[array]
-        coadds.append(coadd)
-        _,_,kcoadd = fc.power2d(coadds[-1])
         _,_,kncoadd = fc.power2d(ncoadd)
-        ikmaps.append(  np.nan_to_num(kcoadd/tsim.kbeams[array]*analysis_beam) )
-        inkmaps.append(  np.nan_to_num(kncoadd/tsim.kbeams[array]*analysis_beam) )
+        ikmaps.append(  kcoadd.copy())
+        inkmaps.append(  kncoadd.copy())
 
     if not(analytic):
         Scov = np.zeros((narrays,narrays,nells))
         Ncov = np.zeros((narrays,narrays,nells))
         for aindex1 in range(narrays):
             for aindex2 in range(aindex1,narrays) :
-                scov,ncov,autos = tutils.ncalc(isim,coadds,aindex1,aindex2,fc,do_coadd_noise=False)
+                scov,ncov,autos = tutils.ncalc(iksplits,aindex1,aindex2,fc)
                 dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind) # need to check this is not zero
-                dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind) if (aindex1==aindex2)  else 0. # !!!!
+                # dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind) if (aindex1==aindex2)  else 0. # !!!!
                 # io.plot_img(maps.ftrans(dscov))
                 # io.plot_img(maps.ftrans(dncov))
                 # dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,radial_fit=False) if (aindex1==aindex2)  else (0.,None,None)
-                dncov = np.nan_to_num(dncov/tsim.kbeams[aindex1]/tsim.kbeams[aindex2]*analysis_beam**2.)
-                dscov = np.nan_to_num(dscov/tsim.kbeams[aindex1]/tsim.kbeams[aindex2]*analysis_beam**2.)
+                dncov = ncov
+                # if aindex1==aindex2:
+                #     io.plot_img(maps.ftrans(scov),aspect='auto')
+                #     io.plot_img(maps.ftrans(dscov),aspect='auto')
+                #     io.plot_img(maps.ftrans(ncov),aspect='auto')
+                #     io.plot_img(maps.ftrans(dncov),aspect='auto')
+                #     io.plot_img(maps.ftrans(tsim.ps_noises[aindex1]),aspect='auto')
+                dncov = np.nan_to_num(dncov)
+                dscov = np.nan_to_num(dscov)
                 if aindex1==aindex2:
-                    # dscov[modlmap<lmins[aindex1]] = np.inf
-                    # dscov[modlmap>lmaxs[aindex1]] = np.inf
                     dncov[modlmap<lmins[aindex1]] = np.inf
                     dncov[modlmap>lmaxs[aindex1]] = np.inf
                 Scov[aindex1,aindex2] = dscov[modlmap<lmax1].reshape(-1).copy()
-                Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy()
+                Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy() if (aindex1==aindex2)  else 0.
                 if aindex1!=aindex2:
                     Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
                     Ncov[aindex2,aindex1] = Ncov[aindex1,aindex2].copy()
@@ -244,10 +257,11 @@ for task in my_tasks:
         # Cov = Cov[:,:,np.logical_and(ls>500,ls<610)]
         # print(Cov.shape)
         # print(Cov[:,:,0])
-        Cov = np.rollaxis(Cov,2)
-        icinv = np.linalg.inv(Cov)
-        Cinv = np.rollaxis(icinv,0,3)
+        iCov = np.rollaxis(Cov,2)
+        icinv = np.linalg.inv(iCov)
         
+    ls = modlmap[modlmap<lmax1].reshape(-1)
+    hilc = ilc.HILC(ls,np.array(tsim.lbeams),Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1)
         
     ilensed = tsim.lensed
     _,iklensed,_ = fc.power2d(ilensed)
@@ -259,21 +273,21 @@ for task in my_tasks:
     inkmaps[:,modlmap>lmax1] = 0
     kmaps = ikmaps.reshape((narrays,Ny*Nx))[:,modlmap.reshape(-1)<lmax1]
     nkmaps = inkmaps.reshape((narrays,Ny*Nx))[:,modlmap.reshape(-1)<lmax1]
-    iksilc = process(maps.silc(kmaps,Cinv,yresponses))
-    inksilc = process(maps.silc(nkmaps,Cinv,yresponses))
+    iksilc = process(hilc.standard_map(kmaps,"tsz"))
+    inksilc = process(hilc.standard_map(nkmaps,"tsz"))
     compute(iksilc,iky,"y_silc_cross")
     ncompute(iksilc,inksilc,"y_silc_auto")
-    iksilc = process(maps.cilc(kmaps,Cinv,yresponses,cresponses))
-    inksilc = process(maps.cilc(nkmaps,Cinv,yresponses,cresponses))
+    iksilc = process(hilc.constrained_map(kmaps,"tsz","cmb"))
+    inksilc = process(hilc.constrained_map(nkmaps,"tsz","cmb"))
     compute(iksilc,iky,"y_cilc_cross")
     ncompute(iksilc,inksilc,"y_cilc_auto")
     
-    iksilc = process(maps.silc(kmaps,Cinv,cresponses))
-    inksilc = process(maps.silc(nkmaps,Cinv,cresponses))
+    iksilc = process(hilc.standard_map(kmaps,"cmb"))
+    inksilc = process(hilc.standard_map(nkmaps,"cmb"))
     compute(iksilc,iklensed,"cmb_silc_cross")
     ncompute(iksilc,inksilc,"cmb_silc_auto")
-    iksilc = process(maps.cilc(kmaps,Cinv,cresponses,yresponses))
-    inksilc = process(maps.cilc(nkmaps,Cinv,cresponses,yresponses))
+    iksilc = process(hilc.constrained_map(kmaps,"cmb","tsz"))
+    inksilc = process(hilc.constrained_map(nkmaps,"cmb","tsz"))
     compute(iksilc,iklensed,"cmb_cilc_cross")
     ncompute(iksilc,inksilc,"cmb_cilc_auto")
     if rank==0: print ("Rank 0 done with task ", task+1, " / " , len(my_tasks))
@@ -307,6 +321,7 @@ if rank==0:
     pl.add_err(cents-10,cmb_cilc_cross,yerr=ecmb_cilc_cross,marker="o",ls="none",label='constrained  cross')
     pl.add_err(cents+5,cmb_silc_auto,yerr=ecmb_silc_auto,marker="x",ls="none",label='standard - noise')
     pl.add_err(cents+10,cmb_cilc_auto,yerr=ecmb_cilc_auto,marker="x",ls="none",label='constrained  - noise')
+    pl._ax.set_ylim(1e0,5e4)
     pl.done(io.dout_dir+"cmb_cross.png")
 
 
@@ -318,6 +333,7 @@ if rank==0:
     pl.add_err(cents+10,y_cilc_auto,yerr=ey_cilc_auto,marker="x",ls="none",label='constrained - noise')
     # pl._ax.set_ylim(-1e-12,1e-12)
     # pl.hline()
+    pl._ax.set_ylim(1e-13,5e-11)
     pl.done(io.dout_dir+"y_cross.png")
 
 
