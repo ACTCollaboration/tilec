@@ -22,15 +22,18 @@ fgs = True
 dust = False
 ycibcorr = False
 # analysis
-lmax = 6000
-px = 1.0
+lmax = 4000
+px = 2.0
 # sims
-nsims = 5
+nsims = 1
 # signal cov
 bin_width = 80 # this parameter seems to be important and cause unpredictable noise
 kind = 0 # higher order interpolation breaks covariance
 # noise cov
 dfact=(16,16)
+
+width = 35.
+height = 15.
 
 
 beams,freqs,noises,lknees,alphas,nsplits,lmins,lmaxs = np.loadtxt("input/simple_sim.txt",unpack=True)
@@ -132,7 +135,7 @@ class TSimulator(object):
         return observed,noises
 
 
-shape,wcs = maps.rect_geometry(width_deg=35.,height_deg=15.,px_res_arcmin=px)
+shape,wcs = maps.rect_geometry(width_deg=width,height_deg=height,px_res_arcmin=px)
 minell = maps.minimum_ell(shape,wcs)
 lmax1 = lmax-minell
 

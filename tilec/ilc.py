@@ -54,6 +54,7 @@ class HILC(object):
         self.kbeams = kbeams
         self.cov = np.moveaxis(cov,(0,1),(-2,-1))
         self.responses = {}
+        if responses is None: responses = {}
         if "cmb" not in responses.keys(): responses['cmb'] = np.ones((1,nmap))
         for key in responses.keys():
             self.add_response(key,responses[key].reshape((1,nmap)))
@@ -61,13 +62,26 @@ class HILC(object):
     def add_response(self,name,response):
         self.responses[name] = response * self.kbeams
 
+    def cross_noise(self,name1,name2):
+        """
+        Cross-noise of <standard constrained>
+        """
+        snoise = self.standard_noise(name1)
+        cnoise,cross = self.constrained_noise(name1,name2,return_cross=True)
+        return snoise*cross
+        
     def standard_noise(self,name):
+        """
+        Auto-noise <standard standard>
+        """
         r = self.responses[name]
         mcomb = map_comb(r,r,self.cov)
         return (1./mcomb)
 
-    def constrained_noise(self,name1,name2):
-        """ Derived from Eq 18 of arXiv:1006.5599 """
+    def constrained_noise(self,name1,name2,return_cross=False):
+        """ Derived from Eq 18 of arXiv:1006.5599
+        Auto-noise <constrained constrained>
+        """
         response_a = self.responses[name1]
         response_b = self.responses[name2]
         brb = map_comb(response_b,response_b,self.cov)
@@ -75,8 +89,12 @@ class HILC(object):
         arb = map_comb(response_a,response_b,self.cov)
         bra = map_comb(response_b,response_a,self.cov)
         numer = (brb)**2. * ara + (arb)**2.*brb - brb*arb*arb - arb*brb*bra
-        denom = (ara*brb-arb**2.)**2.
-        return (numer/denom)
+        denom = ara*brb-arb**2.
+        d2 = (denom)**2.
+        if return_cross:
+            return (numer/d2), (brb*ara - arb*bra)/denom
+        else:
+            return (numer/d2)
 
     def _prepare_maps(self,kmaps):
         assert kmaps.shape[0] == self.nmap
