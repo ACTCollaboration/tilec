@@ -11,10 +11,12 @@ from tilec import utils as tutils,covtools,ilc
 """
 Notes:
 1. eigpow(-1) is bad for analytic (discontinuity at high ell)
+2. large low ell scatter when including Planck comes from noisy cross-spectra due to only having 2 splits
 """
 
 # cov
 analytic = False
+atmosphere = True
 noise_isotropic = False
 debug_noise = False
 # foregrounds
@@ -22,10 +24,10 @@ fgs = True
 dust = False
 ycibcorr = False
 # analysis
-lmax = 4000
+lmax = 2000
 px = 2.0
 # sims
-nsims = 1
+nsims = 5
 # signal cov
 bin_width = 80 # this parameter seems to be important and cause unpredictable noise
 kind = 0 # higher order interpolation breaks covariance
@@ -43,9 +45,9 @@ else:
     components = ['tsz','cib'] if dust else ['tsz']
 comm,rank,my_tasks = mpi.distribute(nsims)
 
-def process(kmaps,ellmax=None):
+def process(kmaps,ellmax=None,dtype=np.complex128):
     ellmax = lmax if ellmax is None else ellmax
-    kout = enmap.zeros((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    kout = enmap.zeros((Ny,Nx),wcs,dtype=dtype).reshape(-1)
     kout[modlmap.reshape(-1)<lmax1] = np.nan_to_num(kmaps.copy())
     kout = enmap.enmap(kout.reshape((Ny,Nx)),wcs)
     return kout
@@ -63,6 +65,11 @@ def ncompute(ik,nk,tag):
 
 class TSimulator(object):
     def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmins,lmaxs):
+        if not(atmosphere):
+            lknees = [0.]*len(freqs)
+            alphas = [1.]*len(freqs)
+            # beams = [0.00001]*len(freqs)
+            # noises = [0.00001]*len(freqs)
         self.nu0 = nu0
         self.freqs = freqs
         self.lmins = lmins
@@ -83,15 +90,20 @@ class TSimulator(object):
         self.ngens = []
         self.kbeams = []
         self.lbeams = []
+        self.ebeams = []
         self.ps_noises = []
+        self.eps_noises = []
         for array in self.arrays:
             ps_noise = cosmology.noise_func(ells,0.,noises[array],lknee=lknees[array],alpha=alphas[array])
             # ps_noise[ells<lmins[array]] = 0
             # ps_noise[ells>lmaxs[array]] = 0
             self.ps_noises.append(maps.interp(ells,ps_noise.copy())(self.modlmap))
+            self.eps_noises.append(ps_noise.copy())
             self.ngens.append( maps.MapGen(shape[-2:],wcs,ps_noise[None,None]*nsplits[array]) )
             self.kbeams.append( maps.gauss_beam(self.modlmap,beams[array]) )
             self.lbeams.append( maps.gauss_beam(self.modlmap,beams[array])[self.modlmap<lmax1].reshape(-1) )
+            self.ebeams.append( maps.gauss_beam(ells,beams[array]))
+        self.ells = ells
 
     def get_corr(self,seed):
         fmap = self.fgen.get_map(seed=(self.kseed,seed),scalar=True)
@@ -217,15 +229,35 @@ for task in my_tasks:
         Ncov = np.zeros((narrays,narrays,nells))
         for aindex1 in range(narrays):
             for aindex2 in range(aindex1,narrays) :
-                scov,ncov,autos = tutils.ncalc(iksplits,aindex1,aindex2,fc)
-                dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind) # need to check this is not zero
-                if noise_isotropic:
-                    dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind) if (aindex1==aindex2)  else 0.
+                if aindex1!=aindex2:
+                    scov = fc.f2power(ikmaps[aindex1],ikmaps[aindex2])
+                    ncov = None
                 else:
-                    dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
-                                                       radial_fit=True if tsim.nsplits[aindex1]==4 else False,lmax=lmax,
-                                                       wnoise_annulus=500,
-                                                       bin_annulus=bin_width) if (aindex1==aindex2)  else (0.,None,None)
+                    scov,ncov,autos = tutils.ncalc(iksplits,aindex1,aindex2,fc)
+                if tsim.nsplits[aindex1]<4: # if Planck
+                    scov = autos
+                    ncov = None
+                if aindex1==aindex2:
+                    if ncov is None:
+                        dncov = None
+                    elif noise_isotropic:
+                        dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind)
+                    else:
+                        dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
+                                                           radial_fit=True if tsim.nsplits[aindex1]==4 else False,lmax=lmax,
+                                                           wnoise_annulus=500,
+                                                           bin_annulus=bin_width)
+                else:
+                    dncov = None
+                # if aindex1==aindex2:
+                #     scov2 = fc.f2power(ikmaps[aindex1],ikmaps[aindex2])
+                #     io.plot_img(maps.ftrans(scov+ncov))
+                #     io.plot_img(maps.ftrans(scov2))
+                #     io.plot_img(maps.ftrans(autos))
+                #     io.plot_img(maps.ftrans(np.abs(scov2-scov-ncov)))
+
+                dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind) # need to check this is not zero
+                if dncov is None: dncov = dscov*0.
                 if debug_noise:
                     if aindex1==aindex2:
                         io.plot_img(maps.ftrans(scov),aspect='auto')
@@ -239,10 +271,8 @@ for task in my_tasks:
                     dncov[modlmap<lmins[aindex1]] = np.inf
                     dncov[modlmap>lmaxs[aindex1]] = np.inf
                 Scov[aindex1,aindex2] = dscov[modlmap<lmax1].reshape(-1).copy()
-                Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy() if (aindex1==aindex2)  else 0.
-                if aindex1!=aindex2:
-                    Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
-                    Ncov[aindex2,aindex1] = Ncov[aindex1,aindex2].copy()
+                Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy()
+                if aindex1!=aindex2: Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
                 
         Cov = Scov + Ncov
         # iCov = np.rollaxis(Cov,2)
@@ -305,12 +335,19 @@ if rank==0:
 
     pl = io.Plotter(yscale='log',scalefn=lambda x: x**2,xlabel='l',ylabel='D')
     pl.add(ells,cltt)
+    for array in tsim.arrays:
+        pl.add(tsim.ells,tsim.eps_noises[array]/tsim.ebeams[array]**2.,alpha=0.3)
+    icltt = binner.bin(theory.lCl('TT',modlmap))[1]
+    pl.add(cents,icltt,marker="x",ls="none",color='k')
     pl.add_err(cents-5,cmb_silc_cross,yerr=ecmb_silc_cross,marker="o",ls="none",label='standard cross')
     pl.add_err(cents-10,cmb_cilc_cross,yerr=ecmb_cilc_cross,marker="o",ls="none",label='constrained  cross')
     pl.add_err(cents+5,cmb_silc_auto,yerr=ecmb_silc_auto,marker="x",ls="none",label='standard - noise')
     pl.add_err(cents+10,cmb_cilc_auto,yerr=ecmb_cilc_auto,marker="x",ls="none",label='constrained  - noise')
-    pl._ax.set_ylim(1e0,5e4)
+    pl._ax.set_ylim(2e3,9e4)
+    pl._ax.set_xlim(0,lmax)
     pl.done(io.dout_dir+"cmb_cross.png")
+
+    io.save_cols("cmb_results.txt",(cents,cmb_silc_cross,ecmb_silc_cross,cmb_cilc_cross,ecmb_cilc_cross,cmb_silc_auto,ecmb_silc_auto,cmb_cilc_auto,ecmb_cilc_auto))
 
 
     pl = io.Plotter(scalefn=lambda x: x**2,xlabel='l',ylabel='D',yscale='log')
@@ -325,4 +362,6 @@ if rank==0:
     pl.done(io.dout_dir+"y_cross.png")
 
 
+    io.save_cols("y_results.txt",(cents,y_silc_cross,ey_silc_cross,y_cilc_cross,ey_cilc_cross,y_silc_auto,ey_silc_auto,y_cilc_auto,ey_cilc_auto))
+    
 
