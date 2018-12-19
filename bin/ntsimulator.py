@@ -13,6 +13,7 @@ from tilec import utils as tutils,covtools,ilc
 Notes:
 1. eigpow(-1) is bad for analytic (discontinuity at high ell)
 2. large low ell scatter when including Planck comes from noisy cross-spectra due to only having 2 splits
+3. for low fourier pixel density (low res, low ellmax), the fft based anisotropic binning can have a lot of ringing
 """
 
 aseed = 2
@@ -29,10 +30,10 @@ fgs = False # whether to include any foregrounds
 dust = False # whether to include dust/CIB
 ycibcorr = False # whether tSZ/CIB are correlated
 # analysis
-lmax = 800
-px = 4.0
+lmax = 6000
+px = 1.0
 # sims
-nsims = 15
+nsims = 5
 # signal cov
 bin_width = 80 # this parameter seems to be important and cause unpredictable noise
 kind = 0 # higher order interpolation breaks covariance
@@ -255,10 +256,13 @@ for task in my_tasks:
                         elif noise_isotropic:
                             dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind,lmin=lmins[aindex1])
                         else:
+                            io.plot_img(maps.ftrans(ncov),aspect='auto')
                             dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
                                                                radial_fit=True if (tsim.nsplits[aindex1]==4 and atmosphere) else False,lmax=lmax,
                                                                wnoise_annulus=500,
+                                                               lmin = 300,
                                                                bin_annulus=bin_width)
+                            io.plot_img(maps.ftrans(dncov),aspect='auto')
                     else:
                         dncov = None
                     dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind,lmin=max(lmins[aindex1],lmins[aindex2])) # need to check this is not zero # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
