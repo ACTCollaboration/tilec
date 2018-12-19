@@ -3,6 +3,7 @@ from orphics import maps,io,cosmology,stats
 from pixell import enmap
 import numpy as np
 import os,sys
+import warnings
 
 
 """
@@ -76,7 +77,9 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     Watch for ringing in the final output.
     n2d noise power
     """
+    assert not(np.any(np.isnan(n2d)))
     shape,wcs = n2d.shape,n2d.wcs
+    minell = maps.minimum_ell(shape,wcs)
     if modlmap is None: modlmap = enmap.modlmap(shape,wcs)
     Ny,Nx = shape[-2:]
     if radial_fit:
@@ -101,15 +104,22 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
         ndown = nint
     else:
         ndown = enmap.enmap(enmap.resample(nint,shape,method=method),wcs)
-    return ndown*nfitted,nfitted,nparams
+    outcov = ndown*nfitted
+    outcov[modlmap<minell] = np.inf
+    assert not(np.any(np.isnan(outcov)))
+    return outcov,nfitted,nparams
 
 
-def signal_average(cov,bin_edges=None,bin_width=40,kind=5,**kwargs):
+def signal_average(cov,bin_edges=None,bin_width=40,kind=5,lmin=None,**kwargs):
+    assert not(np.any(np.isnan(cov)))
     modlmap = cov.modlmap()
+    minell = maps.minimum_ell(cov.shape,cov.wcs) if lmin is None else lmin
     if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
     binner = stats.bin2D(modlmap,bin_edges)
     cents,c1d = binner.bin(cov)
     outcov = maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap)
+    outcov[modlmap<minell] = 0
+    assert not(np.any(np.isnan(outcov)))
     return outcov
 
 

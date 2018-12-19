@@ -1,19 +1,26 @@
 import numpy as np
+from pixell import utils
 
 """
 This module implements harmonic ILC.
 """
 
-def map_comb(response_a,response_b,cov):
+def cinv_x(x,cov,cinv):
+    """Dot Cinv with x, either with the provided inverse, or with linalg.solve"""
+    if cinv is None: Cinvx = np.linalg.solve(cov,x)
+    else: Cinvx = np.einsum('...ij,...j->...i',cinv,x)
+    return Cinvx
+
+def map_comb(response_a,response_b,cov=None,cinv=None):
     """Return a^T Cinv b"""
     # Cinv b = np.linalg.solve(cov,b)
     # Cov is in shape (...n,n)
-    Cinvb = np.linalg.solve(cov,response_b)
+    Cinvb = cinv_x(response_b,cov,cinv)
     return np.nan_to_num(np.einsum('...l,...l->...',response_a,Cinvb))
 
-def map_term(kmaps,cov,response):
+def map_term(kmaps,response,cov=None,cinv=None):
     """response^T . Cinv . kmaps """
-    Cinvk = np.linalg.solve(cov,kmaps)
+    Cinvk = cinv_x(kmaps,cov,cinv)
     return np.einsum('...k,...k->...',response,Cinvk)
 
 class HILC(object):
@@ -22,7 +29,7 @@ class HILC(object):
     We avoid beam deconvolution, instead modeling the beam in the response.
     Since all maps are beam convolved, we do not need lmaxes.
     """
-    def __init__(self,ells,kbeams,cov=None,responses=None,chunks=1):
+    def __init__(self,ells,kbeams,cov=None,responses=None,chunks=1,invert=True):
         """
         Args:
             ells: (nells,) or (Ny,Nx) specifying mode number mapping for each pixel
@@ -53,6 +60,9 @@ class HILC(object):
         self.chunks = chunks
         self.kbeams = kbeams
         self.cov = np.moveaxis(cov,(0,1),(-2,-1))
+        if invert:
+            self.cinv = np.linalg.inv(self.cov) #utils.eigpow(np.nan_to_num(self.cov),-1,alim=0,rlim=0)
+        else: self.cinv = None
         self.responses = {}
         if responses is None: responses = {}
         if "cmb" not in responses.keys(): responses['cmb'] = np.ones((1,nmap))
@@ -66,17 +76,16 @@ class HILC(object):
         """
         Cross-noise of <standard constrained>
         """
-        snoise = self.standard_noise(name1)
-        cnoise,cross = self.constrained_noise(name1,name2,return_cross=True)
-        return snoise*cross
+        response_a = self.responses[name1]
+        response_b = self.responses[name2]
+        return cross_noise(response_a,response_b,self.cov,self.cinv)
         
     def standard_noise(self,name):
         """
         Auto-noise <standard standard>
         """
         r = self.responses[name]
-        mcomb = map_comb(r,r,self.cov)
-        return (1./mcomb)
+        return standard_noise(r,self.cov,self.cinv)
 
     def constrained_noise(self,name1,name2,return_cross=False):
         """ Derived from Eq 18 of arXiv:1006.5599
@@ -84,17 +93,7 @@ class HILC(object):
         """
         response_a = self.responses[name1]
         response_b = self.responses[name2]
-        brb = map_comb(response_b,response_b,self.cov)
-        ara = map_comb(response_a,response_a,self.cov)
-        arb = map_comb(response_a,response_b,self.cov)
-        bra = map_comb(response_b,response_a,self.cov)
-        numer = (brb)**2. * ara + (arb)**2.*brb - brb*arb*arb - arb*brb*bra
-        denom = ara*brb-arb**2.
-        d2 = (denom)**2.
-        if return_cross:
-            return (numer/d2), (brb*ara - arb*bra)/denom
-        else:
-            return (numer/d2)
+        return constrained_noise(response_a,response_b,self.cov,self.cinv,return_cross)
 
     def _prepare_maps(self,kmaps):
         assert kmaps.shape[0] == self.nmap
@@ -105,7 +104,7 @@ class HILC(object):
     def standard_map(self,kmaps,name="cmb"):
         # Get response^T cinv kmaps
         kmaps = self._prepare_maps(kmaps)
-        weighted = map_term(kmaps,self.cov,self.responses[name])
+        weighted = map_term(kmaps,self.responses[name],self.cov,self.cinv)
         return weighted * self.standard_noise(name)
 
     def constrained_map(self,kmaps,name1,name2):
@@ -117,16 +116,14 @@ class HILC(object):
         kmaps = self._prepare_maps(kmaps)
         response_a = self.responses[name1]
         response_b = self.responses[name2]
-        brb = map_comb(response_b,response_b,self.cov)
-        arb = map_comb(response_a,response_b,self.cov)
-        arM = map_term(kmaps,self.cov,response_a)
-        brM = map_term(kmaps,self.cov,response_b)
-        ara = map_comb(response_a,response_a,self.cov)
+        brb = map_comb(response_b,response_b,self.cov,self.cinv)
+        arb = map_comb(response_a,response_b,self.cov,self.cinv)
+        arM = map_term(kmaps,response_a,self.cov,self.cinv)
+        brM = map_term(kmaps,response_b,self.cov,self.cinv)
+        ara = map_comb(response_a,response_a,self.cov,self.cinv)
         numer = brb * arM - arb*brM
         norm = (ara*brb-arb**2.)
         return numer/norm
-    
-
 
 def build_analytic_cov(ells,cmb_ps,fgdict,freqs,kbeams,noises,lmins=None,lmaxs=None,verbose=True):
     nmap = len(freqs)
@@ -150,3 +147,36 @@ def build_analytic_cov(ells,cmb_ps,fgdict,freqs,kbeams,noises,lmins=None,lmaxs=N
                 if lmaxs is not None: Covmat[i,j][ells>lmaxs[i]] = np.inf
             else: Covmat[j,i,...] = Covmat[i,j,...].copy()
     return Covmat
+
+
+def standard_noise(response,cov=None,cinv=None):
+    """
+    Auto-noise <standard standard>
+    """
+    mcomb = map_comb(response,response,cov,cinv)
+    return (1./mcomb)
+
+def constrained_noise(response_a,response_b,cov=None,cinv=None,return_cross=True):
+    """ Derived from Eq 18 of arXiv:1006.5599
+    Auto-noise <constrained constrained>
+    """
+    brb = map_comb(response_b,response_b,cov,cinv)
+    ara = map_comb(response_a,response_a,cov,cinv)
+    arb = map_comb(response_a,response_b,cov,cinv)
+    bra = map_comb(response_b,response_a,cov,cinv)
+    numer = (brb)**2. * ara + (arb)**2.*brb - brb*arb*arb - arb*brb*bra
+    denom = ara*brb-arb**2.
+    d2 = (denom)**2.
+    if return_cross:
+        return (numer/d2), (brb*ara - arb*bra)/denom
+    else:
+        return (numer/d2)
+
+def cross_noise(response_a,response_b,cov=None,cinv=None):
+    """
+    Cross-noise of <standard constrained>
+    """
+    snoise = standard_noise(response_a,cov,cinv)
+    cnoise,cross = constrained_noise(response_a,response_b,cov,cinv,return_cross=True)
+    return snoise*cross
+    

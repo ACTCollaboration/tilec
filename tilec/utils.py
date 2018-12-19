@@ -180,17 +180,6 @@ def ncalc(splits,ai,aj,fc):
     autos = fc.f2power(iksplits.mean(axis=0),jksplits.mean(axis=0))
     ncov = autos-crosses
 
-    # if ai==aj:
-    #     npower = 0.
-    #     ikcoadd = np.mean(iksplits,axis=0)
-    #     jkcoadd = np.mean(jksplits,axis=0)
-    #     for i in range(nisplits):
-    #         diff1 = iksplits[i] - ikcoadd
-    #         diff2 = jksplits[i] - jkcoadd
-    #         npower += (fc.f2power(diff1,diff2))
-    #     npower *= 1./((1.-1./nisplits)*nisplits)
-    #     ncov = npower
-    
     return enmap.enmap(scov,fc.wcs),enmap.enmap(ncov,fc.wcs),enmap.enmap(autos,fc.wcs)
 
         
