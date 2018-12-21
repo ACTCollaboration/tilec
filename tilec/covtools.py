@@ -44,6 +44,9 @@ def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
     [(lknee/ells)^(-alpha) + 1] * rms_noise**2
     """
     atm_factor = (lknee*np.nan_to_num(1./ells))**(-alpha) if lknee>1.e-3 else 0.
+    pl = io.Plotter()
+    pl.add(ells,atm_factor)
+    pl.done()
     rms = rms_noise * (1./60.)*(np.pi/180.)
     wnoise = ells*0.+rms**2.
     return (atm_factor+1.)*wnoise
