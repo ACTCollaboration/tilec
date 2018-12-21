@@ -145,31 +145,3 @@ def get_anisotropic_noise(shape,wcs,rms,lknee,alpha,template_file=None,tmin=0,tm
     ops = get_anisotropic_noise_template(shape,wcs,template_file,tmin,tmax)
     return rednoise(enmap.modlmap(shape,wcs),rms,lknee,alpha)*ops
 
-
-
-def scalc(iksplits,iwins,jksplits,jwins,ikcoadd=None,iwin=None,jkcoadd=None,jwin=None,noise=True,fc=None):
-    """
-    Cross spectrum and noise power calculator
-    For i x j element of Cov
-    ai and aj are array indices
-    """
-    if fc is None: fc = maps.FourierCalc(iksplits.shape,iksplits.wcs)
-    nisplits = iksplits.shape[0]
-    njsplits = jksplits.shape[0]
-    autos = 0. ; crosses = 0.
-    nautos = 0 ; ncrosses = 0
-    for p in range(nisplits):
-        for q in range(p+1,njsplits):
-            ncrosses += 1
-            crosses += fc.f2power(iksplits[p],jksplits[q]) / np.mean(iwins[p]*jwins[q])
-    crosses /= ncrosses
-    scov = crosses
-    if noise:
-        npower = 0.
-        for i in range(nisplits):
-            diff1 = iksplits[i] - ikcoadd
-            diff2 = jksplits[i] - jkcoadd
-            npower += (fc.f2power(diff1,diff2) / np.mean(iwin*jwin))
-        npower *= 1./((1.-1./nisplits)*nisplits)
-    return enmap.samewcs(scov,iksplits),enmap.samewcs(npower,iksplits) if noise else None
-

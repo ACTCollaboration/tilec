@@ -72,88 +72,6 @@ def ncompute(ik,nk,tag):
     s.add_to_stats(tag,p1d.copy())
     
 
-class TSimulator(object):
-    def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmins,lmaxs,theory=None):
-        if not(atmosphere):
-            lknees = [0.]*len(freqs)
-            alphas = [1.]*len(freqs)
-        self.nu0 = nu0
-        self.freqs = freqs
-        self.lmins = lmins
-        self.lmaxs = lmaxs
-        self.modlmap = enmap.modlmap(shape,wcs)
-        lmax = self.modlmap.max()
-        if theory is None: theory = cosmology.default_theory()
-        ells = np.arange(0,lmax,1)
-        cltt = theory.uCl('TT',ells) if lensing else theory.lCl('TT',ells)
-        self.cseed = 0
-        self.kseed = 1
-        self.nseed = 2
-        self.fgen = maps.MapGen((ncomp,)+shape[-2:],wcs,pss)
-        self.cgen = maps.MapGen(shape[-2:],wcs,cltt[None,None])
-        self.shape, self.wcs = shape,wcs
-        self.arrays = range(len(freqs))
-        self.nsplits = nsplits
-        self.ngens = []
-        self.kbeams = []
-        self.lbeams = []
-        self.ebeams = []
-        self.ps_noises = []
-        self.eps_noises = []
-        for array in self.arrays:
-            ps_noise = cosmology.noise_func(ells,0.,noises[array],lknee=lknees[array],alpha=alphas[array])
-            if lpass: ps_noise[ells<lmins[array]] = 0
-            self.ps_noises.append(maps.interp(ells,ps_noise.copy())(self.modlmap))
-            self.eps_noises.append(ps_noise.copy())
-            self.ngens.append( maps.MapGen(shape[-2:],wcs,ps_noise[None,None]*nsplits[array]) )
-            self.kbeams.append( maps.gauss_beam(self.modlmap,beams[array]) )
-            self.lbeams.append( maps.gauss_beam(self.modlmap,beams[array])[self.modlmap<lmax1].reshape(-1) )
-            self.ebeams.append( maps.gauss_beam(ells,beams[array]))
-        self.ells = ells
-
-    def get_corr(self,seed):
-        fmap = self.fgen.get_map(seed=(aseed,self.kseed,seed),scalar=True)
-        return fmap
-
-    def _lens(self,unlensed,kappa,lens_order=5):
-        self.kappa = kappa
-        alpha = lensing.alpha_from_kappa(kappa,posmap=enmap.posmap(self.shape,self.wcs))
-        lensed = enlensing.displace_map(unlensed, alpha, order=lens_order)
-        return lensed
-
-    def get_sim(self,seed):
-        ret = self.get_corr(seed)
-        if dust:
-            kappa,tsz,cib = ret
-        else:
-            kappa,tsz = ret
-        unlensed = self.cgen.get_map(seed=(aseed,self.cseed,seed))
-        lensed = self._lens(unlensed,kappa) if lensing else unlensed
-        self.lensed = lensed.copy()
-        tcmb = 2.726e6
-        self.y = tsz.copy()/tcmb/fg.ffunc(self.nu0)
-        observed = []
-        noises = []
-        for array in self.arrays:
-            scaled_tsz = tsz * fg.ffunc(self.freqs[array]) / fg.ffunc(self.nu0) if fgs else 0.
-            if dust:
-                scaled_cib = cib * fg.cib_nu(self.freqs[array]) / fg.cib_nu(self.nu0) if fgs else 0.
-            else:
-                scaled_cib = 0.
-            sky = lensed + scaled_tsz + scaled_cib
-            beamed = maps.filter_map(sky,self.kbeams[array])
-            observed.append([])
-            noises.append([])
-            for split in range(self.nsplits[array]):
-                noise = self.ngens[array].get_map(seed=(aseed,self.nseed,seed,split,array))
-                observed[array].append(beamed+noise)
-                noises[array].append(noise)
-            observed[array] = enmap.enmap(np.stack(observed[array]),self.wcs)
-            noises[array] = enmap.enmap(np.stack(noises[array]),self.wcs)
-            if lpass:
-                observed[array] = maps.filter_map(observed[array],maps.mask_kspace(self.shape,self.wcs,lmin=self.lmins[array]))             
-                noises[array] = maps.filter_map(noises[array],maps.mask_kspace(self.shape,self.wcs,lmin=self.lmins[array]))             
-        return observed,noises
 
 
 shape,wcs = maps.rect_geometry(width_deg=width,height_deg=height,px_res_arcmin=px)
@@ -194,7 +112,7 @@ if dust:
     ps[1,2] = ps[2,1] = clsc
     ps[0,2] = ps[2,0] = clkc
 
-tsim = TSimulator(shape,wcs,beams,freqs,noises,lknees,alphas,nsplits.astype(np.int),ps,nu0,lmins=lmins,lmaxs=lmaxs)
+tsim = maps.SplitSimulator(shape,wcs,beams,freqs,noises,lknees,alphas,nsplits.astype(np.int),ps,nu0,lmins=lmins,lmaxs=lmaxs,atmosphere=atmosphere,lensing=lensing,dust=dust,do_fgs=fgs,lpass=lpass,aseed=aseed)
 modlmap = tsim.modlmap
 fc = maps.FourierCalc(tsim.shape,tsim.wcs)
 narrays = len(tsim.arrays)
@@ -241,8 +159,8 @@ for task in my_tasks:
     ls = modlmap[modlmap<lmax1].reshape(-1)
     with bench.show("empirical cov"):
         if not(analytic):
-            atmosphere = [tsim.nsplits[array]>2 for array in range(narrays)]
-            Cov = ilc.build_empirical_cov(iksplits,ikmaps,atmosphere,lmins,lmaxs,
+            atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
+            Cov = ilc.build_empirical_cov(iksplits,ikmaps,atmospheres,lmins,lmaxs,
                                           signal_bin_width=bin_width,
                                           signal_interp_order=kind,
                                           noise_isotropic=noise_isotropic,
@@ -258,7 +176,7 @@ for task in my_tasks:
             print(Cov.shape)
 
     with bench.show("init ILC"):
-        hilc = ilc.HILC(ls,np.array(tsim.lbeams),Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1,invert=invert)
+        hilc = ilc.HILC(ls,np.array([k[modlmap<lmax1].reshape(-1) for k in tsim.kbeams]) ,Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1,invert=invert)
 
     with bench.show("more ffts"):
         ilensed = tsim.lensed
