@@ -117,7 +117,7 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=5,lmin=None,**kwargs):
     if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
     binner = stats.bin2D(modlmap,bin_edges)
     cents,c1d = binner.bin(cov)
-    outcov = maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap)
+    outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),cov.wcs)
     outcov[modlmap<minell] = 0
     assert not(np.any(np.isnan(outcov)))
     return outcov

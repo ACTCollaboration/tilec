@@ -1,5 +1,6 @@
 import numpy as np
 from pixell import utils
+from tilec import covtools
 
 """
 This module implements harmonic ILC.
@@ -179,4 +180,82 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
     snoise = standard_noise(response_a,cov,cinv)
     cnoise,cross = constrained_noise(response_a,response_b,cov,cinv,return_cross=True)
     return snoise*cross
+    
+
+
+def build_empirical_cov(ksplits,kcoadds,auto_for_cross_covariance=True,min_splits=None,fc=None):
+    """
+    Build an empirical covariance matrix using hybrid radial (signal) and cartesian
+    (noise) binning.
+
+    Args:
+
+        ksplits: list of length narrays of (nsplits,Ny,Nx) fourier transforms of
+        maps that have already been inverse noise weighted and tapered. This
+        routine will not apply any corrections for the windowing.
+
+        kcoadds: list of length narrays of (Ny,Nx) fourier transforms of
+        coadd maps that have already been inverse noise weighted and tapered. This
+        routine will not apply any corrections for the windowing.
+
+        auto_for_cross_covariance: if True, cov(array1,array2) for array1!=array2 does
+        not get separate signal and noise treatment, and is binned isotropically.
+        TODO: allow for anisotropic binning of 90-150 correlation.
+
+        min_splits: If not None, at least min_splits splits are required in an array
+        for hybrid signal-noise treatment.
+
+        fc: (optional) pre-initialized maps.FourierCalc object
+
+    
+
+
+    """
+    narrays = len(ksplits)
+    shape,wcs = ksplits[0].shape[-2:],ksplits[0].wcs
+    if fc is None: fc = maps.FourierCalc(shape,wcs)
+    Cov = maps.SymMat(narrays,shape)
+
+
+    
+    for aindex1 in range(narrays):
+        for aindex2 in range(aindex1,narrays):
+            if auto_for_cross_covariance and aindex1!=aindex2:
+                scov = fc.f2power(kcoadds[aindex1],kcoadds[aindex2])
+                ncov = None
+            else:
+                scov,ncov,autos = tutils.ncalc(ksplits,kcoadds,aindex1,aindex2,fc)
+            if (min_splits is not None) and (aindex1==aindex2):
+                nsplits = ksplits[aindex1].shape[0]
+                if (nsplits<min_splits):
+                    scov = autos
+                    ncov = None
+            if aindex1==aindex2:
+                if ncov is None:
+                    dncov = None
+                elif noise_isotropic:
+                    dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind,lmin=lmins[aindex1])
+                else:
+                    # io.plot_img(maps.ftrans(ncov),aspect='auto')
+                    dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
+                                                       radial_fit=True if (tsim.nsplits[aindex1]==4 and atmosphere) else False,lmax=lmax,
+                                                       wnoise_annulus=500,
+                                                       lmin = 300,
+                                                       bin_annulus=bin_width)
+                    # io.plot_img(maps.ftrans(dncov),aspect='auto')
+            else:
+                dncov = None
+            dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind,lmin=max(lmins[aindex1],lmins[aindex2])) # need to check this is not zero # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
+            #io.plot_img(maps.ftrans(dscov),aspect='auto')
+
+            if dncov is None: dncov = np.zeros(dscov.shape)
+            if aindex1==aindex2:
+                dncov[modlmap<lmins[aindex1]] = np.inf
+                dncov[modlmap>lmaxs[aindex1]] = np.inf
+            Scov[aindex1,aindex2] = dscov[modlmap<lmax1].reshape(-1).copy()
+            Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy()
+            if aindex1!=aindex2: Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
+
+    Cov = Scov + Ncov
+
     

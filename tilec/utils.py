@@ -160,6 +160,9 @@ def ncalc(splits,ai,aj,fc):
     For i x j element of Cov
     ai and aj are array indices
     """
+
+
+
     iksplits = splits[ai] # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
     if aj!=ai:
         jksplits = splits[aj] # each ksplit multiplied by mask and inv var map, returning also mask*inv var map
@@ -168,6 +171,7 @@ def ncalc(splits,ai,aj,fc):
         
     nisplits = len(iksplits)
     njsplits = len(jksplits)
+
     crosses = 0.
     ncrosses = 0
     for p in range(nisplits):

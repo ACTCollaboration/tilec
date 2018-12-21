@@ -14,24 +14,26 @@ Notes:
 1. eigpow(-1) is bad for analytic (discontinuity at high ell)
 2. large low ell scatter when including Planck comes from noisy cross-spectra due to only having 2 splits
 3. for low fourier pixel density (low res, low ellmax), the fft based anisotropic binning can have a lot of ringing
+4. lpass = False didn't fix new scatter
 """
 
-aseed = 2
+aseed = 3
+planck_autos = False
 lensing = False # no need for lensing for initial tests
 invert = True # 40x speedup from precalulated linalg.inv instead of linalg.solve
-lpass = True # whether to remove modes below lmin in each of the arrays
+lpass = False # whether to remove modes below lmin in each of the arrays
 # cov
 analytic = False # whether to use an analytic or empirical covmat
 atmosphere = True # whether to ignore atmosphere parameters
 noise_isotropic = False # whether to average the noise spectra the same way as signal
 debug_noise = False # whether to make debug plots of noise
 # foregrounds
-fgs = False # whether to include any foregrounds
+fgs = True # whether to include any foregrounds
 dust = False # whether to include dust/CIB
 ycibcorr = False # whether tSZ/CIB are correlated
 # analysis
 lmax = 6000
-px = 1.0
+px = (1.0*10000./(lmax+500.))
 # sims
 nsims = 5
 # signal cov
@@ -71,7 +73,7 @@ def ncompute(ik,nk,tag):
     
 
 class TSimulator(object):
-    def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmins,lmaxs):
+    def __init__(self,shape,wcs,beams,freqs,noises,lknees,alphas,nsplits,pss,nu0,lmins,lmaxs,theory=None):
         if not(atmosphere):
             lknees = [0.]*len(freqs)
             alphas = [1.]*len(freqs)
@@ -81,7 +83,7 @@ class TSimulator(object):
         self.lmaxs = lmaxs
         self.modlmap = enmap.modlmap(shape,wcs)
         lmax = self.modlmap.max()
-        theory = cosmology.default_theory()
+        if theory is None: theory = cosmology.default_theory()
         ells = np.arange(0,lmax,1)
         cltt = theory.uCl('TT',ells) if lensing else theory.lCl('TT',ells)
         self.cseed = 0
@@ -100,7 +102,7 @@ class TSimulator(object):
         self.eps_noises = []
         for array in self.arrays:
             ps_noise = cosmology.noise_func(ells,0.,noises[array],lknee=lknees[array],alpha=alphas[array])
-            ps_noise[ells<lmins[array]] = 0
+            if lpass: ps_noise[ells<lmins[array]] = 0
             self.ps_noises.append(maps.interp(ells,ps_noise.copy())(self.modlmap))
             self.eps_noises.append(ps_noise.copy())
             self.ngens.append( maps.MapGen(shape[-2:],wcs,ps_noise[None,None]*nsplits[array]) )
@@ -242,12 +244,12 @@ for task in my_tasks:
             Ncov = np.zeros((narrays,narrays,nells))
             for aindex1 in range(narrays):
                 for aindex2 in range(aindex1,narrays) :
-                    if aindex1!=aindex2:
+                    if auto_for_cross_covariance and aindex1!=aindex2:
                         scov = fc.f2power(ikmaps[aindex1],ikmaps[aindex2])
                         ncov = None
                     else:
                         scov,ncov,autos = tutils.ncalc(iksplits,aindex1,aindex2,fc)
-                    if tsim.nsplits[aindex1]<4: # if Planck
+                    if planck_autos and (tsim.nsplits[aindex1]<4) and (aindex1==aindex2): # if Planck
                         scov = autos
                         ncov = None
                     if aindex1==aindex2:
@@ -256,16 +258,16 @@ for task in my_tasks:
                         elif noise_isotropic:
                             dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind,lmin=lmins[aindex1])
                         else:
-                            io.plot_img(maps.ftrans(ncov),aspect='auto')
                             dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
                                                                radial_fit=True if (tsim.nsplits[aindex1]==4 and atmosphere) else False,lmax=lmax,
                                                                wnoise_annulus=500,
                                                                lmin = 300,
                                                                bin_annulus=bin_width)
-                            io.plot_img(maps.ftrans(dncov),aspect='auto')
                     else:
                         dncov = None
                     dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind,lmin=max(lmins[aindex1],lmins[aindex2])) # need to check this is not zero # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
+                    #io.plot_img(maps.ftrans(dscov),aspect='auto')
+
                     if dncov is None: dncov = np.zeros(dscov.shape)
                     if debug_noise:
                         if aindex1==aindex2:
@@ -284,16 +286,6 @@ for task in my_tasks:
             Cov = Scov + Ncov
 
     ls = modlmap[modlmap<lmax1].reshape(-1)
-    # print(Scov[:,:,np.logical_and(ls>310,ls<400)][:,:,0])
-    # print(Scov[:,:,np.logical_and(ls>100,ls<200)][:,:,0])
-
-    # print(Ncov[:,:,np.logical_and(ls>310,ls<400)][:,:,0])
-    # print(Ncov[:,:,np.logical_and(ls>100,ls<200)][:,:,0])
-    
-    # print(Cov[:,:,np.logical_and(ls>310,ls<400)][:,:,0])
-    # print(Cov[:,:,np.logical_and(ls>100,ls<200)][:,:,0])
-    # print(np.linalg.inv(Cov[:,:,np.logical_and(ls>80,ls<200)][:,:,0]))
-    # sys.exit()
     with bench.show("init ILC"):
         hilc = ilc.HILC(ls,np.array(tsim.lbeams),Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1,invert=invert)
 
@@ -364,6 +356,7 @@ if rank==0:
     # pl._ax.set_ylim(2e3,9e4)
     pl._ax.set_ylim(2e-1,9e4)
     pl._ax.set_xlim(0,lmax)
+    # pl._ax.set_xlim(0,2500)
     pl.legend(loc='lower left')
     pl.done(io.dout_dir+"cmb_cross.png")
 
