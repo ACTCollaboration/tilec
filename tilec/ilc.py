@@ -1,6 +1,7 @@
 import numpy as np
-from pixell import utils
+from pixell import utils,enmap
 from tilec import covtools
+from orphics import maps
 
 """
 This module implements harmonic ILC.
@@ -183,7 +184,18 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
     
 
 
-def build_empirical_cov(ksplits,kcoadds,auto_for_cross_covariance=True,min_splits=None,fc=None):
+def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
+                        signal_bin_width=None,
+                        signal_interp_order=0,
+                        noise_isotropic=False,
+                        dfact=(16,16),
+                        rfit_lmaxes=None,
+                        rfit_wnoise_width=250,
+                        rfit_lmin=300,
+                        rfit_bin_width=None,
+                        auto_for_cross_covariance=True,
+                        min_splits=None,
+                        fc=None,return_full=False):
     """
     Build an empirical covariance matrix using hybrid radial (signal) and cartesian
     (noise) binning.
@@ -198,6 +210,10 @@ def build_empirical_cov(ksplits,kcoadds,auto_for_cross_covariance=True,min_split
         coadd maps that have already been inverse noise weighted and tapered. This
         routine will not apply any corrections for the windowing.
 
+        atmosphere: list of booleans of length narrays specifying whether the array
+        has (atmospheric) 1/f noise which is fitted out before downsampling the
+        noise power.
+
         auto_for_cross_covariance: if True, cov(array1,array2) for array1!=array2 does
         not get separate signal and noise treatment, and is binned isotropically.
         TODO: allow for anisotropic binning of 90-150 correlation.
@@ -207,24 +223,48 @@ def build_empirical_cov(ksplits,kcoadds,auto_for_cross_covariance=True,min_split
 
         fc: (optional) pre-initialized maps.FourierCalc object
 
+        return_full: if True, returns a redundant/symmetric (narray,narray,Ny,Nx) 
+        numpy array. False by default, in which case it returns a more efficient
+        orphics.maps.SymMat object, whose data attribute stores without redundancy
+        the unique elements of the covariance matrix. This matrix or slices of it
+        can be extracted using Cov.to_array().
+
+    Returns:
+
+        Cov: if return_full is True, Cov is a redundant/symmetric (narray,narray,Ny,Nx) 
+        numpy array. Otherwise (default), Cov is a more efficient
+        orphics.maps.SymMat object, whose data attribute stores without redundancy
+        the unique elements of the covariance matrix. This matrix or slices of it
+        can be extracted using Cov.to_array().
     
 
 
     """
+
+    # Setup
     narrays = len(ksplits)
     shape,wcs = ksplits[0].shape[-2:],ksplits[0].wcs
+    minell = maps.minimum_ell(shape,wcs)
+    modlmap = enmap.modlmap(shape,wcs)
     if fc is None: fc = maps.FourierCalc(shape,wcs)
     Cov = maps.SymMat(narrays,shape)
 
+    # Defaults
+    if rfit_lmaxes is None:
+        px_arcmin = np.rad2deg(maps.resolution(shape,wcs))*60.
+        rfit_lmaxes = [8000*0.5/px_arcmin]*narrays
+        print(rfit_lmaxes)
+    if rfit_bin_width is None: rfit_bin_width = minell*4.
+    if signal_bin_width is None: signal_bin_width = minell*8.
 
-    
+    # Loop over unique covmat elements
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
             if auto_for_cross_covariance and aindex1!=aindex2:
                 scov = fc.f2power(kcoadds[aindex1],kcoadds[aindex2])
                 ncov = None
             else:
-                scov,ncov,autos = tutils.ncalc(ksplits,kcoadds,aindex1,aindex2,fc)
+                autos,scov,ncov = maps.split_calc(ksplits[aindex1],ksplits[aindex2],kcoadds[aindex1],kcoadds[aindex2],fourier_calc=fc)
             if (min_splits is not None) and (aindex1==aindex2):
                 nsplits = ksplits[aindex1].shape[0]
                 if (nsplits<min_splits):
@@ -234,28 +274,20 @@ def build_empirical_cov(ksplits,kcoadds,auto_for_cross_covariance=True,min_split
                 if ncov is None:
                     dncov = None
                 elif noise_isotropic:
-                    dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind,lmin=lmins[aindex1])
+                    dncov = covtools.signal_average(ncov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=lmins[aindex1])
                 else:
-                    # io.plot_img(maps.ftrans(ncov),aspect='auto')
                     dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
-                                                       radial_fit=True if (tsim.nsplits[aindex1]==4 and atmosphere) else False,lmax=lmax,
-                                                       wnoise_annulus=500,
-                                                       lmin = 300,
-                                                       bin_annulus=bin_width)
-                    # io.plot_img(maps.ftrans(dncov),aspect='auto')
+                                                       radial_fit=True if atmosphere[aindex1] else False,lmax=rfit_lmaxes[aindex1],
+                                                       wnoise_annulus=rfit_wnoise_width,
+                                                       lmin = rfit_lmin,
+                                                       bin_annulus=rfit_bin_width)
             else:
                 dncov = None
-            dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind,lmin=max(lmins[aindex1],lmins[aindex2])) # need to check this is not zero # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
-            #io.plot_img(maps.ftrans(dscov),aspect='auto')
-
+            dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if dncov is None: dncov = np.zeros(dscov.shape)
             if aindex1==aindex2:
                 dncov[modlmap<lmins[aindex1]] = np.inf
                 dncov[modlmap>lmaxs[aindex1]] = np.inf
-            Scov[aindex1,aindex2] = dscov[modlmap<lmax1].reshape(-1).copy()
-            Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy()
-            if aindex1!=aindex2: Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
-
-    Cov = Scov + Ncov
-
-    
+            Cov[aindex1,aindex2] = dscov + dncov
+            if aindex1!=aindex2: Cov[aindex2,aindex1] = dscov.copy()
+    return Cov.to_array() if return_full else Cov

@@ -238,54 +238,25 @@ for task in my_tasks:
             ikmaps.append(  kcoadd.copy())
             inkmaps.append(  kncoadd.copy())
 
+    ls = modlmap[modlmap<lmax1].reshape(-1)
     with bench.show("empirical cov"):
         if not(analytic):
-            Scov = np.zeros((narrays,narrays,nells))
-            Ncov = np.zeros((narrays,narrays,nells))
-            for aindex1 in range(narrays):
-                for aindex2 in range(aindex1,narrays) :
-                    if auto_for_cross_covariance and aindex1!=aindex2:
-                        scov = fc.f2power(ikmaps[aindex1],ikmaps[aindex2])
-                        ncov = None
-                    else:
-                        scov,ncov,autos = tutils.ncalc(iksplits,aindex1,aindex2,fc)
-                    if planck_autos and (tsim.nsplits[aindex1]<4) and (aindex1==aindex2): # if Planck
-                        scov = autos
-                        ncov = None
-                    if aindex1==aindex2:
-                        if ncov is None:
-                            dncov = None
-                        elif noise_isotropic:
-                            dncov = covtools.signal_average(ncov,bin_width=bin_width,kind=kind,lmin=lmins[aindex1])
-                        else:
-                            dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
-                                                               radial_fit=True if (tsim.nsplits[aindex1]==4 and atmosphere) else False,lmax=lmax,
-                                                               wnoise_annulus=500,
-                                                               lmin = 300,
-                                                               bin_annulus=bin_width)
-                    else:
-                        dncov = None
-                    dscov = covtools.signal_average(scov,bin_width=bin_width,kind=kind,lmin=max(lmins[aindex1],lmins[aindex2])) # need to check this is not zero # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
-                    #io.plot_img(maps.ftrans(dscov),aspect='auto')
+            atmosphere = [tsim.nsplits[array]>2 for array in range(narrays)]
+            Cov = ilc.build_empirical_cov(iksplits,ikmaps,atmosphere,lmins,lmaxs,
+                                          signal_bin_width=bin_width,
+                                          signal_interp_order=kind,
+                                          noise_isotropic=noise_isotropic,
+                                          dfact=dfact,
+                                          rfit_lmaxes=None,
+                                          rfit_wnoise_width=250,
+                                          rfit_lmin=300,
+                                          rfit_bin_width=None,
+                                          auto_for_cross_covariance=True,
+                                          min_splits=None,
+                                          fc=fc,return_full=False)
+            Cov = Cov.to_array(np.s_[modlmap<lmax1]).reshape((narrays,narrays,ls.size))
+            print(Cov.shape)
 
-                    if dncov is None: dncov = np.zeros(dscov.shape)
-                    if debug_noise:
-                        if aindex1==aindex2:
-                            io.plot_img(maps.ftrans(scov),aspect='auto')
-                            io.plot_img(maps.ftrans(dscov),aspect='auto')
-                            io.plot_img(maps.ftrans(ncov),aspect='auto')
-                            io.plot_img(maps.ftrans(dncov),aspect='auto')
-                            io.plot_img(maps.ftrans(tsim.ps_noises[aindex1]),aspect='auto')
-                    if aindex1==aindex2:
-                        dncov[modlmap<lmins[aindex1]] = np.inf
-                        dncov[modlmap>lmaxs[aindex1]] = np.inf
-                    Scov[aindex1,aindex2] = dscov[modlmap<lmax1].reshape(-1).copy()
-                    Ncov[aindex1,aindex2] = dncov[modlmap<lmax1].reshape(-1).copy()
-                    if aindex1!=aindex2: Scov[aindex2,aindex1] = Scov[aindex1,aindex2].copy()
-
-            Cov = Scov + Ncov
-
-    ls = modlmap[modlmap<lmax1].reshape(-1)
     with bench.show("init ILC"):
         hilc = ilc.HILC(ls,np.array(tsim.lbeams),Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1,invert=invert)
 
