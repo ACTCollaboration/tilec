@@ -17,6 +17,7 @@ Notes:
 4. lpass = False didn't fix new scatter
 """
 
+chunk_size = 50000
 aseed = 3
 planck_autos = False
 lensing = False # no need for lensing for initial tests
@@ -62,12 +63,12 @@ def process(kmaps,ellmax=None,dtype=np.complex128):
     return kout
 
 def compute(ik1,ik2,tag):
-    pcross2d = fc.f2power(ik1,ik2)
+    pcross2d = fc.f2power(ik1.reshape((Ny,Nx)),ik2.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pcross2d)
     s.add_to_stats(tag,p1d.copy())
 
 def ncompute(ik,nk,tag):
-    pauto2d = fc.f2power(ik,ik) - fc.f2power(nk,nk)
+    pauto2d = fc.f2power(ik.reshape((Ny,Nx)),ik.reshape((Ny,Nx))) - fc.f2power(nk.reshape((Ny,Nx)),nk.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pauto2d)
     s.add_to_stats(tag,p1d.copy())
     
@@ -173,41 +174,53 @@ for task in my_tasks:
                                           auto_for_cross_covariance=True,
                                           min_splits=None,
                                           fc=fc,return_full=False)
-            Cov = Cov.to_array(np.s_[modlmap<lmax1]).reshape((narrays,narrays,ls.size))
-            print(Cov.shape)
 
-    with bench.show("init ILC"):
-        hilc = ilc.HILC(ls,np.array([k[modlmap<lmax1].reshape(-1) for k in tsim.kbeams]) ,Cov,responses={'tsz':yresponses,'cmb':cresponses},chunks=1,invert=invert)
 
     with bench.show("more ffts"):
         ilensed = tsim.lensed
         _,iklensed,_ = fc.power2d(ilensed)
         iy = tsim.y
         _,iky,_ = fc.power2d(iy)
-    with bench.show("ilc"):
-        ikmaps = np.stack(ikmaps)
-        ikmaps[:,modlmap>lmax1] = 0
-        inkmaps = np.stack(inkmaps)
-        inkmaps[:,modlmap>lmax1] = 0
-        kmaps = ikmaps.reshape((narrays,Ny*Nx))[:,modlmap.reshape(-1)<lmax1]
-        nkmaps = inkmaps.reshape((narrays,Ny*Nx))[:,modlmap.reshape(-1)<lmax1]
-        iksilc = process(hilc.standard_map(kmaps,"tsz"))
-        inksilc = process(hilc.standard_map(nkmaps,"tsz"))
-        compute(iksilc,iky,"y_silc_cross")
-        ncompute(iksilc,inksilc,"y_silc_auto")
-        iksilc = process(hilc.constrained_map(kmaps,"tsz","cmb"))
-        inksilc = process(hilc.constrained_map(nkmaps,"tsz","cmb"))
-        compute(iksilc,iky,"y_cilc_cross")
-        ncompute(iksilc,inksilc,"y_cilc_auto")
+        
+    ikmaps = np.stack(ikmaps)
+    # ikmaps[:,modlmap>lmax1] = 0
+    inkmaps = np.stack(inkmaps)
+    # inkmaps[:,modlmap>lmax1] = 0
+    ilcgen = ilc.chunked_ilc(modlmap,np.stack(tsim.kbeams),Cov,chunk_size,responses={'tsz':yresponses,'cmb':cresponses},invert=invert)
 
-        iksilc = process(hilc.standard_map(kmaps,"cmb"))
-        inksilc = process(hilc.standard_map(nkmaps,"cmb"))
-        compute(iksilc,iklensed,"cmb_silc_cross")
-        ncompute(iksilc,inksilc,"cmb_silc_auto")
-        iksilc = process(hilc.constrained_map(kmaps,"cmb","tsz"))
-        inksilc = process(hilc.constrained_map(nkmaps,"cmb","tsz"))
-        compute(iksilc,iklensed,"cmb_cilc_cross")
-        ncompute(iksilc,inksilc,"cmb_cilc_auto")
+    yksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    ynksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    ykcilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    ynkcilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+
+    cksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    cnksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    ckcilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    cnkcilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
+    
+    kmaps = ikmaps.reshape((narrays,Ny*Nx))
+    nkmaps = inkmaps.reshape((narrays,Ny*Nx))
+    for chunknum,(hilc,selchunk) in enumerate(ilcgen):
+        print("ILC on chunk ", chunknum+1, " / ",int(modlmap.size/chunk_size)+1," ...")
+        yksilc[selchunk] = hilc.standard_map(kmaps[...,selchunk],"tsz")
+        ynksilc[selchunk] = hilc.standard_map(nkmaps[...,selchunk],"tsz")
+        ykcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"tsz","cmb")
+        ynkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"tsz","cmb")
+
+        cksilc[selchunk] = hilc.standard_map(kmaps[...,selchunk],"cmb")
+        cnksilc[selchunk] = hilc.standard_map(nkmaps[...,selchunk],"cmb")
+        ckcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"cmb","tsz")
+        cnkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"cmb","tsz")
+        
+    with bench.show("ilc"):
+        compute(yksilc,iky,"y_silc_cross")
+        ncompute(yksilc,ynksilc,"y_silc_auto")
+        compute(ykcilc,iky,"y_cilc_cross")
+        ncompute(ykcilc,ynkcilc,"y_cilc_auto")
+        compute(cksilc,iklensed,"cmb_silc_cross")
+        ncompute(cksilc,cnksilc,"cmb_silc_auto")
+        compute(ckcilc,iklensed,"cmb_cilc_cross")
+        ncompute(ckcilc,cnkcilc,"cmb_cilc_auto")
     if rank==0: print ("Rank 0 done with task ", task+1, " / " , len(my_tasks))
 
 s.get_stats()

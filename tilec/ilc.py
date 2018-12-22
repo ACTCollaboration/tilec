@@ -25,13 +25,38 @@ def map_term(kmaps,response,cov=None,cinv=None):
     Cinvk = cinv_x(kmaps,cov,cinv)
     return np.einsum('...k,...k->...',response,Cinvk)
 
+def chunked_ilc(ells,kbeams,cov,chunk_size,responses=None,invert=True):
+    """
+    Provides a generator that can loop over chunks of fourier space
+    and returns a HILC object for each.
+
+    Args:
+        kmaps: fourier transforms of tapered coadds
+        of shape (narrays,Ny,Nx)
+        cov: symmetric covariance matrix of type SymMat
+        chunk_size: number of fourier pixels in each chunk
+        
+    """
+    nells = ells.size
+    narrays = kbeams.shape[0]
+    ls = ells.reshape(-1)
+    kbeams = kbeams.reshape((narrays,nells))
+    chunk_indices = range(0, nells, chunk_size)
+    num_chunks = len(chunk_indices)
+    for i in chunk_indices:
+        selchunk = np.s_[i:i+chunk_size]
+        hilc = HILC(ls[selchunk],kbeams[:,selchunk],cov.to_array(selchunk,flatten=True),responses=responses,invert=invert)
+        yield hilc,selchunk
+
+    
+
 class HILC(object):
     """
     Harmonic ILC.
     We avoid beam deconvolution, instead modeling the beam in the response.
     Since all maps are beam convolved, we do not need lmaxes.
     """
-    def __init__(self,ells,kbeams,cov=None,responses=None,chunks=1,invert=True):
+    def __init__(self,ells,kbeams,cov=None,responses=None,invert=True):
         """
         Args:
             ells: (nells,) or (Ny,Nx) specifying mode number mapping for each pixel
@@ -41,8 +66,6 @@ class HILC(object):
             beam-convolved maps.
             responses: dictionary mapping component name to (nmap,) floats specifying
             the frequency/array response to that component for a beam-deconvolved map.
-            chunks: integer factor by which to divide the ell space into and loop
-            through to conserve memory
         """
         # Unravel ells and beams
         nmap = kbeams.shape[0]
@@ -59,7 +82,6 @@ class HILC(object):
         kbeams = kbeams.swapaxes(0,1)
         self.ells = ells
         self.nmap = nmap
-        self.chunks = chunks
         self.kbeams = kbeams
         self.cov = np.moveaxis(cov,(0,1),(-2,-1))
         if invert:
@@ -253,7 +275,6 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
     if rfit_lmaxes is None:
         px_arcmin = np.rad2deg(maps.resolution(shape,wcs))*60.
         rfit_lmaxes = [8000*0.5/px_arcmin]*narrays
-        print(rfit_lmaxes)
     if rfit_bin_width is None: rfit_bin_width = minell*4.
     if signal_bin_width is None: signal_bin_width = minell*8.
 
