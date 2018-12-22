@@ -29,6 +29,9 @@ def chunked_ilc(ells,kbeams,cov,chunk_size,responses=None,invert=True):
     """
     Provides a generator that can loop over chunks of fourier space
     and returns a HILC object for each.
+    WARNING: This chunking mixes large and small scale modes, so it
+    should only be used if you are sure your covariance matrix is
+    well-behaved at all scales. FIXME: chunk in a sorted way.
 
     Args:
         kmaps: fourier transforms of tapered coadds
