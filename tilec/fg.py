@@ -61,7 +61,7 @@ default_dict = read_param_dict_from_yaml('../input/fg_SEDs_default_params.yml')
 ######################################
 def get_mix(nu_ghz, comp, param_dict=None): #comp = string containing component name; param_dict = dictionary of SED parameters and values (optional, and only needed for non-first-principles SEDs)
     if (comp == 'CMB' or comp == 'kSZ'): #CMB (or kSZ)
-        return np.ones(len(nu_ghz)) #this is unity by definition, since we're working in Delta T units [uK_CMB]
+        return np.ones(len(np.asarray(nu_ghz))) #this is unity by definition, since we're working in Delta T units [uK_CMB]
     elif (comp == 'tSZ'): #Thermal SZ (y-type distortion)
         nu = 1.e9*np.asarray(nu_ghz)
         X = hplanck*nu/(kboltz*TCMB)
@@ -78,7 +78,7 @@ def get_mix(nu_ghz, comp, param_dict=None): #comp = string containing component 
         X_CIB = hplanck*nu/(kboltz*(p['Tdust_CIB']))
         nu0_CIB = p['nu0_CIB_ghz']*1.e9
         X0_CIB = hplanck*nu0_CIB/(kboltz*(p['Tdust_CIB']))
-        return (nu/nu0_CIB)**(3.0+(p['beta_CIB'])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0)) * (ItoDeltaT(nu)/ItoDeltaT(p['nu0_CIB_ghz']))
+        return (nu/nu0_CIB)**(3.0+(p['beta_CIB'])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0)) * (ItoDeltaT(np.asarray(nu_ghz))/ItoDeltaT(p['nu0_CIB_ghz']))
     else:
         print("unknown component specified")
         quit()
