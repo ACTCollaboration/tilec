@@ -29,117 +29,117 @@ arrays:
     lmax: 18000
     
 
-  # - name: s14_pa1_150
-  #   froot: /home/msyriac/data/act/maps/mr3/
-  #   coadd: s14_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
-  #   cinvvar: s14_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_ivar.fits
-  #   splits: s14_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
-  #   sinvvars: s14_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_ivar.fits
-  #   nsplits: 4
-  #   beam: 1.4
-  #   freq: 148.
-  #   lmin: 300
-  #   lmax: 18000
+  - name: s14_pa1_150
+    froot: /home/msyriac/data/act/maps/mr3/
+    coadd: s14_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
+    cinvvar: s14_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_ivar.fits
+    splits: s14_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
+    sinvvars: s14_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_ivar.fits
+    nsplits: 4
+    beam: 1.4
+    freq: 148.
+    lmin: 300
+    lmax: 18000
 
-  # - name: s14_pa2_150
-  #   froot: /home/msyriac/data/act/maps/mr3/
-  #   coadd: s14_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
-  #   cinvvar: s14_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_ivar.fits
-  #   splits: s14_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
-  #   sinvvars: s14_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_ivar.fits
-  #   nsplits: 4
-  #   beam: 1.4
-  #   freq: 148.
-  #   lmin: 300
-  #   lmax: 18000
+  - name: s14_pa2_150
+    froot: /home/msyriac/data/act/maps/mr3/
+    coadd: s14_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
+    cinvvar: s14_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_ivar.fits
+    splits: s14_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
+    sinvvars: s14_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_ivar.fits
+    nsplits: 4
+    beam: 1.4
+    freq: 148.
+    lmin: 300
+    lmax: 18000
     
-  # - name: s15_pa1_150
-  #   froot: /home/msyriac/data/act/maps/mr3/
-  #   coadd: s15_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
-  #   cinvvar: s15_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_ivar.fits
-  #   splits: s15_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
-  #   sinvvars: s15_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_ivar.fits
-  #   nsplits: 4
-  #   beam: 1.4
-  #   freq: 148.
-  #   lmin: 300
-  #   lmax: 18000
+  - name: s15_pa1_150
+    froot: /home/msyriac/data/act/maps/mr3/
+    coadd: s15_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
+    cinvvar: s15_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_ivar.fits
+    splits: s15_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
+    sinvvars: s15_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_ivar.fits
+    nsplits: 4
+    beam: 1.4
+    freq: 148.
+    lmin: 300
+    lmax: 18000
 
-  # - name: s15_pa2_150
-  #   froot: /home/msyriac/data/act/maps/mr3/
-  #   coadd: s15_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
-  #   cinvvar: s15_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_ivar.fits
-  #   splits: s15_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
-  #   sinvvars: s15_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_ivar.fits
-  #   nsplits: 4
-  #   beam: 1.4
-  #   freq: 148.
-  #   lmin: 300
-  #   lmax: 18000
+  - name: s15_pa2_150
+    froot: /home/msyriac/data/act/maps/mr3/
+    coadd: s15_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits
+    cinvvar: s15_deep56_pa2_f150_nohwp_night_3pass_4way_coadd_ivar.fits
+    splits: s15_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
+    sinvvars: s15_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_ivar.fits
+    nsplits: 4
+    beam: 1.4
+    freq: 148.
+    lmin: 300
+    lmax: 18000
       
-  # - name: lfi_70
-  #   froot: /home/msyriac/data/depot/xlens/
-  #   coadd: LFI_SkyMap_070_2048_R2.01_full_cutout_h0.fits
-  #   cinvvar: LFI_SkyMap_070_2048_R2.01_full_cutout_h3.fits
-  #   splits: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h0.fits
-  #   sinvvars: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h3.fits
-  #   nsplits: 2
-  #   splitstart: 1
-  #   beam: 14.
-  #   freq: 70.
-  #   lmin: 80
-  #   lmax: 6000
+  - name: lfi_70
+    froot: /home/msyriac/data/depot/xlens/
+    coadd: LFI_SkyMap_070_2048_R2.01_full_cutout_h0.fits
+    cinvvar: LFI_SkyMap_070_2048_R2.01_full_cutout_h3.fits
+    splits: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h0.fits
+    sinvvars: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h3.fits
+    nsplits: 2
+    splitstart: 1
+    beam: 14.
+    freq: 70.
+    lmin: 80
+    lmax: 6000
 
-  # - name: hfi_100
-  #   froot: /home/msyriac/data/depot/xlens/
-  #   coadd: HFI_SkyMap_100_2048_R2.02_full_cutout_h0.fits
-  #   cinvvar: HFI_SkyMap_100_2048_R2.02_full_cutout_h3.fits
-  #   splits: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
-  #   sinvvars: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
-  #   nsplits: 2
-  #   splitstart: 1
-  #   beam: 10.
-  #   freq: 100.
-  #   lmin: 80
-  #   lmax: 6000
+  - name: hfi_100
+    froot: /home/msyriac/data/depot/xlens/
+    coadd: HFI_SkyMap_100_2048_R2.02_full_cutout_h0.fits
+    cinvvar: HFI_SkyMap_100_2048_R2.02_full_cutout_h3.fits
+    splits: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    sinvvars: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
+    nsplits: 2
+    splitstart: 1
+    beam: 10.
+    freq: 100.
+    lmin: 80
+    lmax: 6000
 
-  # - name: hfi_143
-  #   froot: /home/msyriac/data/depot/xlens/
-  #   coadd: HFI_SkyMap_143_2048_R2.02_full_cutout_h0.fits
-  #   cinvvar: HFI_SkyMap_143_2048_R2.02_full_cutout_h3.fits
-  #   splits: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
-  #   sinvvars: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
-  #   nsplits: 2
-  #   splitstart: 1
-  #   beam: 7.
-  #   freq: 143.
-  #   lmin: 80
-  #   lmax: 6000
+  - name: hfi_143
+    froot: /home/msyriac/data/depot/xlens/
+    coadd: HFI_SkyMap_143_2048_R2.02_full_cutout_h0.fits
+    cinvvar: HFI_SkyMap_143_2048_R2.02_full_cutout_h3.fits
+    splits: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    sinvvars: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
+    nsplits: 2
+    splitstart: 1
+    beam: 7.
+    freq: 143.
+    lmin: 80
+    lmax: 6000
       
-  # - name: hfi_217
-  #   froot: /home/msyriac/data/depot/xlens/
-  #   coadd: HFI_SkyMap_217_2048_R2.02_full_cutout_h0.fits
-  #   cinvvar: HFI_SkyMap_217_2048_R2.02_full_cutout_h3.fits
-  #   splits: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
-  #   sinvvars: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
-  #   nsplits: 2
-  #   splitstart: 1
-  #   beam: 5.
-  #   freq: 217.
-  #   lmin: 80
-  #   lmax: 6000
+  - name: hfi_217
+    froot: /home/msyriac/data/depot/xlens/
+    coadd: HFI_SkyMap_217_2048_R2.02_full_cutout_h0.fits
+    cinvvar: HFI_SkyMap_217_2048_R2.02_full_cutout_h3.fits
+    splits: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    sinvvars: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
+    nsplits: 2
+    splitstart: 1
+    beam: 5.
+    freq: 217.
+    lmin: 80
+    lmax: 6000
 
       
-  # - name: hfi_353
-  #   froot: /home/msyriac/data/depot/xlens/
-  #   coadd: HFI_SkyMap_353_2048_R2.02_full_cutout_h0.fits
-  #   cinvvar: HFI_SkyMap_353_2048_R2.02_full_cutout_h3.fits
-  #   splits: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
-  #   sinvvars: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
-  #   nsplits: 2
-  #   splitstart: 1
-  #   beam: 5.
-  #   freq: 353.
-  #   lmin: 80
-  #   lmax: 6000
+  - name: hfi_353
+    froot: /home/msyriac/data/depot/xlens/
+    coadd: HFI_SkyMap_353_2048_R2.02_full_cutout_h0.fits
+    cinvvar: HFI_SkyMap_353_2048_R2.02_full_cutout_h3.fits
+    splits: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    sinvvars: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
+    nsplits: 2
+    splitstart: 1
+    beam: 5.
+    freq: 353.
+    lmin: 80
+    lmax: 6000
 

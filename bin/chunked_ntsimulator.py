@@ -108,7 +108,7 @@ if dust:
     ps[1,2] = ps[2,1] = clsc
     ps[0,2] = ps[2,0] = clkc
 
-tsim = maps.SplitSimulator(shape,wcs,beams,freqs,noises,lknees,alphas,nsplits.astype(np.int),ps,nu0,lmins=lmins,lmaxs=lmaxs,atmosphere=atmosphere,lensing=lensing,dust=dust,do_fgs=fgs,lpass=lpass,aseed=aseed)
+tsim = maps.SplitSimulator(shape,wcs,beams,freqs,noises,nsplits.astype(np.int),lknees,alphas,ps,nu0,lmins=lmins,lmaxs=lmaxs,atmosphere=atmosphere,lensing=lensing,dust=dust,do_fgs=fgs,lpass=lpass,aseed=aseed)
 
 modlmap = tsim.modlmap
 fc = maps.FourierCalc(tsim.shape,tsim.wcs)
