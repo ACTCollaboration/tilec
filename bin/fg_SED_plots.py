@@ -1,7 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import os,sys
-from tilec.fg import *
+from tilec.fg import get_mix,ItoDeltaT
 import matplotlib
 from cycler import cycler
 matplotlib.rcParams['axes.prop_cycle'] = cycler(color=['#2424f0','#df6f0e','#3cc03c','#d62728','#b467bd','#ac866b','#e397d9','#9f9f9f','#ecdd72','#77becf'])
