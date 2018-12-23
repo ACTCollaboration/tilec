@@ -213,17 +213,15 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
     
 
 
-def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
+def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
+                        anisotropic_pairs,
                         signal_bin_width=None,
                         signal_interp_order=0,
-                        noise_isotropic=False,
                         dfact=(16,16),
                         rfit_lmaxes=None,
                         rfit_wnoise_width=250,
                         rfit_lmin=300,
                         rfit_bin_width=None,
-                        auto_for_cross_covariance=True,
-                        min_splits=None,
                         fc=None,return_full=False,
                         verbose=True,
                         debug_plots=False,alt=True):
@@ -241,9 +239,11 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
         coadd maps that have already been inverse noise weighted and tapered. This
         routine will not apply any corrections for the windowing.
 
-        atmosphere: list of booleans of length narrays specifying whether the array
-        has (atmospheric) 1/f noise which is fitted out before downsampling the
-        noise power.
+        anisotropic_pairs: list of 2-tuples specifying which elements of the covariance
+        matrix will be treated under hybrid radial(signal)/cartesian(noise) mode. If
+        (i,j) is in the list, (j,i) will be added if it already doesn't exist, since
+        the covariance has to be symmetric. For these pairs, an atmospheric 1/f noise 
+        will be fitted out before downsampling the noise power.
 
         auto_for_cross_covariance: if True, cov(array1,array2) for array1!=array2 does
         not get separate signal and noise treatment, and is binned isotropically.
@@ -269,6 +269,22 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
         can be extracted using Cov.to_array().
     
 
+    For each pair of arrays, one of the following modes is chosen:
+    1) fully radial
+       - this is appropriate for any i,j for an isotropic experiment like Planck
+         or for i!=j combinations of independent experiments like ACT/Planck
+         or for i!=j combinations of ACT arrays that have independent instrument 
+         noise (no correlated atmosphere), e.g. pa2,pa3
+       - it is calculated simply by radially binning the total spectrum of
+         the coadds ps(i,j). The split info is not used.
+    
+    2) hybrid radial/cartesian
+       - this is appropriate for diagonals i=j of a ground-based experiment like
+         ACT, or for i!=j combinations of ACT arrays that have correlated atmosphere
+         e.g. pa3-150/pa3-90
+       - this routine assumes that such off diagonal pairs of arrays have the same
+         number of splits, and calculates the noise power from splits, and the signal from
+         the total spectrum minus the noise power.
 
     """
 
@@ -291,36 +307,28 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
             if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
-            if auto_for_cross_covariance and aindex1!=aindex2:
+
+            hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
+            if hybrid:
+                autos,scov,ncov = maps.split_calc(ksplits[aindex1],ksplits[aindex2],kcoadds[aindex1],kcoadds[aindex2],fourier_calc=fc,alt=True)
+            else:
                 scov = fc.f2power(kcoadds[aindex1],kcoadds[aindex2])
                 ncov = None
-            else:
-                autos,scov,ncov = maps.split_calc(ksplits[aindex1],ksplits[aindex2],kcoadds[aindex1],kcoadds[aindex2],fourier_calc=fc,alt=alt)
-            if (min_splits is not None) and (aindex1==aindex2):
-                nsplits = ksplits[aindex1].shape[0]
-                if (nsplits<min_splits):
-                    scov = autos
-                    ncov = None
-            if aindex1==aindex2:
-                if ncov is None:
-                    dncov = None
-                elif noise_isotropic:
-                    dncov = covtools.signal_average(ncov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=lmins[aindex1])
-                else:
-                    # dncov = enmap.enmap(np.fft.ifftshift(enmap.project(enmap.downgrade(enmap.enmap(np.fft.fftshift(ncov),wcs),16),shape,wcs)),wcs)
-                    dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
-                                                       radial_fit=True if atmosphere[aindex1] else False,lmax=rfit_lmaxes[aindex1],
-                                                       wnoise_annulus=rfit_wnoise_width,
-                                                       lmin = rfit_lmin,
-                                                       bin_annulus=rfit_bin_width)
-            else:
-                dncov = None
-            dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
-            if dncov is None: dncov = np.zeros(dscov.shape)
 
+            dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
+            if ncov is not None:
+                dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
+                                                   radial_fit=True,lmax=rfit_lmaxes[aindex1],
+                                                   wnoise_annulus=rfit_wnoise_width,
+                                                   lmin = rfit_lmin,
+                                                   bin_annulus=rfit_bin_width)
+            else:
+                dncov = np.zeros(dscov.shape)
+
+            tcov = dscov + dncov
             if aindex1==aindex2:
-                dncov[modlmap<lmins[aindex1]] = np.inf
-                dncov[modlmap>lmaxs[aindex1]] = np.inf
+                tcov[modlmap<lmins[aindex1]] = np.inf
+                tcov[modlmap>lmaxs[aindex1]] = np.inf
 
             if debug_plots:
                 io.plot_img(maps.ftrans(scov),"debug_s2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
@@ -342,9 +350,8 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
                     padd(pl,dncov,"--","C1")
                     pl.done("debug_n1d_%d_%d.png" % (aindex1,aindex2))
                 
-            Cov[aindex1,aindex2] = dscov + dncov
+            Cov[aindex1,aindex2] = tcov.copy()
             if debug_plots: io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"debug_fcov2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
-            
-            if aindex1!=aindex2: Cov[aindex2,aindex1] = dscov.copy()
+            if aindex1!=aindex2: Cov[aindex2,aindex1] = tcov.copy()
     Cov.data = enmap.enmap(Cov.data,wcs,copy=False)
     return Cov.to_array() if return_full else Cov

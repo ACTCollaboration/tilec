@@ -19,7 +19,6 @@ Notes:
 
 chunk_size = 200000
 aseed = 3
-planck_autos = False
 lensing = False # no need for lensing for initial tests
 invert = True # 40x speedup from precalulated linalg.inv instead of linalg.solve
 lpass = False # whether to remove modes below lmin in each of the arrays
@@ -125,6 +124,14 @@ bin_edges = np.arange(np.min(lmins),lmax-50,8*minell)
 binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
+# Only do hybrid treatment for arrays with more than 2 splits (ACT)
+anisotropic_pairs = []
+if not(noise_isotropic):
+    for aindex1 in range(narrays):
+        nsplits1 = tsim.nsplits[aindex1]
+        if nsplits1>2: anisotropic_pairs.append((aindex1,aindex1))
+
+
 if analytic:
     Cov = ilc.build_analytic_cov(tsim.modlmap,theory.lCl('TT',tsim.modlmap),
                                  ffuncs,tsim.freqs,tsim.kbeams,
@@ -157,17 +164,15 @@ for task in my_tasks:
     with bench.show("empirical cov"):
         if not(analytic):
             atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
-            Cov = ilc.build_empirical_cov(iksplits,ikmaps,atmospheres,lmins,lmaxs,
+            Cov = ilc.build_empirical_cov(iksplits,ikmaps,lmins,lmaxs,
+                                          anisotropic_pairs,
                                           signal_bin_width=bin_width,
                                           signal_interp_order=kind,
-                                          noise_isotropic=noise_isotropic,
                                           dfact=dfact,
                                           rfit_lmaxes=None,
                                           rfit_wnoise_width=250,
                                           rfit_lmin=300,
                                           rfit_bin_width=None,
-                                          auto_for_cross_covariance=True,
-                                          min_splits=None,
                                           fc=fc,return_full=False)
 
 
