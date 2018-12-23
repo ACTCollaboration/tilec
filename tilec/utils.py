@@ -4,23 +4,24 @@ import numpy as np
 from orphics import maps,io
 
 
-def tpower(p2d): return np.fft.fftshift(np.log10(p2d))
-
 class Config(object):
-    def __init__(self,arrays,yaml_file="input/arrays.yml"):
-        self.arrays = arrays
-        self.narrays = len(arrays)
+    def __init__(self,arrays=None,yaml_file="input/arrays.yml"):
         with open(yaml_file) as f:
             self.config = yaml.safe_load(f)
         self.darrays = {}
         for d in self.config['arrays']:
             self.darrays[d['name']] = d.copy()
-
+        self.arrays = arrays
+        if self.arrays is None: self.arrays = list(self.darrays.keys())
+        self.narrays = len(self.arrays)
 
         self.shape,self.wcs = enmap.read_fits_geometry(self.coaddfname(0))
         Ny,Nx = self.shape[-2:]
+        self.Ny,self.Nx = Ny,Nx
         self.fc = maps.FourierCalc(self.shape[-2:],self.wcs)
         self.modlmap = enmap.modlmap(self.shape,self.wcs)
+        self.mask = enmap.read_map(self.xmaskfname()) # steve's mask
+
             
     def get_beams(self,ai,aj): # get beam fwhm for array indices ai and aj
         return self.darrays[self.arrays[ai]]['beam'],self.darrays[self.arrays[aj]]['beam']
@@ -45,64 +46,29 @@ class Config(object):
     def get_nsplits(self,aindex): return self.darrays[self.arrays[aindex]]['nsplits']
     def xmaskfname(self): return self.config['xmask']
 
-    def get_coadds(self):
+    def load_coadd_real(self,ai): return enmap.read_map(self.coaddfname(ai),sel=np.s_[0,:,:])
+    def load(self,ai,skip_splits=False):
         """
-        Should also beam deconvolve and low pass here
-        (narray,Ny,Nx)
-        """
-        kcoadds = []
-        wins = []
-        mask = enmap.read_map(self.xmaskfname())
-        ais = range(self.narrays)
-        for ai in ais:
-            # iwin = enmap.read_map(cinvvarfname(ai))[0]
-            iwin = 1.
-            window = mask*iwin
-            wins.append(window)
-            imap = enmap.read_map(self.coaddfname(ai),sel=np.s_[0,:,:])
-            _,_,kcoadd = self.fc.power2d(window*imap)
-            ifwhm,_ = self.get_beams(ai,ai)
-            kcoadd = np.nan_to_num(kcoadd/maps.gauss_beam(self.modlmap,ifwhm))
-            ncoadd = np.nan_to_num(kcoadd/np.sqrt(np.mean(window**2.))) # NEED TO RETHINK THE SPATIAL WEIGHTING
-            kcoadds.append(ncoadd) 
-        kcoadds = enmap.enmap(np.stack(kcoadds),self.wcs)
-        wins = enmap.enmap(np.stack(wins),self.wcs)
-        return kcoadds,wins
-
-    def get_splits(self,ai):
-        """
-        Should also beam deconvolve and low pass here
         ai is index of array (in the "arrays" list that you specified as an argument)
-        Return (nsplits,Ny,Nx) ndmap
+        Return (nsplits,Ny,Nx) fourier transform
+        Return (Ny,Nx) fourier transform of coadd
         """
         nsplits = self.get_nsplits(ai)
         ksplits = []
+        imaps = []
         wins = []
-        mask = enmap.read_map(self.xmaskfname()) # steve's mask
         for i in range(nsplits):
-            # iwin = enmap.read_map(sinvvarfname(ai,i))
-            iwin = 1. # window function is 1
-            window = mask*iwin
-            wins.append(window)
-            imap = enmap.read_map(self.splitfname(ai,i),sel=np.s_[0,:,:]) # document sel usage
-            _,_,ksplit = self.fc.power2d(window*imap)
-            ksplits.append(ksplit)
-        ksplits = enmap.enmap(np.stack(ksplits),self.wcs)
+            iwin = enmap.read_map(self.sinvvarfname(ai,i)).reshape((self.Ny,self.Nx))
+            wins.append(iwin.copy())
+            imap = enmap.read_map(self.splitfname(ai,i),sel=np.s_[0,:,:]) * iwin # document sel usage
+            imaps.append(imap.copy())
+            if not(skip_splits):
+                _,_,ksplit = self.fc.power2d(imap*self.mask)
+                ksplits.append(ksplit.copy()/ np.sqrt(np.mean((iwin*self.mask)**2.)))
+        if not(skip_splits): ksplits = enmap.enmap(np.stack(ksplits),self.wcs)
         wins = enmap.enmap(np.stack(wins),self.wcs)
-        return ksplits,wins
-
-    def get_single_coadd(self,ai):
-        """
-        ai is index of array (in the "arrays" list that you specified as an argument)
-        Return (Ny,Nx) ndmap
-        """
-        mask = enmap.read_map(self.xmaskfname()) # steve's mask
-        iwin = 1. # window function is 1
-        window = mask*iwin
-        imap = enmap.read_map(self.coaddfname(ai),sel=np.s_[0,:,:]) # document sel usage
-        _,_,ksplit = self.fc.power2d(window*imap)
-        ksplit = enmap.enmap(ksplit,self.wcs)
-        win = enmap.enmap(window,self.wcs)
-        return ksplit,win
-    
+        imaps = enmap.enmap(np.stack(imaps),self.wcs)
+        coadd = np.nan_to_num(imaps.sum(axis=0)/wins.sum(axis=0))
+        kcoadd = enmap.enmap(self.fc.fft(coadd*self.mask) / np.sqrt(np.mean(self.mask**2.)),self.wcs)
+        return ksplits,kcoadd
 

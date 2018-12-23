@@ -17,7 +17,7 @@ Notes:
 4. lpass = False didn't fix new scatter
 """
 
-chunk_size = 50000
+chunk_size = 200000
 aseed = 3
 planck_autos = False
 lensing = False # no need for lensing for initial tests
@@ -36,7 +36,7 @@ ycibcorr = False # whether tSZ/CIB are correlated
 lmax = 6000
 px = (1.0*10000./(lmax+500.))
 # sims
-nsims = 5
+nsims = 3
 # signal cov
 bin_width = 80 # this parameter seems to be important and cause unpredictable noise
 kind = 0 # higher order interpolation breaks covariance
@@ -54,15 +54,10 @@ else:
     components = ['tsz','cib'] if dust else ['tsz']
 comm,rank,my_tasks = mpi.distribute(nsims)
 
-def process(kmaps,ellmax=None,dtype=np.complex128):
-    ellmax = lmax if ellmax is None else ellmax
-    kout = enmap.zeros((Ny,Nx),wcs,dtype=dtype).reshape(-1)
-    kout[modlmap.reshape(-1)<lmax1] = np.nan_to_num(kmaps.copy())
-    kout = enmap.enmap(kout.reshape((Ny,Nx)),wcs)
-    # io.plot_img(fc.ifft(kout).real)
-    return kout
-
 def compute(ik1,ik2,tag):
+    kmap = ik1.reshape((Ny,Nx))
+    # imap = enmap.enmap(fc.ifft(kmap).real,wcs)
+    # io.hplot(imap,tag)
     pcross2d = fc.f2power(ik1.reshape((Ny,Nx)),ik2.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pcross2d)
     s.add_to_stats(tag,p1d.copy())

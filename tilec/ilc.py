@@ -1,7 +1,7 @@
 import numpy as np
 from pixell import utils,enmap
 from tilec import covtools
-from orphics import maps
+from orphics import maps,stats,io
 
 """
 This module implements harmonic ILC.
@@ -132,7 +132,10 @@ class HILC(object):
         # Get response^T cinv kmaps
         kmaps = self._prepare_maps(kmaps)
         weighted = map_term(kmaps,self.responses[name],self.cov,self.cinv)
-        return weighted * self.standard_noise(name)
+        snoise = self.standard_noise(name)
+        snoise[np.isinf(np.abs(snoise))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
+        out = weighted * snoise
+        return out
 
     def constrained_map(self,kmaps,name1,name2):
         """Constrained ILC -- Make a constrained internal linear combination (ILC) of given fourier space maps at different frequencies
@@ -149,8 +152,9 @@ class HILC(object):
         brM = map_term(kmaps,response_b,self.cov,self.cinv)
         ara = map_comb(response_a,response_a,self.cov,self.cinv)
         numer = brb * arM - arb*brM
-        norm = (ara*brb-arb**2.)
-        return numer/norm
+        norm = 1./(ara*brb-arb**2.)
+        norm[np.isinf(np.abs(norm))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
+        return numer*norm
 
 def build_analytic_cov(ells,cmb_ps,fgdict,freqs,kbeams,noises,lmins=None,lmaxs=None,verbose=True):
     nmap = len(freqs)
@@ -220,7 +224,9 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
                         rfit_bin_width=None,
                         auto_for_cross_covariance=True,
                         min_splits=None,
-                        fc=None,return_full=False):
+                        fc=None,return_full=False,
+                        verbose=True,
+                        debug_plots=False,alt=True):
     """
     Build an empirical covariance matrix using hybrid radial (signal) and cartesian
     (noise) binning.
@@ -284,11 +290,12 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
     # Loop over unique covmat elements
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
+            if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
             if auto_for_cross_covariance and aindex1!=aindex2:
                 scov = fc.f2power(kcoadds[aindex1],kcoadds[aindex2])
                 ncov = None
             else:
-                autos,scov,ncov = maps.split_calc(ksplits[aindex1],ksplits[aindex2],kcoadds[aindex1],kcoadds[aindex2],fourier_calc=fc)
+                autos,scov,ncov = maps.split_calc(ksplits[aindex1],ksplits[aindex2],kcoadds[aindex1],kcoadds[aindex2],fourier_calc=fc,alt=alt)
             if (min_splits is not None) and (aindex1==aindex2):
                 nsplits = ksplits[aindex1].shape[0]
                 if (nsplits<min_splits):
@@ -300,6 +307,7 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
                 elif noise_isotropic:
                     dncov = covtools.signal_average(ncov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=lmins[aindex1])
                 else:
+                    # dncov = enmap.enmap(np.fft.ifftshift(enmap.project(enmap.downgrade(enmap.enmap(np.fft.fftshift(ncov),wcs),16),shape,wcs)),wcs)
                     dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
                                                        radial_fit=True if atmosphere[aindex1] else False,lmax=rfit_lmaxes[aindex1],
                                                        wnoise_annulus=rfit_wnoise_width,
@@ -309,9 +317,34 @@ def build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
                 dncov = None
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if dncov is None: dncov = np.zeros(dscov.shape)
+
             if aindex1==aindex2:
                 dncov[modlmap<lmins[aindex1]] = np.inf
                 dncov[modlmap>lmaxs[aindex1]] = np.inf
+
+            if debug_plots:
+                io.plot_img(maps.ftrans(scov),"debug_s2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
+                io.plot_img(maps.ftrans(dscov),"debug_ds2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
+                if ncov is not None:
+                    io.plot_img(maps.ftrans(ncov),"debug_n2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
+                    io.plot_img(maps.ftrans(dncov),"debug_dn2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
+                bin_edges = np.arange(100,8000,100)
+                binner = stats.bin2D(modlmap,bin_edges)
+                cents = binner.centers
+                pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
+                padd = lambda p,x,ls,col: p.add(cents,binner.bin(x)[1],ls=ls,color=col)
+                padd(pl,scov,"-","C0")
+                padd(pl,dscov,"--","C0")
+                pl.done("debug_s1d_%d_%d.png" % (aindex1,aindex2))
+                if ncov is not None: 
+                    pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
+                    padd(pl,ncov,"-","C1")
+                    padd(pl,dncov,"--","C1")
+                    pl.done("debug_n1d_%d_%d.png" % (aindex1,aindex2))
+                
             Cov[aindex1,aindex2] = dscov + dncov
+            if debug_plots: io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"debug_fcov2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
+            
             if aindex1!=aindex2: Cov[aindex2,aindex1] = dscov.copy()
+    Cov.data = enmap.enmap(Cov.data,wcs,copy=False)
     return Cov.to_array() if return_full else Cov
