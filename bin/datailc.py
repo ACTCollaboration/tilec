@@ -21,7 +21,7 @@ for i,array in enumerate(c.arrays):
     kbeams.append(maps.gauss_beam(modlmap,c.darrays[array]['beam']))
     kcoadds.append(c.load(i,skip_splits=True)[1].copy())
 kcoadds = enmap.enmap(np.stack(kcoadds),c.wcs)
-chunk_size = 2000000
+chunk_size = 1000000
 
 theory = cosmology.default_theory()
 
@@ -47,12 +47,17 @@ for chunknum,(hilc,selchunk) in enumerate(ilcgen):
     cmap[selchunk] = hilc.constrained_map(kcoadds[...,selchunk],"cmb","tsz")
 
 del ilcgen,cov
-snoise = snoise.reshape((Ny,Nx))
-cnoise = cnoise.reshape((Ny,Nx))
+snoise = enmap.enmap(snoise.reshape((Ny,Nx)),wcs)
+cnoise = enmap.enmap(cnoise.reshape((Ny,Nx)),wcs)
 ksmap = enmap.enmap(smap.reshape((Ny,Nx)),wcs)
 kcmap = enmap.enmap(cmap.reshape((Ny,Nx)),wcs)
+enmap.write_map("snoise.fits",snoise)
+enmap.write_map("cnoise.fits",cnoise)
+enmap.write_map("ksmap.fits",enmap.enmap(c.fc.ifft(ksmap).real,wcs))
+enmap.write_map("kcmap.fits",enmap.enmap(c.fc.ifft(kcmap).real,wcs))
+io.plot_img(maps.ftrans(snoise),"snoise2d.png",aspect='auto')
+io.plot_img(maps.ftrans(cnoise),"cnoise2d.png",aspect='auto')
 bin_edges = np.arange(80,8000,80)
-ells = np.arange(0,8000,1)
 binner = stats.bin2D(modlmap,bin_edges)
 cents,s1d = binner.bin(snoise)
 cents,c1d = binner.bin(cnoise)
@@ -65,7 +70,6 @@ pl.add(cents,as1d,ls="-")
 pl.add(cents,ac1d,ls="-")
 pl.add(cents,s1d,ls="--")
 pl.add(cents,c1d,ls="--")
-pl.add(ells,theory.lCl('TT',ells))
 pl.done("snoise_data.png")
 
 smap = enmap.enmap(c.fc.ifft(ksmap).real,wcs)
@@ -75,11 +79,27 @@ io.hplot(cmap,"ucmap")
 io.plot_img(smap,"umsmap.png",lim=300)
 io.plot_img(cmap,"umcmap.png",lim=300)
 
-kbeam = maps.gauss_beam(modlmap,1.5)
+sbeam = 1.4
+cbeam = 2.2
+
+
+kbeam = maps.gauss_beam(modlmap,sbeam)
 smap = maps.filter_map(enmap.enmap(smap,wcs),kbeam)
-kbeam = maps.gauss_beam(modlmap,3.0)
+kbeam = maps.gauss_beam(modlmap,cbeam)
 cmap = maps.filter_map(enmap.enmap(cmap,wcs),kbeam)
 io.hplot(smap,"smap")
 io.hplot(cmap,"cmap")
 io.plot_img(smap,"msmap.png",lim=300)
 io.plot_img(cmap,"mcmap.png",lim=300)
+
+bin_edges = np.arange(80,15000,80)
+binner = stats.bin2D(modlmap,bin_edges)
+kbeam = maps.gauss_beam(modlmap,sbeam)
+cents,as1d = binner.bin(snoise*kbeam**2.)
+kbeam = maps.gauss_beam(modlmap,cbeam)
+cents,ac1d = binner.bin(cnoise*kbeam**2.)
+
+pl = io.Plotter(yscale='log')
+pl.add(cents,as1d,ls="-")
+pl.add(cents,ac1d,ls="-")
+pl.done("snoise_data_beamed.png")
