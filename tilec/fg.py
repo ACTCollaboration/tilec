@@ -79,6 +79,15 @@ def get_mix(nu_ghz, comp, param_dict=None): #comp = string containing component 
         nu0_CIB = p['nu0_CIB_ghz']*1.e9
         X0_CIB = hplanck*nu0_CIB/(kboltz*(p['Tdust_CIB']))
         return (nu/nu0_CIB)**(3.0+(p['beta_CIB'])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0)) * (ItoDeltaT(np.asarray(nu_ghz))/ItoDeltaT(p['nu0_CIB_ghz']))
+    elif (comp == 'CIB_Jysr'): #same as CIB above but in Jy/sr instead of K_CMB
+        # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
+        if param_dict is None: param_dict = default_dict
+        p = param_dict
+        nu = 1.e9*np.asarray(nu_ghz)
+        X_CIB = hplanck*nu/(kboltz*(p['Tdust_CIB']))
+        nu0_CIB = p['nu0_CIB_ghz']*1.e9
+        X0_CIB = hplanck*nu0_CIB/(kboltz*(p['Tdust_CIB']))
+        return (nu/nu0_CIB)**(3.0+(p['beta_CIB'])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0))
     else:
         print("unknown component specified")
         quit()
