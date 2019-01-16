@@ -43,12 +43,12 @@ def dBnudT(nu_ghz):
 ######################################
 # dictionary of parameter values needed for some component SEDs
 ######################################
-def read_param_dict_from_yaml(filename):
-    with open(filename) as f:
+def read_param_dict_from_yaml(yaml_file="input/fg_SEDs_default_params.yml"):
+    with open(yaml_file) as f:
         config = yaml.safe_load(f)
     return config
 # default case
-default_dict = read_param_dict_from_yaml('../input/fg_SEDs_default_params.yml')
+#default_dict = read_param_dict_from_yaml('../input/fg_SEDs_default_params.yml')
 #pdict = {}                                                                                                                                           
 #pdict['beta'] = 1                                                                                                                                    
 ######################################
@@ -59,7 +59,7 @@ default_dict = read_param_dict_from_yaml('../input/fg_SEDs_default_params.yml')
 # N.B. overall amplitudes are (generally) not meaningful; this function gives relative conversions between frequencies, for each component SED
 # convention is that the maps being modeled are in uK_CMB units
 ######################################
-def get_mix(nu_ghz, comp, param_dict=None): #nu_ghz = array of frequencies in GHz; comp = string containing component name; param_dict = dictionary of SED parameters and values (optional, and only needed for non-first-principles SEDs)
+def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies in GHz; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for non-first-principles SEDs)
     assert (comp != None)
     if (comp == 'CMB' or comp == 'kSZ'): #CMB (or kSZ)
         return np.ones(len(np.asarray(nu_ghz))) #this is unity by definition, since we're working in Delta T units [uK_CMB]; output ILC map will thus also be in uK_CMB
@@ -71,11 +71,19 @@ def get_mix(nu_ghz, comp, param_dict=None): #nu_ghz = array of frequencies in GH
         nu = 1.e9*np.asarray(nu_ghz)
         X = hplanck*nu/(kboltz*TCMB)
         return (X / 2.1923 - 1.0)/X * TCMB_uK #put explicitly into uK_CMB units, so that output ILC map is in terms of \mu (analogous to y above)
+#    elif (comp == 'rSZ'):
+#        # relativistic SZ parameter choice in dict file: kT_e_keV [keV] (temperature of electrons)
+#        if param_dict is None: param_dict = default_dict
+#        p = param_dict
+#        nu = 1.e9*np.asarray(nu_ghz)
+#        
     elif (comp == 'CIB'):
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        if param_dict is None: param_dict = default_dict
-        p = param_dict
+        if param_dict_file is None:
+            p = read_param_dict_from_yaml()
+        else:
+            p = read_param_dict_from_yaml(param_dict_file)
         nu = 1.e9*np.asarray(nu_ghz)
         X_CIB = hplanck*nu/(kboltz*(p['Tdust_CIB']))
         nu0_CIB = p['nu0_CIB_ghz']*1.e9
@@ -84,8 +92,10 @@ def get_mix(nu_ghz, comp, param_dict=None): #nu_ghz = array of frequencies in GH
     elif (comp == 'CIB_Jysr'): #same as CIB above but in Jy/sr instead of uK_CMB
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        if param_dict is None: param_dict = default_dict
-        p = param_dict
+        if param_dict_file is None:
+            p = read_param_dict_from_yaml()
+        else:
+            p = read_param_dict_from_yaml(param_dict_file)
         nu = 1.e9*np.asarray(nu_ghz)
         X_CIB = hplanck*nu/(kboltz*(p['Tdust_CIB']))
         nu0_CIB = p['nu0_CIB_ghz']*1.e9
@@ -103,7 +113,7 @@ def get_mix(nu_ghz, comp, param_dict=None): #nu_ghz = array of frequencies in GH
 # convention is that the maps being modeled are in uK_CMB units
 # bandpass file columns should be [freq (GHz)] [transmission (unit-integral-normalized)]
 ######################################
-def get_mix_bandpassed(bp_list, comp, param_dict=None): #bp_list = list containing strings of bandpass filenames; comp = string containing component name; param_dict = dictionary of SED parameters and values (optional, and only needed for non-first-principles SEDs)
+def get_mix_bandpassed(bp_list, comp, param_dict_file=None): #bp_list = list containing strings of bandpass filenames; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for non-first-principles SEDs)
     assert (comp != None)
     assert (bp_list != None)
     N_freqs = len(bp_list)
@@ -122,13 +132,15 @@ def get_mix_bandpassed(bp_list, comp, param_dict=None): #bp_list = list containi
         # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        if param_dict is None: param_dict = default_dict
-        p = param_dict
+        if param_dict_file is None:
+            p = read_param_dict_from_yaml()
+        else:
+            p = read_param_dict_from_yaml(param_dict_file)
         i=0
         for bp in bp_list:
             nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
             # N.B. this expression follows from Eqs. 32 and 35 of https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , and then noting that one also needs to first rescale the CIB emission in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).  The resulting cancellation leaves this simple expression which has no dependence on nu_c.
-            output[i] = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz))
+            output[i] = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz))
             i+=1
         return output/np.amax(output) #overall amplitude not meaningful, so divide by max to get numbers of order unity; output gives the relative conversion between CIB at different frequencies, for maps in uK_CMB
     else:
