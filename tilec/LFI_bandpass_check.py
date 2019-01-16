@@ -1,6 +1,7 @@
+from __future__ import print_function
 import numpy as np
 import matplotlib.pyplot as plt
-from fg import dBnudT_KCMB,get_mix
+from fg import dBnudT,get_mix
 """
 compute various conversion factors for LFI bandpasses
 """
@@ -15,23 +16,23 @@ LFI_freqs = []
 LFI_freqs.append('030')
 LFI_freqs.append('044')
 LFI_freqs.append('070')
-LFI_freqs_float = np.array([30.0e9, 44.0e9, 70.0e9])
+LFI_freqs_GHz = np.array([30.0, 44.0, 70.0])
 LFI_files = []
 for i in xrange(N_freqs):
-    print "----------"
-    print LFI_freqs[i]
+    print("----------")
+    print(LFI_freqs[i])
     LFI_files.append('../data/LFI_BANDPASS_F'+LFI_freqs[i]+'_reformat.txt')
     LFI_loc = np.loadtxt(LFI_files[i])
-    # check norm
-    LFI_loc_Hz = LFI_loc[:,0]
+    # check norm, i.e., make sure response is unity for CMB
+    LFI_loc_GHz = LFI_loc[:,0]
     LFI_loc_trans = LFI_loc[:,1]
-    print "norm = ", np.trapz(LFI_loc_trans, LFI_loc_Hz)
+    print("CMB norm = ", np.trapz(LFI_loc_trans, LFI_loc_GHz))
     # compute K_CMB -> y_SZ conversion
-    print "K_CMB -> y_SZ conversion: ", np.trapz(LFI_loc_trans*dBnudT_KCMB(LFI_loc_Hz/1.e9), LFI_loc_Hz) / np.trapz(LFI_loc_trans*dBnudT_KCMB(LFI_loc_Hz/1.e9)*get_mix(LFI_loc_Hz/1.e9,'tSZ')/TCMB_uK, LFI_loc_Hz) / TCMB
+    print("K_CMB -> y_SZ conversion: ", np.trapz(LFI_loc_trans*dBnudT(LFI_loc_GHz)*1.e6, LFI_loc_GHz) / np.trapz(LFI_loc_trans*dBnudT(LFI_loc_GHz)*1.e6*get_mix(LFI_loc_GHz,'tSZ')/TCMB_uK, LFI_loc_GHz) / TCMB)
     # compute K_CMB -> MJy/sr conversion [IRAS convention, alpha=-1 power-law SED]
-    print "K_CMB -> MJy/sr conversion [IRAS convention, alpha=-1 power-law SED]: ", np.trapz(LFI_loc_trans*dBnudT_KCMB(LFI_loc_Hz/1.e9), LFI_loc_Hz) / np.trapz(LFI_loc_trans*(LFI_freqs_float[i]/LFI_loc_Hz), LFI_loc_Hz) * 1.e20
+    print("K_CMB -> MJy/sr conversion [IRAS convention, alpha=-1 power-law SED]: ", np.trapz(LFI_loc_trans*dBnudT(LFI_loc_GHz)*1.e6, LFI_loc_GHz) / np.trapz(LFI_loc_trans*(LFI_freqs_GHz[i]/LFI_loc_GHz), LFI_loc_GHz) * 1.e20)
     # compute color correction from IRAS to "dust" (power-law with alpha=4)
-    print "MJy/sr color correction (power-law, alpha=-1 to alpha=4): ", np.trapz(LFI_loc_trans*(LFI_freqs_float[i]/LFI_loc_Hz), LFI_loc_Hz) / np.trapz(LFI_loc_trans*(LFI_loc_Hz/LFI_freqs_float[i])**4.0, LFI_loc_Hz)
+    print("MJy/sr color correction (power-law, alpha=-1 to alpha=4): ", np.trapz(LFI_loc_trans*(LFI_freqs_GHz[i]/LFI_loc_GHz), LFI_loc_GHz) / np.trapz(LFI_loc_trans*(LFI_loc_GHz/LFI_freqs_GHz[i])**4.0, LFI_loc_GHz))
     # compute color correction from IRAS to modified blackbody with T=13.6 K, beta=1.4 (to compare to results at https://wiki.cosmos.esa.int/planckpla2015/index.php/UC_CC_Tables )
-    print "MJy/sr color correction (power-law alpha=-1 to MBB T=13.6 K/beta=1.4): ", np.trapz(LFI_loc_trans*(LFI_freqs_float[i]/LFI_loc_Hz), LFI_loc_Hz) / np.trapz(LFI_loc_trans*(LFI_loc_Hz/LFI_freqs_float[i])**(1.4+3.) * (np.exp(hplanck*LFI_freqs_float[i]/(kboltz*13.6))-1.)/(np.exp(hplanck*LFI_loc_Hz/(kboltz*13.6))-1.), LFI_loc_Hz)
-    print "----------"
+    print("MJy/sr color correction (power-law alpha=-1 to MBB T=13.6 K/beta=1.4): ", np.trapz(LFI_loc_trans*(LFI_freqs_GHz[i]/LFI_loc_GHz), LFI_loc_GHz) / np.trapz(LFI_loc_trans*(LFI_loc_GHz/LFI_freqs_GHz[i])**(1.4+3.) * (np.exp(hplanck*LFI_freqs_GHz[i]*1.e9/(kboltz*13.6))-1.)/(np.exp(hplanck*LFI_loc_GHz*1.e9/(kboltz*13.6))-1.), LFI_loc_GHz))
+    print("----------")
