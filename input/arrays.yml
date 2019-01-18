@@ -11,7 +11,7 @@ arrays:
     splits: s15_deep56_pa3_f090_nohwp_night_3pass_4way_set%d_map_srcfree.fits
     sinvvars: s15_deep56_pa3_f090_nohwp_night_3pass_4way_set%d_ivar.fits
     nsplits: 4
-    beam: 2.3
+    beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa3_f090_s15_7_612_instant.txt
     freq: 90.
     lmin: 300
     lmax: 18000
@@ -23,7 +23,7 @@ arrays:
     splits: s15_deep56_pa3_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
     sinvvars: s15_deep56_pa3_f150_nohwp_night_3pass_4way_set%d_ivar.fits
     nsplits: 4
-    beam: 1.4
+    beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa3_f150_s15_7_612_instant.txt
     freq: 148.
     lmin: 300
     lmax: 18000
@@ -36,7 +36,7 @@ arrays:
     splits: s14_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
     sinvvars: s14_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_ivar.fits
     nsplits: 4
-    beam: 1.4
+    beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa1_f150_s14_6_512_instant.txt
     freq: 148.
     lmin: 300
     lmax: 18000
@@ -48,7 +48,7 @@ arrays:
     splits: s14_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
     sinvvars: s14_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_ivar.fits
     nsplits: 4
-    beam: 1.4
+    beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa2_f150_s14_7_612_instant.txt
     freq: 148.
     lmin: 300
     lmax: 18000
@@ -60,7 +60,7 @@ arrays:
     splits: s15_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
     sinvvars: s15_deep56_pa1_f150_nohwp_night_3pass_4way_set%d_ivar.fits
     nsplits: 4
-    beam: 1.4
+    beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa1_f150_s15_5_412_instant.txt
     freq: 148.
     lmin: 300
     lmax: 18000
@@ -72,7 +72,7 @@ arrays:
     splits: s15_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_map_srcfree.fits
     sinvvars: s15_deep56_pa2_f150_nohwp_night_3pass_4way_set%d_ivar.fits
     nsplits: 4
-    beam: 1.4
+    beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa2_f150_s15_6_512_instant.txt
     freq: 148.
     lmin: 300
     lmax: 18000
@@ -85,7 +85,7 @@ arrays:
     sinvvars: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
-    beam: 14.
+    beam: 13.315 # LFI beams Table 3 Eff FWHM
     freq: 70.
     lmin: 80
     lmax: 6000
@@ -98,7 +98,7 @@ arrays:
     sinvvars: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
-    beam: 10.
+    beam: 9.68 # HFI Table 6 FWHM1
     freq: 100.
     lmin: 80
     lmax: 6000
@@ -111,7 +111,7 @@ arrays:
     sinvvars: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
-    beam: 7.
+    beam: 7.30 # HFI Table 6 FWHM1
     freq: 143.
     lmin: 80
     lmax: 6000
@@ -124,7 +124,7 @@ arrays:
     sinvvars: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
-    beam: 5.
+    beam: 5.02 # HFI Table 6 FWHM1
     freq: 217.
     lmin: 80
     lmax: 6000
@@ -138,7 +138,7 @@ arrays:
     sinvvars: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
-    beam: 5.
+    beam: 4.94  # HFI Table 6 FWHM1
     freq: 353.
     lmin: 80
     lmax: 6000

@@ -1,4 +1,4 @@
-import yaml, numpy
+import yaml, numpy, six
 from pixell import enmap
 import numpy as np
 from orphics import maps,io
@@ -23,8 +23,16 @@ class Config(object):
         self.mask = enmap.read_map(self.xmaskfname()) # steve's mask
 
             
-    def get_beams(self,ai,aj): # get beam fwhm for array indices ai and aj
-        return self.darrays[self.arrays[ai]]['beam'],self.darrays[self.arrays[aj]]['beam']
+    def get_beam(self,ells,array): 
+        ibeam = self.darrays[array]['beam']
+        if isinstance(ibeam, six.string_types):
+            ls,bells = np.loadtxt(ibeam,unpack=True,usecols=[0,1])
+            assert np.isclose(ls[0],0)
+            bnorm = bells[0]
+            bells = bells/bnorm
+            return maps.interp(ls,bells)(ells)
+        else:
+            return maps.gauss_beam(ells,ibeam)
     def isplanck(self,aindex): # is array index ai a planck array?
         name = self.darrays[self.arrays[aindex]]['name'].lower()
         return True if ("hfi" in name) or ("lfi" in name) else False

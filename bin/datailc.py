@@ -18,7 +18,7 @@ freqs = []
 kcoadds = []
 for i,array in enumerate(c.arrays):
     freqs.append(c.darrays[array]['freq'])
-    kbeams.append(maps.gauss_beam(modlmap,c.darrays[array]['beam']))
+    kbeams.append(c.get_beam(modlmap,array))
     kcoadds.append(c.load(i,skip_splits=True)[1].copy())
 kcoadds = enmap.enmap(np.stack(kcoadds),c.wcs)
 chunk_size = 1000000
@@ -38,6 +38,8 @@ snoise = enmap.empty((Ny*Nx),wcs)
 cnoise = enmap.empty((Ny*Nx),wcs)
 smap = enmap.empty((Ny*Nx),wcs,dtype=np.complex128)
 cmap = enmap.empty((Ny*Nx),wcs,dtype=np.complex128)
+ysmap = enmap.empty((Ny*Nx),wcs,dtype=np.complex128)
+ycmap = enmap.empty((Ny*Nx),wcs,dtype=np.complex128)
 kcoadds = kcoadds.reshape((len(c.arrays),Ny*Nx))
 for chunknum,(hilc,selchunk) in enumerate(ilcgen):
     print("ILC on chunk ", chunknum+1, " / ",int(modlmap.size/chunk_size)+1," ...")
@@ -45,12 +47,16 @@ for chunknum,(hilc,selchunk) in enumerate(ilcgen):
     cnoise[selchunk] = hilc.constrained_noise("cmb","tsz")
     smap[selchunk] = hilc.standard_map(kcoadds[...,selchunk],"cmb")
     cmap[selchunk] = hilc.constrained_map(kcoadds[...,selchunk],"cmb","tsz")
+    ysmap[selchunk] = hilc.standard_map(kcoadds[...,selchunk],"tsz")
+    ycmap[selchunk] = hilc.constrained_map(kcoadds[...,selchunk],"tsz","cmb")
 
 del ilcgen,cov
 snoise = enmap.enmap(snoise.reshape((Ny,Nx)),wcs)
 cnoise = enmap.enmap(cnoise.reshape((Ny,Nx)),wcs)
 ksmap = enmap.enmap(smap.reshape((Ny,Nx)),wcs)
 kcmap = enmap.enmap(cmap.reshape((Ny,Nx)),wcs)
+yksmap = enmap.enmap(ysmap.reshape((Ny,Nx)),wcs)
+ykcmap = enmap.enmap(ycmap.reshape((Ny,Nx)),wcs)
 enmap.write_map("snoise.fits",snoise)
 enmap.write_map("cnoise.fits",cnoise)
 enmap.write_map("ksmap.fits",enmap.enmap(c.fc.ifft(ksmap).real,wcs))
@@ -74,19 +80,24 @@ pl.done("snoise_data.png")
 
 smap = enmap.enmap(c.fc.ifft(ksmap).real,wcs)
 cmap = enmap.enmap(c.fc.ifft(kcmap).real,wcs)
+ysmap = enmap.enmap(c.fc.ifft(yksmap).real,wcs)
+ycmap = enmap.enmap(c.fc.ifft(ykcmap).real,wcs)
 io.hplot(smap,"usmap")
 io.hplot(cmap,"ucmap")
 io.plot_img(smap,"umsmap.png",lim=300)
 io.plot_img(cmap,"umcmap.png",lim=300)
 
-sbeam = 1.4
-cbeam = 2.2
+#sbeam = 1.4
+#cbeam = 2.2
+skbeam = c.get_beam(modlmap,'s15_pa3_150')
+ckbeam = c.get_beam(modlmap,'s15_pa3_90')
 
-
-kbeam = maps.gauss_beam(modlmap,sbeam)
-smap = maps.filter_map(enmap.enmap(smap,wcs),kbeam)
-kbeam = maps.gauss_beam(modlmap,cbeam)
-cmap = maps.filter_map(enmap.enmap(cmap,wcs),kbeam)
+smap = maps.filter_map(enmap.enmap(smap,wcs),skbeam)
+cmap = maps.filter_map(enmap.enmap(cmap,wcs),ckbeam)
+ysmap = maps.filter_map(enmap.enmap(ysmap,wcs),skbeam)
+ycmap = maps.filter_map(enmap.enmap(ycmap,wcs),ckbeam)
+io.hplot(ysmap,"ysmap")
+io.hplot(ycmap,"ycmap")
 io.hplot(smap,"smap")
 io.hplot(cmap,"cmap")
 io.plot_img(smap,"msmap.png",lim=300)
@@ -94,10 +105,10 @@ io.plot_img(cmap,"mcmap.png",lim=300)
 
 bin_edges = np.arange(80,15000,80)
 binner = stats.bin2D(modlmap,bin_edges)
-kbeam = maps.gauss_beam(modlmap,sbeam)
-cents,as1d = binner.bin(snoise*kbeam**2.)
-kbeam = maps.gauss_beam(modlmap,cbeam)
-cents,ac1d = binner.bin(cnoise*kbeam**2.)
+#kbeam = maps.gauss_beam(modlmap,sbeam)
+cents,as1d = binner.bin(snoise*skbeam**2.)
+#kbeam = maps.gauss_beam(modlmap,cbeam)
+cents,ac1d = binner.bin(cnoise*ckbeam**2.)
 
 pl = io.Plotter(yscale='log')
 pl.add(cents,as1d,ls="-")

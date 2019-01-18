@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy as np
 import yaml
+import os
 
 ######################################
 # global constants
@@ -48,7 +49,8 @@ def read_param_dict_from_yaml(filename):
         config = yaml.safe_load(f)
     return config
 # default case
-default_dict = read_param_dict_from_yaml('../input/fg_SEDs_default_params.yml')
+fpath = os.path.dirname(__file__)
+default_dict = read_param_dict_from_yaml(fpath+'/../input/fg_SEDs_default_params.yml')
 #pdict = {}                                                                                                                                           
 #pdict['beta'] = 1                                                                                                                                    
 ######################################

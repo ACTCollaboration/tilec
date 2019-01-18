@@ -37,7 +37,7 @@ plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CIB') / get_mix(nu_fid_ghz, 'CIB'
 plt.xlabel(r'$\nu \, [{\rm GHz}]$', fontsize=17)
 plt.ylabel(r'$|\Delta T_{\nu} / \Delta T_{148 \, {\rm GHz}}|$', fontsize=17)
 plt.grid(alpha=0.5)
-plt.legend(loc='upper left')
+#plt.legend(loc='upper left')
 plt.savefig('fg_SED_plot_DeltaT.pdf')
 
 # Jy/sr units
