@@ -158,22 +158,25 @@ class HILC(object):
         return numer*norm
 
     def multi_constrained_map(self,kmaps,name1,names):
-        """Multiply Constrained ILC -- Make a multiply constrained internal linear combination (ILC) of given fourier space maps at different frequencies
+        """Multiply Constrained ILC -- Make a multiply constrained internal 
+        linear combination (ILC) of given fourier space maps at different 
+        frequencies
         and an inverse covariance matrix for its variance. The component of interest is specified through its f_nu response vector.  The
         components to explicitly project out are specified through a (arbitrarily-long, but not more than N_channels-1) list of responses."""
         kmaps = self._prepare_maps(kmaps)
         # compute the mixing matrix A_{i\alpha}: this is the alpha^th component's SED evaluated for the i^th bandpass
-        N_comps = 1+len(self.responses) #total number of components that are being explicitly modeled (one is preserved component)
+        N_comps = 1+len(names) #total number of components that are being explicitly modeled (one is preserved component)
         assert(N_comps < self.nmap) #ensure sufficient number of degrees of freedom
-        A_mix = np.zeros((self.nmap,N_comps))
-        A_mix[:,0] = self.responses[name1] #component to be preserved -- always make this first column of mixing matrix
-        i=1
-        for name in names:
+        A_mix = np.zeros((self.ells.size,self.nmap,N_comps))
+        A_mix[:,:,0] = self.responses[name1] #component to be preserved -- always make this first column of mixing matrix
+        for i,name in enumerate(names):
             assert(name != name1) #don't deproject the preserved component
-            A_mix[:,i] = self.responses[name]
-            i+=1
+            A_mix[:,:,i+1] = self.responses[name]
         # construct matrix Q_{alpha beta} = (R^-1)_{ij} A_{i\alpha} A_{j\beta}
-        Qab = np.inner(np.linalg.solve(self.cov,np.transpose(A_mix)), np.transpose(A_mix))
+        if self.cinv is not None:
+            Qab = np.einsum('...ka,...kb->...ab',np.einsum('...ij,...ja->...ia',self.cinv,A_mix),A_mix)
+        else:
+            raise NotImplementedError
         # compute weights
         temp = np.zeros(N_comps)
         if (N_comps == 1): # treat the no-deprojection case separately, since QSa is empty in this case

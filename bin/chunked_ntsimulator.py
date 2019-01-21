@@ -208,20 +208,20 @@ for task in my_tasks:
         yksilc[selchunk] = hilc.standard_map(kmaps[...,selchunk],"tsz")
         ynksilc[selchunk] = hilc.standard_map(nkmaps[...,selchunk],"tsz")
         if multi:
-            ykcilc[selchunk] = hilc.multi_constrained_map(kmaps[...,selchunk],"tsz","cmb")
-            ynkcilc[selchunk] = hilc.multi_constrained_map(nkmaps[...,selchunk],"tsz","cmb")
+            ykcilc[selchunk] = hilc.multi_constrained_map(kmaps[...,selchunk],"tsz",["cmb"])
+            ynkcilc[selchunk] = hilc.multi_constrained_map(nkmaps[...,selchunk],"tsz",["cmb"])
         else:
-            ykcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"tsz",["cmb"])
-            ynkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"tsz",["cmb"])
+            ykcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"tsz","cmb")
+            ynkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"tsz","cmb")
 
         cksilc[selchunk] = hilc.standard_map(kmaps[...,selchunk],"cmb")
         cnksilc[selchunk] = hilc.standard_map(nkmaps[...,selchunk],"cmb")
         if multi:
-            ckcilc[selchunk] = hilc.multi_constrained_map(kmaps[...,selchunk],"cmb","tsz")
-            cnkcilc[selchunk] = hilc.multi_constrained_map(nkmaps[...,selchunk],"cmb","tsz")
+            ckcilc[selchunk] = hilc.multi_constrained_map(kmaps[...,selchunk],"cmb",["tsz"])
+            cnkcilc[selchunk] = hilc.multi_constrained_map(nkmaps[...,selchunk],"cmb",["tsz"])
         else:
-            ckcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"cmb",["tsz"])
-            cnkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"cmb",["tsz"])
+            ckcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"cmb","tsz")
+            cnkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"cmb","tsz")
         
     with bench.show("ilc"):
         compute(yksilc,iky,"y_silc_cross")
