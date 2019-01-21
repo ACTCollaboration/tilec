@@ -164,8 +164,8 @@ class HILC(object):
         kmaps = self._prepare_maps(kmaps)
         # compute the mixing matrix A_{i\alpha}: this is the alpha^th component's SED evaluated for the i^th bandpass
         N_comps = 1+len(self.responses) #total number of components that are being explicitly modeled (one is preserved component)
-        assert(N_comps < self.nmaps) #ensure sufficient number of degrees of freedom
-        A_mix = np.zeros((self.nmaps,N_comps))
+        assert(N_comps < self.nmap) #ensure sufficient number of degrees of freedom
+        A_mix = np.zeros((self.nmap,N_comps))
         A_mix[:,0] = self.responses[name1] #component to be preserved -- always make this first column of mixing matrix
         i=1
         for name in names:

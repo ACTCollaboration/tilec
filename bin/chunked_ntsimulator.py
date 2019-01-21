@@ -17,6 +17,7 @@ Notes:
 4. lpass = False didn't fix new scatter
 """
 
+multi = True
 chunk_size = 200000
 aseed = 3
 lensing = False # no need for lensing for initial tests
@@ -32,17 +33,19 @@ fgs = True # whether to include any foregrounds
 dust = False # whether to include dust/CIB
 ycibcorr = False # whether tSZ/CIB are correlated
 # analysis
-lmax = 6000
-px = (1.0*10000./(lmax+500.))
+#lmax = 6000
+#px = (1.0*10000./(lmax+500.))
+lmax = 1000
+px = 2.0
 # sims
-nsims = 3
+nsims = 10
 # signal cov
 bin_width = 80 # this parameter seems to be important and cause unpredictable noise
 kind = 0 # higher order interpolation breaks covariance
 # noise cov
 dfact=(16,16)
 
-width = 35.
+width = 15.
 height = 15.
 
 
@@ -204,13 +207,21 @@ for task in my_tasks:
         print("ILC on chunk ", chunknum+1, " / ",int(modlmap.size/chunk_size)+1," ...")
         yksilc[selchunk] = hilc.standard_map(kmaps[...,selchunk],"tsz")
         ynksilc[selchunk] = hilc.standard_map(nkmaps[...,selchunk],"tsz")
-        ykcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"tsz","cmb")
-        ynkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"tsz","cmb")
+        if multi:
+            ykcilc[selchunk] = hilc.multi_constrained_map(kmaps[...,selchunk],"tsz","cmb")
+            ynkcilc[selchunk] = hilc.multi_constrained_map(nkmaps[...,selchunk],"tsz","cmb")
+        else:
+            ykcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"tsz",["cmb"])
+            ynkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"tsz",["cmb"])
 
         cksilc[selchunk] = hilc.standard_map(kmaps[...,selchunk],"cmb")
         cnksilc[selchunk] = hilc.standard_map(nkmaps[...,selchunk],"cmb")
-        ckcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"cmb","tsz")
-        cnkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"cmb","tsz")
+        if multi:
+            ckcilc[selchunk] = hilc.multi_constrained_map(kmaps[...,selchunk],"cmb","tsz")
+            cnkcilc[selchunk] = hilc.multi_constrained_map(nkmaps[...,selchunk],"cmb","tsz")
+        else:
+            ckcilc[selchunk] = hilc.constrained_map(kmaps[...,selchunk],"cmb",["tsz"])
+            cnkcilc[selchunk] = hilc.constrained_map(nkmaps[...,selchunk],"cmb",["tsz"])
         
     with bench.show("ilc"):
         compute(yksilc,iky,"y_silc_cross")
