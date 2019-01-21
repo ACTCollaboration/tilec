@@ -70,6 +70,7 @@ class HILC(object):
             responses: dictionary mapping component name to (nmap,) floats specifying
             the frequency/array response to that component for a beam-deconvolved map.
         """
+        self.tol=1.e-4 #tolerance, please move elsewhere if desired
         # Unravel ells and beams
         nmap = kbeams.shape[0]
         if ells.ndim==2:
@@ -155,6 +156,41 @@ class HILC(object):
         norm = 1./(ara*brb-arb**2.)
         norm[np.isinf(np.abs(norm))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
         return numer*norm
+
+    def multi_constrained_map(self,kmaps,name1,names):
+        """Multiply Constrained ILC -- Make a multiply constrained internal linear combination (ILC) of given fourier space maps at different frequencies
+        and an inverse covariance matrix for its variance. The component of interest is specified through its f_nu response vector.  The
+        components to explicitly project out are specified through a (arbitrarily-long, but not more than N_channels-1) list of responses."""
+        kmaps = self._prepare_maps(kmaps)
+        # compute the mixing matrix A_{i\alpha}: this is the alpha^th component's SED evaluated for the i^th bandpass
+        N_comps = 1+len(self.responses) #total number of components that are being explicitly modeled (one is preserved component)
+        assert(N_comps < self.nmaps) #ensure sufficient number of degrees of freedom
+        A_mix = np.zeros((self.nmaps,N_comps))
+        A_mix[:,0] = self.responses[name1] #component to be preserved -- always make this first column of mixing matrix
+        i=1
+        for name in names:
+            assert(name != name1) #don't deproject the preserved component
+            A_mix[:,i] = self.responses[name]
+            i+=1
+        # construct matrix Q_{alpha beta} = (R^-1)_{ij} A_{i\alpha} A_{j\beta}
+        Qab = np.inner(np.linalg.solve(self.cov,np.transpose(A_mix)), np.transpose(A_mix))
+        # compute weights
+        temp = np.zeros(N_comps)
+        if (N_comps == 1): # treat the no-deprojection case separately, since QSa is empty in this case
+            temp[0] = 1.0
+        else:
+            for a in xrange(N_comps):
+                QSa = np.delete(np.delete(Qab, a, 0), 0, 1) #remove the a^th row and zero^th column
+                temp[a] = (-1.0)**float(a) * np.linalg.det(QSa)
+        weights = (1.0 / np.linalg.det(Qab)) * np.linalg.solve(self.cov, np.inner(A_mix, temp))
+        # verify responses
+        assert(np.absolute( np.sum(weights*A_mix[:,0]) - 1. ) <= self.tol) #preserved component
+        if (N_comps > 1):
+            for i in xrange(1,N_comps):
+                assert(np.absolute( np.sum(weights*A_mix[:,i]) ) <= self.tol) #deprojected components
+        # apply weights to the data maps
+        return np.tensordot(weights, kmaps, axes=1)
+
 
 def build_analytic_cov(ells,cmb_ps,fgdict,freqs,kbeams,noises,lmins=None,lmaxs=None,verbose=True):
     nmap = len(freqs)
