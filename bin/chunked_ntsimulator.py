@@ -18,7 +18,7 @@ Notes:
 """
 
 multi = True
-chunk_size = 200000
+chunk_size = 20000
 aseed = 3
 lensing = False # no need for lensing for initial tests
 invert = True # 40x speedup from precalulated linalg.inv instead of linalg.solve

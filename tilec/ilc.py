@@ -157,7 +157,7 @@ class HILC(object):
         norm[np.isinf(np.abs(norm))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
         return numer*norm
 
-    def multi_constrained_map(self,kmaps,name1,names):
+    def multi_constrained_map(self,kmaps,name1,names=[]):
         """Multiply Constrained ILC -- Make a multiply constrained internal 
         linear combination (ILC) of given fourier space maps at different 
         frequencies
@@ -178,21 +178,27 @@ class HILC(object):
         else:
             raise NotImplementedError
         # compute weights
-        temp = np.zeros(N_comps)
+        temp = np.zeros((self.ells.size,N_comps))
         if (N_comps == 1): # treat the no-deprojection case separately, since QSa is empty in this case
             temp[0] = 1.0
         else:
-            for a in xrange(N_comps):
-                QSa = np.delete(np.delete(Qab, a, 0), 0, 1) #remove the a^th row and zero^th column
-                temp[a] = (-1.0)**float(a) * np.linalg.det(QSa)
-        weights = (1.0 / np.linalg.det(Qab)) * np.linalg.solve(self.cov, np.inner(A_mix, temp))
+            for a in range(N_comps):
+                QSa = np.delete(np.delete(Qab, a, -2), 0, -1) #remove the a^th row and zero^th column
+                temp[:,a] = (-1.0)**float(a) * np.linalg.det(QSa)
+        if self.cinv is not None:
+            nweights = np.einsum('...ij,...i->...j',self.cinv,np.einsum('...a,...ia->...i',temp,A_mix))
+        else:
+            raise NotImplementedError
+        weights = (1.0 / np.linalg.det(Qab)[:,None]) * nweights
         # verify responses
-        assert(np.absolute( np.sum(weights*A_mix[:,0]) - 1. ) <= self.tol) #preserved component
+        diffs = np.absolute( np.sum(weights*A_mix[:,:,0],axis=-1) - 1. )
+        # assert(np.all(diffs <= self.tol)) #preserved component
         if (N_comps > 1):
-            for i in xrange(1,N_comps):
-                assert(np.absolute( np.sum(weights*A_mix[:,i]) ) <= self.tol) #deprojected components
+            for i in range(1,N_comps):
+                diffs = np.absolute( np.sum(weights*A_mix[:,:,i],axis=-1) )
+                # assert(np.all(diffs <= self.tol)) #deprojected components
         # apply weights to the data maps
-        return np.tensordot(weights, kmaps, axes=1)
+        return np.einsum('...i,...i->...',weights,kmaps)
 
 
 def build_analytic_cov(ells,cmb_ps,fgdict,freqs,kbeams,noises,lmins=None,lmaxs=None,verbose=True):
