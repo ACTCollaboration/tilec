@@ -164,15 +164,15 @@ class HILC(object):
         and an inverse covariance matrix for its variance. The component of interest is specified through its f_nu response vector.  The
         components to explicitly project out are specified through a (arbitrarily-long, but not more than N_channels-1) list of responses."""
         kmaps = self._prepare_maps(kmaps)
-        # compute the mixing matrix A_{i\alpha}: this is the alpha^th component's SED evaluated for the i^th bandpass
+        # compute the mixing tensor A_{p i \alpha}: this is the alpha^th component's SED evaluated for the i^th bandpass in Fourier pixel p
         N_comps = 1+len(names) #total number of components that are being explicitly modeled (one is preserved component)
         assert(N_comps < self.nmap) #ensure sufficient number of degrees of freedom
         A_mix = np.zeros((self.ells.size,self.nmap,N_comps))
-        A_mix[:,:,0] = self.responses[name1] #component to be preserved -- always make this first column of mixing matrix
+        A_mix[:,:,0] = self.responses[name1] #component to be preserved -- always make this first column of mixing tensor
         for i,name in enumerate(names):
             assert(name != name1) #don't deproject the preserved component
             A_mix[:,:,i+1] = self.responses[name]
-        # construct matrix Q_{alpha beta} = (R^-1)_{ij} A_{i\alpha} A_{j\beta}
+        # construct tensor Q_{p \alpha \beta} = (R^-1)_{p i j} A_{p i \alpha} A_{p j \beta}
         if self.cinv is not None:
             Qab = np.einsum('...ka,...kb->...ab',np.einsum('...ij,...ja->...ia',self.cinv,A_mix),A_mix)
         else:
@@ -198,6 +198,7 @@ class HILC(object):
                 diffs = np.absolute( np.sum(weights*A_mix[:,:,i],axis=-1) )
                 # assert(np.all(diffs <= self.tol)) #deprojected components FIXME: debug nans from det
         # apply weights to the data maps
+        # N.B. total power of final ILC map in Fourier pixel p is: weights_{p i} Cov_{p i j} weights_{p j}
         return np.einsum('...i,...i->...',weights,kmaps)
 
 

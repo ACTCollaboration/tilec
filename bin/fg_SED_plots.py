@@ -33,11 +33,12 @@ plt.xlim(nu_min_ghz, nu_max_ghz)
 plt.ylim(1.e-2, 1.e3)
 plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CMB') / get_mix(nu_fid_ghz, 'CMB'), label='CMB', lw=2., ls='-')
 plt.loglog(nu_ghz, np.absolute(T_fid_uK * get_mix(nu_ghz, 'tSZ') / get_mix(nu_fid_ghz, 'tSZ')), label='tSZ', lw=2., ls='--') # need absolute value due to negative values at nu<217 GHz
-plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CIB') / get_mix(nu_fid_ghz, 'CIB'), label='CIB [fid.]', lw=2., ls='-.') #this assumes fiducial CIB SED parameters in ../input/fg_SEDs_default_params.yml
+plt.loglog(nu_ghz, np.absolute(T_fid_uK * get_mix(nu_ghz, 'rSZ') / get_mix(nu_fid_ghz, 'rSZ')), label=r'rSZ ($kT_e = 5$ keV)', lw=2., ls='-.') # need absolute value due to negative values; this assumes fiducial kT_e value in ../input/fg_SEDs_default_params.yml
+plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CIB') / get_mix(nu_fid_ghz, 'CIB'), label='CIB [fid.]', lw=2., ls=':') #this assumes fiducial CIB SED parameters in ../input/fg_SEDs_default_params.yml
 plt.xlabel(r'$\nu \, [{\rm GHz}]$', fontsize=17)
 plt.ylabel(r'$|\Delta T_{\nu} / \Delta T_{148 \, {\rm GHz}}|$', fontsize=17)
 plt.grid(alpha=0.5)
-#plt.legend(loc='upper left')
+plt.legend(loc='upper left')
 plt.savefig('fg_SED_plot_DeltaT.pdf')
 
 # Jy/sr units
@@ -46,7 +47,8 @@ plt.xlim(nu_min_ghz, nu_max_ghz)
 #plt.ylim(1.e-2, 1.e3)
 plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CMB') * ItoDeltaT(nu_fid_ghz) / get_mix(nu_fid_ghz, 'CMB') / ItoDeltaT(nu_ghz), label='CMB', lw=2., ls='-')
 plt.loglog(nu_ghz, np.absolute(T_fid_uK * get_mix(nu_ghz, 'tSZ') * ItoDeltaT(nu_fid_ghz) / get_mix(nu_fid_ghz, 'tSZ') / ItoDeltaT(nu_ghz)), label='tSZ', lw=2., ls='--') # need absolute value due to negative values at nu<217 GHz
-plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CIB') * ItoDeltaT(nu_fid_ghz) / get_mix(nu_fid_ghz, 'CIB') / ItoDeltaT(nu_ghz), label='CIB [fid.]', lw=2., ls='-.') #this assumes fiducial CIB SED parameters in ../input/fg_SEDs_default_params.yml
+plt.loglog(nu_ghz, np.absolute(T_fid_uK * get_mix(nu_ghz, 'rSZ') * ItoDeltaT(nu_fid_ghz) / get_mix(nu_fid_ghz, 'rSZ') / ItoDeltaT(nu_ghz)), label=r'rSZ ($kT_e = 5$ keV)', lw=2., ls='-.') # need absolute value due to negative values; this assumes fiducial kT_e value in ../input/fg_SEDs_default_params.yml
+plt.loglog(nu_ghz, T_fid_uK * get_mix(nu_ghz, 'CIB') * ItoDeltaT(nu_fid_ghz) / get_mix(nu_fid_ghz, 'CIB') / ItoDeltaT(nu_ghz), label='CIB [fid.]', lw=2., ls=':') #this assumes fiducial CIB SED parameters in ../input/fg_SEDs_default_params.yml
 plt.xlabel(r'$\nu \, [{\rm GHz}]$', fontsize=17)
 plt.ylabel(r'$|I_{\nu} / I_{148 \, {\rm GHz}}|$', fontsize=17)
 plt.grid(alpha=0.5)
