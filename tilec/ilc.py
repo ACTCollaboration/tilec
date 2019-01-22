@@ -192,11 +192,11 @@ class HILC(object):
         weights = (1.0 / np.linalg.det(Qab)[:,None]) * nweights
         # verify responses
         diffs = np.absolute( np.sum(weights*A_mix[:,:,0],axis=-1) - 1. )
-        # assert(np.all(diffs <= self.tol)) #preserved component
+        # assert(np.all(diffs <= self.tol)) #preserved component FIXME: debug nans from det
         if (N_comps > 1):
             for i in range(1,N_comps):
                 diffs = np.absolute( np.sum(weights*A_mix[:,:,i],axis=-1) )
-                # assert(np.all(diffs <= self.tol)) #deprojected components
+                # assert(np.all(diffs <= self.tol)) #deprojected components FIXME: debug nans from det
         # apply weights to the data maps
         return np.einsum('...i,...i->...',weights,kmaps)
 
