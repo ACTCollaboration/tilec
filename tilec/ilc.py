@@ -5,6 +5,8 @@ from orphics import maps,stats,io
 
 """
 This module implements harmonic ILC.
+
+TODO: add MCILC noise
 """
 
 def cinv_x(x,cov,cinv):
