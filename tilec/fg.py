@@ -126,7 +126,7 @@ def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies 
 # spectral functions of physical components, evaluated for non-trivial bandpasses
 # N.B. overall amplitudes are (generally) not meaningful; this function gives relative conversions between frequencies, for each component SED
 # convention is that the maps being modeled are in uK_CMB units
-# bandpass file columns should be [freq (GHz)] [transmission (unit-integral-normalized)]
+# bandpass file columns should be [freq (GHz)] [transmission]  (any other columns are ignored)
 ######################################
 def get_mix_bandpassed(bp_list, comp, param_dict_file=None): #bp_list = list containing strings of bandpass filenames; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for some SEDs)
     assert (comp != None)
