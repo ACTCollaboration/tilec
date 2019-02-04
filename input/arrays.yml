@@ -13,7 +13,7 @@ arrays:
     nsplits: 4
     beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa3_f090_s15_7_612_instant.txt
     freq: 90.
-    lmin: 300
+    lmin: 500
     lmax: 18000
 
   - name: s15_pa3_150
@@ -25,7 +25,7 @@ arrays:
     nsplits: 4
     beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa3_f150_s15_7_612_instant.txt
     freq: 148.
-    lmin: 300
+    lmin: 500
     lmax: 18000
     
 
@@ -38,7 +38,7 @@ arrays:
     nsplits: 4
     beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa1_f150_s14_6_512_instant.txt
     freq: 148.
-    lmin: 300
+    lmin: 500
     lmax: 18000
 
   - name: s14_pa2_150
@@ -50,7 +50,7 @@ arrays:
     nsplits: 4
     beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa2_f150_s14_7_612_instant.txt
     freq: 148.
-    lmin: 300
+    lmin: 500
     lmax: 18000
     
   - name: s15_pa1_150
@@ -62,7 +62,7 @@ arrays:
     nsplits: 4
     beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa1_f150_s15_5_412_instant.txt
     freq: 148.
-    lmin: 300
+    lmin: 500
     lmax: 18000
 
   - name: s15_pa2_150
@@ -74,14 +74,14 @@ arrays:
     nsplits: 4
     beam: /home/msyriac/data/act/beams/180220/beam_tform_180220_pa2_f150_s15_6_512_instant.txt
     freq: 148.
-    lmin: 300
+    lmin: 500
     lmax: 18000
       
   - name: lfi_70
     froot: /home/msyriac/data/depot/xlens/
-    coadd: LFI_SkyMap_070_2048_R2.01_full_cutout_h0.fits
+    coadd: remove_LFI_SkyMap_070_2048_R2.01_full_cutout_h0.fits
     cinvvar: LFI_SkyMap_070_2048_R2.01_full_cutout_h3.fits
-    splits: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h0.fits
+    splits: ../../planck/sigurd/planck_hybrid_070_2way_%d_map_srcfree.fits
     sinvvars: LFI_SkyMap_070_2048_R2.01_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
@@ -92,9 +92,9 @@ arrays:
 
   - name: hfi_100
     froot: /home/msyriac/data/depot/xlens/
-    coadd: HFI_SkyMap_100_2048_R2.02_full_cutout_h0.fits
+    coadd: remove_HFI_SkyMap_100_2048_R2.02_full_cutout_h0.fits
     cinvvar: HFI_SkyMap_100_2048_R2.02_full_cutout_h3.fits
-    splits: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    splits: ../../planck/sigurd/planck_hybrid_100_2way_%d_map_srcfree.fits
     sinvvars: HFI_SkyMap_100_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
@@ -105,9 +105,9 @@ arrays:
 
   - name: hfi_143
     froot: /home/msyriac/data/depot/xlens/
-    coadd: HFI_SkyMap_143_2048_R2.02_full_cutout_h0.fits
+    coadd: remove_HFI_SkyMap_143_2048_R2.02_full_cutout_h0.fits
     cinvvar: HFI_SkyMap_143_2048_R2.02_full_cutout_h3.fits
-    splits: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    splits: ../../planck/sigurd/planck_hybrid_143_2way_%d_map_srcfree.fits
     sinvvars: HFI_SkyMap_143_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
@@ -118,9 +118,9 @@ arrays:
       
   - name: hfi_217
     froot: /home/msyriac/data/depot/xlens/
-    coadd: HFI_SkyMap_217_2048_R2.02_full_cutout_h0.fits
+    coadd: remove_HFI_SkyMap_217_2048_R2.02_full_cutout_h0.fits
     cinvvar: HFI_SkyMap_217_2048_R2.02_full_cutout_h3.fits
-    splits: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    splits: ../../planck/sigurd/planck_hybrid_217_2way_%d_map_srcfree.fits
     sinvvars: HFI_SkyMap_217_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1
@@ -132,9 +132,9 @@ arrays:
       
   - name: hfi_353
     froot: /home/msyriac/data/depot/xlens/
-    coadd: HFI_SkyMap_353_2048_R2.02_full_cutout_h0.fits
+    coadd: remove_HFI_SkyMap_353_2048_R2.02_full_cutout_h0.fits
     cinvvar: HFI_SkyMap_353_2048_R2.02_full_cutout_h3.fits
-    splits: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h0.fits
+    splits: ../../planck/sigurd/planck_hybrid_353_2way_%d_map_srcfree.fits
     sinvvars: HFI_SkyMap_353_2048_R2.02_full-ringhalf-%d_cutout_h3.fits
     nsplits: 2
     splitstart: 1

@@ -7,7 +7,7 @@ from enlib import bench
 import numpy as np
 import os,sys
 from szar import foregrounds as fg
-from tilec import utils as tutils,covtools,ilc
+from tilec import utils as tutils,covtools,ilc,fg as tfg
 
 """
 Notes:
@@ -38,7 +38,7 @@ ycibcorr = False # whether tSZ/CIB are correlated
 lmax = 1000
 px = 2.0
 # sims
-nsims = 10
+nsims = 4
 # signal cov
 bin_width = 80 # this parameter seems to be important and cause unpredictable noise
 kind = 0 # higher order interpolation breaks covariance
@@ -119,8 +119,8 @@ iells = modlmap[modlmap<lmax1].reshape(-1) # unraveled disk
 nells = iells.size
 Ny,Nx = shape[-2:]
 tcmb = 2.726e6
-yresponses = fg.ffunc(tsim.freqs)*tcmb
-cresponses = yresponses*0.+1.
+yresponses = tfg.get_mix(tsim.freqs, "tSZ") #fg.ffunc(tsim.freqs)*tcmb
+cresponses = tfg.get_mix(tsim.freqs, "CMB") #yresponses*0.+1.
 
 minell = maps.minimum_ell(tsim.shape,tsim.wcs)
 bin_edges = np.arange(np.min(lmins),lmax-50,8*minell)

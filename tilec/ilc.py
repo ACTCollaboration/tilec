@@ -191,7 +191,7 @@ class HILC(object):
             nweights = np.einsum('...ij,...i->...j',self.cinv,np.einsum('...a,...ia->...i',temp,A_mix))
         else:
             raise NotImplementedError
-        weights = (1.0 / np.linalg.det(Qab)[:,None]) * nweights
+        weights = np.nan_to_num(1.0 / np.linalg.det(Qab)[:,None]) * nweights #FIXME: nan to num
         # verify responses
         diffs = np.absolute( np.sum(weights*A_mix[:,:,0],axis=-1) - 1. )
         # assert(np.all(diffs <= self.tol)) #preserved component FIXME: debug nans from det

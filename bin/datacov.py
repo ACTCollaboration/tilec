@@ -34,7 +34,7 @@ del ksplit,kcoadd,c
 Cov = ilc.build_empirical_cov(ksplits,kcoadds,atmosphere,lmins,lmaxs,
                               signal_bin_width=80,
                               signal_interp_order=0,
-                              noise_isotropic=False,
+                              # noise_isotropic=False,
                               dfact=(16,16),
                               rfit_lmaxes=rfit_lmaxes,
                               rfit_wnoise_width=250,
