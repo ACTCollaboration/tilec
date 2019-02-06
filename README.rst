@@ -3,7 +3,7 @@ tILe-C
 =======
 
 `tILe-C` is ILC in tiles. It is both a library for CMB foregrounds and harmonic
-ILC as well as a set of pipeline scripts designed primarily for componenet
+ILC as well as a set of pipeline scripts designed primarily for component
 separation of high-resolution ground-based CMB maps that might have
 inhomogenous, anisotropic and inhomogenously anisotropic noise.
 
@@ -64,7 +64,7 @@ Running ILC
 -----------
 
 1. Covariance
-~~~~~~~~~~~~~
+   ~~~~~~~~~~
 
 The first step is to generate an empirical covariance matrix. The pipeline
 script for this is ``bin/cov.py''. The call options are:
@@ -86,7 +86,19 @@ An example call is:
 
 This will make a directory named v0.1 in the default save location, a
 sub-directory named deep56, use masks corresponding to deep56, generate
-a the non-redundant parts of a TILe-C hybrid covariance matrix involving
+the non-redundant parts of a TILe-C hybrid covariance matrix involving
 arrays with short names a1,a2,p1,p2 and save it to that sub-directory along
 with a copy of the configuration options.
+
+2. Sub-covariance
+   ~~~~~~~~~~~~~~
+
+If you want to slice an existing covariance, use the bin/slicecov.py script.
+
+.. code-block:: console
+
+   python bin/slicecov.py <version_full> <version_sliced>
+   <comma,separated,list,of,array,short,names>
+
+
 

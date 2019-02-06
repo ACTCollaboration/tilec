@@ -260,7 +260,7 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
     return snoise*cross
 
 
-def save_debug_plots(scov,dscov,mcov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=None):
+def save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=None):
     if save_loc is None: save_loc = "."
     io.plot_img(maps.ftrans(scov),"%s/debug_s2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
     io.plot_img(maps.ftrans(dscov),"%s/debug_ds2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
@@ -401,7 +401,7 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
                 tcov[modlmap>lmaxs[aindex1]] = np.inf
 
             Cov[aindex1,aindex2] = tcov.copy()
-            if debug_plots_loc: save_debug_plots(scov,dscov,mcov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
+            if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
             if aindex1!=aindex2: Cov[aindex2,aindex1] = tcov.copy()
     Cov.data = enmap.enmap(Cov.data,wcs,copy=False)
     return Cov.to_array() if return_full else Cov
