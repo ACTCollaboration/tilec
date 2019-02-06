@@ -20,7 +20,7 @@ masks:
 
 example_array: # short name of array
   data_model: act_mr3
-  id: identifying_name
+  id: 'identifying_name'
   bandpass_approx_freq: 150. 
   bandpass_file: file.txt
   hybrid_average: True # whether to treat the noise PS anisotropically
@@ -31,7 +31,7 @@ a1:
   map_path_name: act_maps
   beam_path_name: act_beams
   data_model: act_mr3
-  id: s14_pa1_f150
+  id: 's14_pa1_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA1_avg_passband_wErr_trunc.txt
   hybrid_average: True
@@ -43,7 +43,7 @@ a2:
   map_path_name: act_maps
   beam_path_name: act_beams
   data_model: act_mr3
-  id: s14_pa2_f150
+  id: 's14_pa2_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA2_avg_passband_wErr_trunc.txt
   hybrid_average: True
@@ -55,7 +55,7 @@ a3:
   map_path_name: act_maps
   beam_path_name: act_beams
   data_model: act_mr3
-  id: s15_pa1_f150
+  id: 's15_pa1_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA1_avg_passband_wErr_trunc.txt
   hybrid_average: True
@@ -67,7 +67,7 @@ a4:
   map_path_name: act_maps
   beam_path_name: act_beams
   data_model: act_mr3
-  id: s15_pa2_f150
+  id: 's15_pa2_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA2_avg_passband_wErr_trunc.txt
   hybrid_average: True
@@ -79,7 +79,7 @@ a5:
   map_path_name: act_maps
   beam_path_name: act_beams
   data_model: act_mr3
-  id: s15_pa3_f150
+  id: 's15_pa3_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA3_avg_passband_150_wErr_trunc.txt
   hybrid_average: True
@@ -91,7 +91,7 @@ a6:
   map_path_name: act_maps
   beam_path_name: act_beams
   data_model: act_mr3
-  id: s15_pa3_f090
+  id: 's15_pa3_f090'
   bandpass_approx_freq: 90. 
   bandpass_file: PA3_avg_passband_90_wErr_trunc.txt
   hybrid_average: True
@@ -104,7 +104,7 @@ p1:
   map_path_name: planck_maps
   beam_path_name: planck_beams
   data_model: planck_hybrid
-  id: 070
+  id: '070'
   bandpass_approx_freq: 70. 
   bandpass_file: LFI_BANDPASS_F070_reformat.txt
   hybrid_average: False 
@@ -117,7 +117,7 @@ p2:
   map_path_name: planck_maps
   beam_path_name: planck_beams
   data_model: planck_hybrid
-  id: 100
+  id: '100'
   bandpass_approx_freq: 100. 
   bandpass_file: HFI_BANDPASS_F100_reformat.txt
   hybrid_average: False 
@@ -129,7 +129,7 @@ p3:
   map_path_name: planck_maps
   beam_path_name: planck_beams
   data_model: planck_hybrid
-  id: 143
+  id: '143'
   bandpass_approx_freq: 143. 
   bandpass_file: HFI_BANDPASS_F143_reformat.txt
   hybrid_average: False 
@@ -142,7 +142,7 @@ p4:
   map_path_name: planck_maps
   beam_path_name: planck_beams
   data_model: planck_hybrid
-  id: 217
+  id: '217'
   bandpass_approx_freq: 217. 
   bandpass_file: HFI_BANDPASS_F217_reformat.txt
   hybrid_average: False 
@@ -155,7 +155,7 @@ p5:
   map_path_name: planck_maps
   beam_path_name: planck_beams
   data_model: planck_hybrid
-  id: 353
+  id: '353'
   bandpass_approx_freq: 353. 
   bandpass_file: HFI_BANDPASS_F353_reformat.txt
   hybrid_average: False 
@@ -168,7 +168,7 @@ p6:
   map_path_name: planck_maps
   beam_path_name: planck_beams
   data_model: planck_hybrid
-  id: 545
+  id: '545'
   bandpass_approx_freq: 545. 
   bandpass_file: HFI_BANDPASS_F545_reformat.txt
   hybrid_average: False 
