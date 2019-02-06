@@ -258,7 +258,29 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
     snoise = standard_noise(response_a,cov,cinv)
     cnoise,cross = constrained_noise(response_a,response_b,cov,cinv,return_cross=True)
     return snoise*cross
-    
+
+
+def save_debug_plots(scov,dscov,mcov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=None):
+    if save_loc is None: save_loc = "."
+    io.plot_img(maps.ftrans(scov),"%s/debug_s2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    io.plot_img(maps.ftrans(dscov),"%s/debug_ds2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    if ncov is not None:
+        io.plot_img(maps.ftrans(ncov),"%s/debug_n2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+        io.plot_img(maps.ftrans(dncov),"%s/debug_dn2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    bin_edges = np.arange(100,8000,100)
+    binner = stats.bin2D(modlmap,bin_edges)
+    cents = binner.centers
+    pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
+    padd = lambda p,x,ls,col: p.add(cents,binner.bin(x)[1],ls=ls,color=col)
+    padd(pl,scov,"-","C0")
+    padd(pl,dscov,"--","C0")
+    pl.done("%s/debug_s1d_%d_%d.png" % (save_loc,aindex1,aindex2))
+    if ncov is not None: 
+        pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
+        padd(pl,ncov,"-","C1")
+        padd(pl,dncov,"--","C1")
+        pl.done("%s/debug_n1d_%d_%d.png" % (save_loc,aindex1,aindex2))
+    io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
 
 
 def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
@@ -272,7 +294,7 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
                         rfit_bin_width=None,
                         fc=None,return_full=False,
                         verbose=True,
-                        debug_plots=False,alt=True):
+                        debug_plots_loc=None):
     """
     Build an empirical covariance matrix using hybrid radial (signal) and cartesian
     (noise) binning.
@@ -378,28 +400,8 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
                 tcov[modlmap<lmins[aindex1]] = np.inf
                 tcov[modlmap>lmaxs[aindex1]] = np.inf
 
-            if debug_plots:
-                io.plot_img(maps.ftrans(scov),"debug_s2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
-                io.plot_img(maps.ftrans(dscov),"debug_ds2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
-                if ncov is not None:
-                    io.plot_img(maps.ftrans(ncov),"debug_n2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
-                    io.plot_img(maps.ftrans(dncov),"debug_dn2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
-                bin_edges = np.arange(100,8000,100)
-                binner = stats.bin2D(modlmap,bin_edges)
-                cents = binner.centers
-                pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
-                padd = lambda p,x,ls,col: p.add(cents,binner.bin(x)[1],ls=ls,color=col)
-                padd(pl,scov,"-","C0")
-                padd(pl,dscov,"--","C0")
-                pl.done("debug_s1d_%d_%d.png" % (aindex1,aindex2))
-                if ncov is not None: 
-                    pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
-                    padd(pl,ncov,"-","C1")
-                    padd(pl,dncov,"--","C1")
-                    pl.done("debug_n1d_%d_%d.png" % (aindex1,aindex2))
-                
             Cov[aindex1,aindex2] = tcov.copy()
-            if debug_plots: io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"debug_fcov2d_%d_%d.png" % (aindex1,aindex2),aspect='auto')
+            if debug_plots_loc: save_debug_plots(scov,dscov,mcov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
             if aindex1!=aindex2: Cov[aindex2,aindex1] = tcov.copy()
     Cov.data = enmap.enmap(Cov.data,wcs,copy=False)
     return Cov.to_array() if return_full else Cov

@@ -57,7 +57,7 @@ class DataModel(object):
         imaps = []
         wins = []
         for i in range(nsplits):
-            iwin = self.get_split_ivar(i,srcfree)
+            iwin = self.get_split_ivar(i,ncomp,srcfree)
             wins.append(iwin.copy())
             imap = self.get_split(i,ncomp,srcfree) * iwin
             imaps.append(imap.copy())
@@ -88,10 +88,10 @@ class ACTmr3(DataModel):
     def get_split(self,k,ncomp=3,srcfree=True):
         return self._read_map(self._ftag+"_set%d_map%s.fits" % (k,"_srcfree" if srcfree else ""),ncomp=ncomp)
 
-    def get_coadd_ivar(self,srcfree=True):
+    def get_coadd_ivar(self,ncomp=None,srcfree=True):
         return self._read_map(self._ftag+"_coadd_ivar.fits" ,ncomp=None)
     
-    def get_split_ivar(self,k,srcfree=True):
+    def get_split_ivar(self,k,ncomp=None,srcfree=True):
         return self._read_map(self._ftag+"_set%d_ivar.fits" % (k),ncomp=None)
 
     def get_beam(self,ells):
