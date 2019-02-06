@@ -64,7 +64,7 @@ Running ILC
 -----------
 
 1. Covariance
-   ~~~~~~~~~~
+~~~~~~~~~~~~~
 
 The first step is to generate an empirical covariance matrix. The pipeline
 script for this is ``bin/cov.py''. The call options are:
@@ -91,7 +91,7 @@ arrays with short names a1,a2,p1,p2 and save it to that sub-directory along
 with a copy of the configuration options.
 
 2. Sub-covariance
-   ~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 If you want to slice an existing covariance, use the bin/slicecov.py script.
 
