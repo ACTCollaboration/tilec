@@ -1,0 +1,11 @@
+
+planck_beams: /home/msyriac/repos/tilec/input/
+bandpass: /home/msyriac/repos/tilec/data/
+
+masks: /home/msyriac/data/act/maps/steve/
+act_beams: /home/msyriac/data/act/beams/
+planck_maps: /home/msyriac/data/planck/sigurd/
+act_maps: /home/msyriac/data/act/maps/mr3/
+
+save: /home/msyriac/data/depot/tilec/
+

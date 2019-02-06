@@ -1,0 +1,27 @@
+"100":
+  fwhm: 9.68
+  area: 106.22
+  tnoise: 77.4
+  pnoise: 117.6
+  afreq: "090"
+
+"143":
+  fwhm: 7.30
+  area: 60.44
+  tnoise: 33.0
+  pnoise: 70.2
+  afreq: "150"
+
+"217":
+  fwhm: 5.02
+  area: 28.57
+  tnoise: 46.8
+  pnoise: 105.0
+  afreq: "220"
+
+"353":
+  fwhm: 4.94
+  area: 27.69
+  tnoise: 153.6
+  pnoise: 438.6
+  afreq: ""
