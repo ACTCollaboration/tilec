@@ -71,7 +71,7 @@ kcoadds = enmap.enmap(np.stack(kcoadds),dm.wcs)
 # Read Covmat
 cov = enmap.read_map("%s/datacov_triangle.hdf" % covdir)
 cov = maps.symmat_from_data(cov)
-assert cov.shape[0]==((narrays*(narrays+1))/2) # FIXME: generalize
+assert cov.data.shape[0]==((narrays*(narrays+1))/2) # FIXME: generalize
 
 # Make responses
 responses = {}
@@ -82,8 +82,6 @@ for comp in ['tSZ','CMB','CIB']:
         tfg.get_mix(bps, comp)
         
 ilcgen = ilc.chunked_ilc(modlmap,np.stack(kbeams),cov,chunk_size,responses=responses,invert=True)
-
-sys.exit()
 
 # Initialize containers
 solutions = args.solutions.split(',')
@@ -113,11 +111,12 @@ del ilcgen,cov
 
 # Reshape into maps
 for solution in solutions:
+    comps = data[solution]['comps']
     try:
-        data[solution]['noise'] = enmap.enmap(data[solution]['noise'].reshape((Ny,Nx)),wcs)
-        # write
+        noise = enmap.enmap(data[solution]['noise'].reshape((Ny,Nx)),wcs)
+        enmap.write_map("%s/%s_noise.fits" % (savedir,comps),noise)
     except: pass
-    data[solution]['kmap'] = enmap.enmap(data[solution]['noise'].reshape((Ny,Nx)),wcs)
-    write
+    kmap = enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)
+    enmap.write_map("%s/%s_kmap.fits" % (savedir,comps),kmap)
     
 
