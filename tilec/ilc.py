@@ -3,6 +3,9 @@ from pixell import utils,enmap
 from tilec import covtools
 from orphics import maps,stats,io
 
+try: basestring
+except NameError: basestring = str
+
 """
 This module implements harmonic ILC.
 
@@ -303,11 +306,14 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
 
         ksplits: list of length narrays of (nsplits,Ny,Nx) fourier transforms of
         maps that have already been inverse noise weighted and tapered. This
-        routine will not apply any corrections for the windowing.
+        routine will not apply any corrections for the windowing. Alternatively,
+        list of strings containing filenames to versions of these on disk.
 
         kcoadds: list of length narrays of (Ny,Nx) fourier transforms of
         coadd maps that have already been inverse noise weighted and tapered. This
-        routine will not apply any corrections for the windowing.
+        routine will not apply any corrections for the windowing. Alternatively,
+        list of strings containing filenames to versions of these on disk.
+
 
         anisotropic_pairs: list of 2-tuples specifying which elements of the covariance
         matrix will be treated under hybrid radial(signal)/cartesian(noise) mode. If
@@ -357,10 +363,16 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
          the total spectrum minus the noise power.
 
     """
-
     # Setup
     narrays = len(ksplits)
-    shape,wcs = ksplits[0].shape[-2:],ksplits[0].wcs
+    on_disk = False
+    try:
+        shape,wcs = ksplits[0].shape[-2:],ksplits[0].wcs
+    except:
+        assert isinstance(ksplits[0],basestring), "List contents are neither enmaps nor filenames."
+        shape,wcs = enmap.read_map_geometry(ksplits[0])
+        on_disk = True
+    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
     minell = maps.minimum_ell(shape,wcs)
     modlmap = enmap.modlmap(shape,wcs)
     if fc is None: fc = maps.FourierCalc(shape,wcs)
@@ -379,12 +391,17 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
             if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
 
             hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
+            ks1 = _load_map(ksplits[aindex1])
+            ks2 = _load_map(ksplits[aindex2])
+            kc1 = _load_map(kcoadds[aindex1])
+            kc2 = _load_map(kcoadds[aindex2])
             if hybrid:
-                autos,scov,ncov = maps.split_calc(ksplits[aindex1],ksplits[aindex2],kcoadds[aindex1],kcoadds[aindex2],fourier_calc=fc,alt=True)
+                autos,scov,ncov = maps.split_calc(ks1,ks2,kc1,kc2,fourier_calc=fc,alt=True)
             else:
-                scov = fc.f2power(kcoadds[aindex1],kcoadds[aindex2])
+                scov = fc.f2power(kc1,kc2)
                 ncov = None
 
+            print(scov.shape,scov.wcs)
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if ncov is not None:
                 dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,

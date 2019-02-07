@@ -29,10 +29,13 @@ parser.add_argument("--nsim",     type=int,  default=None,help="A description.")
 # parser.add_argument("-N", "--nsim",     type=int,  default=None,help="A description.")
 # parser.add_argument("-f", "--flag", action='store_true',help='A flag.')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
+parser.add_argument("-m", "--memory-intensive", action='store_true',help='Do not save FFTs to scratch disk. Can be faster, but very memory intensive.')
 args = parser.parse_args()
 
+save_scratch = not(args.memory_intensive)
 gconfig = datamodel.gconfig
 savedir = datamodel.paths['save'] + args.version + "/" + args.region +"/"
+if save_scratch: scratch = datamodel.paths['scratch'] + args.version + "/" + args.region +"/"
 if not(args.overwrite):
     assert not(os.path.exists(savedir)), \
    "This version already exists on disk. Please use a different version identifier."
@@ -40,18 +43,30 @@ try: os.makedirs(savedir)
 except:
     if args.overwrite: pass
     else: raise
+if save_scratch:     
+    try: os.makedirs(scratch)
+    except: pass
 
 kcoadds = []
 ksplits = []
 lmins = []
 lmaxs = []
 anisotropic_pairs = []
+save_names = [] # to make sure nothing is overwritten
 for array in args.arrays.split(','):
     array_datamodel = gconfig[array]['data_model']
     dm = datamodel.datamodels[array_datamodel](args.region,gconfig[array])
     ksplit,kcoadd = dm.process()
-    kcoadds.append(kcoadd.copy())
-    ksplits.append(ksplit.copy())
+    if save_scratch: 
+        kcoadd_name = scratch + "kcoadd_%s.hdf" % array
+        ksplit_name = scratch + "ksplit_%s.hdf" % array
+        enmap.write_map(kcoadd_name,kcoadd)
+        enmap.write_map(ksplit_name,ksplit)
+        kcoadds.append(kcoadd_name)
+        ksplits.append(ksplit_name)
+    else:
+        kcoadds.append(kcoadd.copy())
+        ksplits.append(ksplit.copy())
     lmins.append(dm.c['lmin'])
     lmaxs.append(dm.c['lmax'])
     anisotropic_pairs.append(dm.c['hybrid_average'])
