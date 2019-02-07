@@ -382,7 +382,6 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
     # Loop over unique covmat elements
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
-            if aindex1!=0 or aindex2!=3: continue #FIXME: remove !!!!
             if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
 
             hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
