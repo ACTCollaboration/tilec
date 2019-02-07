@@ -321,13 +321,6 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
         the covariance has to be symmetric. For these pairs, an atmospheric 1/f noise 
         will be fitted out before downsampling the noise power.
 
-        auto_for_cross_covariance: if True, cov(array1,array2) for array1!=array2 does
-        not get separate signal and noise treatment, and is binned isotropically.
-        TODO: allow for anisotropic binning of 90-150 correlation.
-
-        min_splits: If not None, at least min_splits splits are required in an array
-        for hybrid signal-noise treatment.
-
         fc: (optional) pre-initialized maps.FourierCalc object
 
         return_full: if True, returns a redundant/symmetric (narray,narray,Ny,Nx) 
@@ -371,6 +364,7 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
     except:
         assert isinstance(ksplits[0],basestring), "List contents are neither enmaps nor filenames."
         shape,wcs = enmap.read_map_geometry(ksplits[0])
+        shape = shape[-2:]
         on_disk = True
     def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
     minell = maps.minimum_ell(shape,wcs)
@@ -388,6 +382,7 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
     # Loop over unique covmat elements
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
+            if aindex1!=0 or aindex2!=3: continue #FIXME: remove !!!!
             if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
 
             hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
@@ -395,13 +390,18 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
             ks2 = _load_map(ksplits[aindex2])
             kc1 = _load_map(kcoadds[aindex1])
             kc2 = _load_map(kcoadds[aindex2])
+            if kc1.ndim>2:
+                assert kc1.shape[0]==1
+                kc1 = kc1[0]
+            if kc2.ndim>2:
+                assert kc2.shape[0]==1
+                kc2 = kc2[0]
             if hybrid:
                 autos,scov,ncov = maps.split_calc(ks1,ks2,kc1,kc2,fourier_calc=fc,alt=True)
             else:
                 scov = fc.f2power(kc1,kc2)
                 ncov = None
 
-            print(scov.shape,scov.wcs)
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if ncov is not None:
                 dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,

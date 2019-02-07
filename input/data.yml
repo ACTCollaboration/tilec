@@ -13,10 +13,32 @@
 
 # """
 
+
+#############
+# MASKS/REGIONS
+#############
+
 mask_path_name: masks
 masks:
   deep56: deep56_mask_run_180323_master_apo_w0.fits
 
+#############
+# COV-DEFAULT-SETTINGS
+#############
+
+cov:
+  signal_bin_width: 80
+  signal_interp_order: 0
+  dfact: 16
+  rfit_bin_width: 80
+  rfit_wnoise_width: 250
+  rfit_lmin: 300
+
+
+
+#############
+# ARRAYS
+#############
 
 example_array: # short name of array
   data_model: act_mr3
@@ -25,6 +47,8 @@ example_array: # short name of array
   bandpass_file: file.txt
   hybrid_average: True # whether to treat the noise PS anisotropically
   lmin: act_lmin
+  correlated: # List of arrays that this one has noise correlations with
+
 
 
 a1:
@@ -35,6 +59,7 @@ a1:
   bandpass_approx_freq: 150. 
   bandpass_file: PA1_avg_passband_wErr_trunc.txt
   hybrid_average: True
+  correlated: 
   lmin: 500
   lmax: 20000
   calibration: 1.
@@ -46,6 +71,7 @@ a2:
   id: 's14_pa2_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA2_avg_passband_wErr_trunc.txt
+  correlated: 
   hybrid_average: True
   lmin: 500
   lmax: 20000
@@ -58,6 +84,7 @@ a3:
   id: 's15_pa1_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA1_avg_passband_wErr_trunc.txt
+  correlated: 
   hybrid_average: True
   lmin: 500
   lmax: 20000
@@ -70,6 +97,7 @@ a4:
   id: 's15_pa2_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA2_avg_passband_wErr_trunc.txt
+  correlated: 
   hybrid_average: True
   lmin: 500
   lmax: 20000
@@ -82,6 +110,7 @@ a5:
   id: 's15_pa3_f150'
   bandpass_approx_freq: 150. 
   bandpass_file: PA3_avg_passband_150_wErr_trunc.txt
+  correlated: 's15_pa3_f090'
   hybrid_average: True
   lmin: 500
   lmax: 20000
@@ -94,6 +123,7 @@ a6:
   id: 's15_pa3_f090'
   bandpass_approx_freq: 90. 
   bandpass_file: PA3_avg_passband_90_wErr_trunc.txt
+  correlated: 's15_pa3_f150'
   hybrid_average: True
   lmin: 500
   lmax: 20000
