@@ -90,15 +90,27 @@ the non-redundant parts of a TILe-C hybrid covariance matrix involving
 arrays with short names a1,a2,p1,p2 and save it to that sub-directory along
 with a copy of the configuration options.
 
-2. Sub-covariance
-~~~~~~~~~~~~~~~~~
+2. Coadd
+~~~~~~~~
 
-If you want to slice an existing covariance, use the bin/slicecov.py script.
 
 .. code-block:: console
 
-   python bin/slicecov.py <version_full> <version_sliced>
+   python bin/ilc.py <version> <region>
    <comma,separated,list,of,array,short,names>
+   <comma,separated,list,of,solutions>
 
 
+Each solution is of the form x-y-... where x is solved for and the optionally
+provided y-,... are deprojected. The x,y,z,... can be belong to any of
+cmb,tsz,cib.
 
+e.g.
+
+.. code-block:: console
+
+   python bin/ilc.py v0.1 deep56 a1,p1
+   cmb,cmb-tsz,cmb-cib,cmb-tsz-cib,tsz,tsz-cmb,tsz-cib
+
+
+In the above example, only 2 of the arrays in the original covariance matrix are used.
