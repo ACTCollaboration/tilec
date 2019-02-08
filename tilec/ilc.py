@@ -93,9 +93,12 @@ class HILC(object):
         self.nmap = nmap
         self.kbeams = kbeams
         self.cov = np.moveaxis(cov,(0,1),(-2,-1))
+        if np.any(np.isnan(self.cov)): raise ValueError
         if invert:
             self.cinv = np.linalg.inv(self.cov) #utils.eigpow(np.nan_to_num(self.cov),-1,alim=0,rlim=0)
+            self.cinv[self.ells<2] = 0
         else: self.cinv = None
+        if np.any(np.isnan(self.cinv)): raise ValueError
         self.responses = {}
         if responses is None: responses = {}
         if "cmb" not in responses.keys(): responses['cmb'] = np.ones((1,nmap))
@@ -141,6 +144,7 @@ class HILC(object):
         snoise = self.standard_noise(name)
         snoise[np.isinf(np.abs(snoise))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
         out = weighted * snoise
+        if np.any(np.isnan(out)): raise ValueError
         return out
 
     def constrained_map(self,kmaps,name1,name2):
@@ -152,15 +156,22 @@ class HILC(object):
         kmaps = self._prepare_maps(kmaps)
         response_a = self.responses[name1]
         response_b = self.responses[name2]
+        if np.any(np.isnan(response_a)): raise ValueError
+        if np.any(np.isnan(kmaps)): raise ValueError
+        if np.any(np.isnan(response_b)): raise ValueError
+        if np.any(np.isnan(self.cinv)): raise ValueError
         brb = map_comb(response_b,response_b,self.cov,self.cinv)
         arb = map_comb(response_a,response_b,self.cov,self.cinv)
         arM = map_term(kmaps,response_a,self.cov,self.cinv)
         brM = map_term(kmaps,response_b,self.cov,self.cinv)
         ara = map_comb(response_a,response_a,self.cov,self.cinv)
         numer = brb * arM - arb*brM
-        norm = 1./(ara*brb-arb**2.)
+        norm = 1./(ara*brb-arb**2.) 
+        if np.any(np.isnan(numer)): raise ValueError
         norm[np.isinf(np.abs(norm))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
-        return numer*norm
+        out = numer*norm
+        if np.any(np.isnan(out)): raise ValueError
+        return out
 
     def multi_constrained_map(self,kmaps,name1,names=[]):
         """Multiply Constrained ILC -- Make a multiply constrained internal 
@@ -413,10 +424,11 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
 
             tcov = dscov + dncov
             if aindex1==aindex2:
-                tcov[modlmap<lmins[aindex1]] = np.inf
-                tcov[modlmap>lmaxs[aindex1]] = np.inf
+                tcov[modlmap<=lmins[aindex1]] = np.inf
+                tcov[modlmap>=lmaxs[aindex1]] = np.inf
 
             Cov[aindex1,aindex2] = tcov.copy()
+            if np.any(np.isnan(Cov.data)): raise ValueError
             if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
             if aindex1!=aindex2: Cov[aindex2,aindex1] = tcov.copy()
     Cov.data = enmap.enmap(Cov.data,wcs,copy=False)

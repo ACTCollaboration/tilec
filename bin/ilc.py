@@ -72,21 +72,22 @@ kcoadds = enmap.enmap(np.stack(kcoadds),dm.wcs)
 cov = enmap.read_map("%s/datacov_triangle.hdf" % covdir)
 cov = maps.symmat_from_data(cov)
 assert cov.data.shape[0]==((narrays*(narrays+1))/2) # FIXME: generalize
+if np.any(np.isnan(cov.data)): raise ValueError 
 
 # Make responses
 responses = {}
 for comp in ['tSZ','CMB','CIB']:
     if bandpasses:
-        tfg.get_mix_bandpassed(bps, comp)
+        responses[comp] = tfg.get_mix_bandpassed(bps, comp)
     else:
-        tfg.get_mix(bps, comp)
+        responses[comp] = tfg.get_mix(bps, comp)
         
 ilcgen = ilc.chunked_ilc(modlmap,np.stack(kbeams),cov,chunk_size,responses=responses,invert=True)
 
 # Initialize containers
 solutions = args.solutions.split(',')
 data = {}
-kcoadds = kcoadds.reshape((len(c.arrays),Ny*Nx))
+kcoadds = kcoadds.reshape((narrays,Ny*Nx))
 for solution in solutions:
     data[solution] = {}
     comps = solution.split('-')
@@ -111,12 +112,12 @@ del ilcgen,cov
 
 # Reshape into maps
 for solution in solutions:
-    comps = data[solution]['comps']
+    comps = '_'.join(data[solution]['comps'])
     try:
         noise = enmap.enmap(data[solution]['noise'].reshape((Ny,Nx)),wcs)
         enmap.write_map("%s/%s_noise.fits" % (savedir,comps),noise)
     except: pass
-    kmap = enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)
-    enmap.write_map("%s/%s_kmap.fits" % (savedir,comps),kmap)
+    smap = dm.fc.ifft(enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)).real
+    enmap.write_map("%s/%s_kmap.fits" % (savedir,comps),smap)
     
 

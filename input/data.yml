@@ -21,6 +21,7 @@
 mask_path_name: masks
 masks:
   deep56: deep56_mask_run_180323_master_apo_w0.fits
+  boss: boss_mask_run_180323_master_apo_w0.fits
 
 #############
 # COV-DEFAULT-SETTINGS
