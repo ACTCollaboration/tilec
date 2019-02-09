@@ -52,7 +52,7 @@ with bench.show("ffts"):
             shape,wcs = dm.shape,dm.wcs
             Ny,Nx = shape
             modlmap = enmap.modlmap(shape,wcs)
-        _,kcoadd = dm.process(skip_splits=True)
+        _,kcoadd = dm.process(skip_splits=True,pnormalize=False)
         kcoadds.append(kcoadd.copy())
         kbeams.append(dm.get_beam(modlmap))
         if bandpasses:

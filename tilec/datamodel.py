@@ -44,7 +44,7 @@ class DataModel(object):
         return enmap.read_map(self.maproot+"/"+fname,pixbox=pixbox,sel=sel,**kwargs)
 
 
-    def process(self,ncomp=1,srcfree=True,skip_splits=False):
+    def process(self,ncomp=1,srcfree=True,skip_splits=False,pnormalize=True):
         """
         ai is index of array (in the "arrays" list that you specified as an argument)
         Return (nsplits,Ny,Nx) fourier transform
@@ -68,7 +68,8 @@ class DataModel(object):
         wins = enmap.enmap(np.stack(wins),self.wcs)
         imaps = enmap.enmap(np.stack(imaps),self.wcs)
         coadd = np.nan_to_num(imaps.sum(axis=0)/wins.sum(axis=0))
-        kcoadd = enmap.enmap(self.fc.fft(coadd*self.mask) / np.sqrt(np.mean(self.mask**2.)),self.wcs)
+        kcoadd = enmap.enmap(self.fc.fft(coadd*self.mask),self.wcs)
+        if pnormalize: kcoadd = kcoadd / np.sqrt(np.mean(self.mask**2.))
         return ksplits,kcoadd
     
     
