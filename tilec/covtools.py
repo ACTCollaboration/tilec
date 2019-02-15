@@ -4,6 +4,7 @@ from pixell import enmap
 import numpy as np
 import os,sys
 import warnings
+from enlib import bench
 
 
 """
@@ -61,7 +62,8 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
     fbinner = stats.bin2D(modlmap,fbin_edges)
     cents,dn1d = fbinner.bin(npower)
     wnoise = np.sqrt(dn1d[np.logical_and(cents>=(lmax-wnoise_annulus),cents<lmax)].mean())*180.*60./np.pi
-    ntemplatefunc = lambda x,lknee,alpha: fbinner.bin(rednoise(modlmap,wnoise,lknee=lknee,alpha=alpha))[1]
+    #ntemplatefunc = lambda x,lknee,alpha: fbinner.bin(rednoise(modlmap,wnoise,lknee=lknee,alpha=alpha))[1]
+    ntemplatefunc = lambda x,lknee,alpha: rednoise(x,wnoise,lknee=lknee,alpha=alpha) # FIXME: This switch needs testing !!!!
     res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess])
     lknee_fit,alpha_fit = res
     return wnoise,lknee_fit,alpha_fit
