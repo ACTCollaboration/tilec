@@ -1,6 +1,12 @@
+"""
+Chunked ILC simulator
+Simulates arrays specified in input/simple_sim.txt (check that first)!
+
+"""
+
 from __future__ import print_function
-# import matplotlib
-# matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 from orphics import maps,io,cosmology,lensing,stats,mpi
 from pixell import enmap,lensing as enlensing,utils
 from enlib import bench
@@ -17,36 +23,39 @@ Notes:
 4. lpass = False didn't fix new scatter
 """
 
-multi = True
-chunk_size = 20000
-aseed = 3
-lensing = False # no need for lensing for initial tests
-invert = True # 40x speedup from precalulated linalg.inv instead of linalg.solve
-lpass = False # whether to remove modes below lmin in each of the arrays
+multi = True # whether to use Colin's multi-component code instead of Mat's less general max-1-component-deproject code
+chunk_size = 20000 # number of fourier pixels in each chunk; lower number means lower peak memory usage but slower run
+aseed = 3 # the overall seed for the analysis
+lensing = False # whether to lens the CMB ; no need for lensing for initial tests
+invert = True # whether to pre-invert the covmat;  40x speedup from precalulated linalg.inv instead of linalg.solve
+lpass = False # whether to remove modes below lmin in each of the simulated arrays; default False
 # cov
-analytic = False # whether to use an analytic or empirical covmat
-atmosphere = True # whether to ignore atmosphere parameters
-noise_isotropic = False # whether to average the noise spectra the same way as signal
+analytic = False # whether to use an analytic or empirical covmat; analytic=True means not real ILC!
+atmosphere = True # whether to ignore atmosphere parameters in simple_sim.txt
+noise_isotropic = False # whether to average the noise spectra the same way as signal; i.e. always uses radial binning, not the hybrid tILe-C (TM) binning
 debug_noise = False # whether to make debug plots of noise
 # foregrounds
-fgs = True # whether to include any foregrounds
+fgs = True # whether to include any foregrounds at all (master switch for foregrounds)
 dust = False # whether to include dust/CIB
 ycibcorr = False # whether tSZ/CIB are correlated
 # analysis
 #lmax = 6000
 #px = (1.0*10000./(lmax+500.))
-lmax = 1000
-px = 2.0
+lmax = 1000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
+px = 2.0 # resolution in arcminutes of the sims
 # sims
-nsims = 4
+nsims = 4 # number of sims
 # signal cov
-bin_width = 80 # this parameter seems to be important and cause unpredictable noise
-kind = 0 # higher order interpolation breaks covariance
+bin_width = 80 # the width in ell of radial bins for signal averaging
+kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance
 # noise cov
-dfact=(16,16)
+dfact=(16,16) # downsample factor in ly and lx direction for noise
 
+# simulated patch dimensions in degrees ; all sims are periodic
 width = 15.
 height = 15.
+
+
 
 
 beams,freqs,noises,lknees,alphas,nsplits,lmins,lmaxs = np.loadtxt("input/simple_sim.txt",unpack=True)
@@ -237,16 +246,21 @@ for task in my_tasks:
 s.get_stats()
 
 if rank==0:
+    # Cross of ILC CMB with input CMB
     cmb_silc_cross = s.stats["cmb_silc_cross"]['mean']
     cmb_cilc_cross = s.stats["cmb_cilc_cross"]['mean']
+    # Cross of ILC y-map with input y-map
     y_silc_cross = s.stats["y_silc_cross"]['mean']
     y_cilc_cross = s.stats["y_cilc_cross"]['mean']
+    # Errors on those
     ecmb_silc_cross = s.stats["cmb_silc_cross"]['errmean']
     ecmb_cilc_cross = s.stats["cmb_cilc_cross"]['errmean']
     ey_silc_cross = s.stats["y_silc_cross"]['errmean']
     ey_cilc_cross = s.stats["y_cilc_cross"]['errmean']
+    # Auto of ILC CMB minus Auto of ILC CMB noise only
     cmb_silc_auto = s.stats["cmb_silc_auto"]['mean']
     cmb_cilc_auto = s.stats["cmb_cilc_auto"]['mean']
+    # Auto of ILC y-map minus Auto of ILC y map noise only
     y_silc_auto = s.stats["y_silc_auto"]['mean']
     y_cilc_auto = s.stats["y_cilc_auto"]['mean']
     ecmb_silc_auto = s.stats["cmb_silc_auto"]['errmean']
