@@ -66,6 +66,14 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
     ntemplatefunc = lambda x,lknee,alpha: rednoise(x,wnoise,lknee=lknee,alpha=alpha) # FIXME: This switch needs testing !!!!
     res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess])
     lknee_fit,alpha_fit = res
+
+    # from orphics import io
+    # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
+    # pl.add(cents,dn1d)
+    # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
+    # pl.done("fitnoise.png")
+    # sys.exit()
+
     return wnoise,lknee_fit,alpha_fit
 
 
@@ -79,7 +87,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     Watch for ringing in the final output.
     n2d noise power
     """
-    assert not(np.any(np.isnan(n2d)))
+    assert np.all(np.isfinite(n2d))
     shape,wcs = n2d.shape,n2d.wcs
     minell = maps.minimum_ell(shape,wcs)
     if modlmap is None: modlmap = enmap.modlmap(shape,wcs)
@@ -109,6 +117,24 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     outcov = ndown*nfitted
     outcov[modlmap<minell] = np.inf
     assert not(np.any(np.isnan(outcov)))
+
+    # print(maps.minimum_ell(shape,wcs))
+    # from orphics import io
+    # io.hplot(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower.png")
+    # io.hplot(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_ndown.png")
+
+    # import time
+    # t = time.time()
+    # fbin_edges = np.arange(lmin,lmax,bin_annulus)
+    # fbinner = stats.bin2D(modlmap,fbin_edges)
+    # cents, n1d = fbinner.bin(n2d)
+    # cents,dn1d = fbinner.bin(outcov)
+    # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
+    # pl.add(cents,n1d)
+    # pl.add(cents,dn1d,ls="--")
+    # pl.done("fitnoise2_%s.png" % t)
+    # sys.exit()
+
     return outcov,nfitted,nparams
 
 
