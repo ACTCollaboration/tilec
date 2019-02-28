@@ -24,6 +24,7 @@ parser.add_argument("cov_version", type=str,help='Region name.')
 parser.add_argument("region", type=str,help='Region name.')
 parser.add_argument("arrays", type=str,help='Comma separated list of array names. Array names map to a data specification in data.yml')
 parser.add_argument("solutions", type=str,help='Comma separated list of solutions. Each solution is of the form x-y-... where x is solved for and the optionally provided y-,... are deprojected. The x,y,z,... can be belong to any of CMB,tSZ,CIB.')
+parser.add_argument("beams", type=str,help='Comma separated list of beams. Each beam is either a float for FWHM in arcminutes or the name of an array whose beam will be used.')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
 args = parser.parse_args()
 
@@ -111,13 +112,28 @@ for chunknum,(hilc,selchunk) in enumerate(ilcgen):
 del ilcgen,cov
 
 # Reshape into maps
-for solution in solutions:
+beams = args.beams.split(',')
+for solution,beam in zip(solutions,beams):
     comps = '_'.join(data[solution]['comps'])
     try:
         noise = enmap.enmap(data[solution]['noise'].reshape((Ny,Nx)),wcs)
         enmap.write_map("%s/%s_noise.fits" % (savedir,comps),noise)
     except: pass
-    smap = dm.fc.ifft(enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)).real
+
+    ells = np.arange(0,modlmap.max(),1)
+    try:
+        fbeam = float(beam)
+        kbeam = maps.gauss_beam(modlmap,fbeam)
+        lbeam = maps.gauss_beam(ells,fbeam)
+    except:
+        array = beam
+        array_datamodel = gconfig[array]['data_model']
+        dm = datamodel.datamodels[array_datamodel](args.region,gconfig[array])
+        kbeam = dm.get_beam(modlmap)
+        lbeam = dm.get_beam(ells)
+        
+    smap = dm.fc.ifft(kbeam*enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)).real
     enmap.write_map("%s/%s_kmap.fits" % (savedir,comps),smap)
+    io.save_cols("%s/%s_beam.txt" % (savedir,comps),(ells,lbeam))
     
 
