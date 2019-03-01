@@ -9,7 +9,7 @@ Planck Hybrid spec
 f1: Temperature/LFI : 2015, ringhalf, 1024
 f2: Temperature/HFI : 2015, ringhalf, 2048
 f3: Polarization/LFI : 2018, ringhalf, 1024, BPass
-f4: Polarization/HFI : 2018, odd/even, 1024
+f4: Polarization/HFI : 2018, odd/even, 2048
 
 
 """
@@ -36,13 +36,14 @@ f3 = lambda array,splitnum,mtype: "%s/LFI_SkyMap_%s-BPassCorrected_1024_R3.00_fu
 def f4(array,splitnum,mtype): 
     farray = array if array!='353' else '353-psb'
     if splitnum==0: splitname = "odd" 
-    elif splitnum==0: splitname = "even" 
-    return "%s/HFI_SkyMap_%s_2048_R3.01_full-%sring.fits" % (pr3_loc,farray,splitname,mtype)
+    elif splitnum==1: splitname = "even" 
+    return "%s/HFI_SkyMap_%s_2048_R3.01_full-%sring_%s.fits" % (pr3_loc,farray,splitname,mtype)
 
 # Get output filename convention
 dm = sints.PlanckHybrid()
 save_loc = dm.config['maps_path']
 for array in dm.arrays:
+    if array in lfis: continue # !!! REMOVE
     for splitnum in range(2):
         if array in lfis:
             mtfile = f1(array,splitnum,"map")
