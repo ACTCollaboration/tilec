@@ -8,8 +8,7 @@ for f in ifs:
 
 fstr = ' '.join(fs)
 tfile = "/scratch/r/rbond/msyriac/data/planck/data/s16_template.fits"
-cmd = "python planck2car.py %s %s --verbose --outputs ivar" % (fstr,tfile)
-#os.system(cmd)
+cmd = "python planck2car.py %s %s --verbose" % (fstr,tfile)
 scmd = "mpi_niagara 8 \"%s\" -t 20 --walltime 01:00:00" % cmd
 os.system(scmd)
 print(scmd)
