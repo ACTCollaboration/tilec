@@ -4,6 +4,7 @@
 #  map0: like map, but using nearest neighbor. Optional
 # I didn't expect this to become so involved, though much of the verbosity is status printing.
 # It goes to some length to avoid wasting memory.
+# WARNING: All provided files must have the same nside
 
 import argparse, os, sys, time
 parser = argparse.ArgumentParser()
@@ -14,7 +15,11 @@ parser.add_argument("-v", "--verbose", action="store_true")
 parser.add_argument("-O", "--outputs", type=str, default="map,ivar")
 args = parser.parse_args()
 import numpy as np, healpy
-from enlib import enmap, utils, curvedsky, coordinates, mpi, memory
+from pixell import enmap, utils, curvedsky, coordinates, mpi, memory
+
+# These factors when multiplied by the Planck maps convert from MJy/sr to K_CMB
+factor_545 = 0.01723080316
+factor_857 = 0.44089766765
 
 unit  = 1e6
 euler = np.array([57.06793215,  62.87115487, -167.14056929])*utils.degree
@@ -25,29 +30,40 @@ nside = 0
 verbose = args.verbose
 outputs = args.outputs.split(",")
 if len(outputs) == 0:
-	print "No outputs selected - nothing to do"
+	print("No outputs selected - nothing to do")
 	sys.exit(0)
 t0 = time.time()
 
 def progress(msg):
 	if verbose:
-		print "%6.2f %6.2f %6.2f %s" % ((time.time()-t0)/60, memory.current()/1024.**3, memory.max()/1024.**3, msg)
+		print("%6.2f %6.2f %6.2f %s" % ((time.time()-t0)/60, memory.current()/1024.**3, memory.max()/1024.**3, msg))
 
 comm = mpi.COMM_WORLD
 
 shape, wcs = enmap.read_map_geometry(args.template)
+shape = shape[-2:]
 progress("Allocating output map %s %s" % (str((3,)+shape), str(dtype)))
-omap = enmap.zeros((3,)+shape, wcs, dtype)
 if "map" in outputs:
 	for ifile in args.ifiles[comm.rank::comm.size]:
 		name = os.path.basename(ifile)
+		runit = unit
+		if "545" in name: 
+			runit *= factor_545
+			npol = 1
+		elif "857" in name: 
+			runit *= factor_857
+			npol = 1
+		else:
+			npol = 3
+		fields = range(npol)
+		omap = enmap.zeros((npol,)+shape, wcs, dtype)
 		progress("%s TQU read" % name)
-		imap  = np.array(healpy.read_map(ifile, range(3))).astype(dtype)
+		imap  = np.array(healpy.read_map(ifile, fields)).astype(dtype)
 		nside = healpy.npix2nside(imap.shape[-1])
 		progress("%s TQU mask" % name)
 		imap[healpy.mask_bad(imap)] = 0
 		progress("%s TQU scale" % name)
-		imap *= unit
+		imap *= runit
 		nside = healpy.npix2nside(imap.shape[-1])
 		lmax  = args.lmax or 3*nside
 		progress("%s TQU alm2map" % name)
@@ -109,20 +125,39 @@ if "ivar" in outputs or "map0" in outputs:
 		psi[i:i+rstep] = utils.allreduce(psi[i:i+rstep], comm)
 	for output in outputs:
 		if output not in ["ivar","map0"]: continue
-		fields = {"ivar":(4,7,9),"map0":(0,1,2)}[output]
+
 		for ifile in args.ifiles[comm.rank::comm.size]:
 			name = os.path.basename(ifile)
+			runit = unit
+			if "545" in name: 
+				runit *= factor_545
+				npol = 1
+				fields = {"ivar":(2),"map0":(0)}[output]
+			elif "857" in name: 
+				runit *= factor_857
+				npol = 1
+				fields = {"ivar":(2),"map0":(0)}[output]
+			else:
+				fields = {"ivar":(4,7,9),"map0":(0,1,2)}[output]
+				npol = 3
+			omap = enmap.zeros((npol,)+shape, wcs, dtype)
 			progress("%s %s read" % (name, output))
 			imap  = np.array(healpy.read_map(ifile, fields)).astype(dtype)
+			if imap.ndim==1:
+				assert ("545" in name) or ("857" in name)
+				imap = imap[None]
 			progress("%s %s mask" % (name, output))
 			bad = healpy.mask_bad(imap)
 			if output == "ivar": bad |= imap <= 0
 			imap[bad] = 0
 			progress("%s %s scale" % (name, output))
+			runit = unit
+			if "545" in name: runit *= factor_545
+			if "857" in name: runit *= factor_857
 			if output == "ivar":
-				imap[~bad] = 1/imap[~bad] / unit**2
+				imap[~bad] = 1/imap[~bad] / runit**2
 			else:
-				imap *= unit
+				imap *= runit
 			del bad
 			# Read off the nearest neighbor values
 			progress("%s %s interpol" % (name, output))
