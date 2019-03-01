@@ -1,5 +1,6 @@
 import os,sys,glob
 from soapack import interfaces as sints
+from pixell import enmap
 
 """
 
@@ -12,7 +13,8 @@ f4: Polarization/HFI : 2018, odd/even, 1024
 
 
 """
-
+pr2_loc = "/scratch/r/rbond/msyriac/data/planck/data/pr2/"
+pr3_loc = "/scratch/r/rbond/msyriac/data/planck/data/pr3/"
 
 def make_hybrid(tfile,pfile):
     # Make a hybrid TQU map from specified temperature and polarization files
