@@ -151,9 +151,6 @@ if "ivar" in outputs or "map0" in outputs:
 			if output == "ivar": bad |= imap <= 0
 			imap[bad] = 0
 			progress("%s %s scale" % (name, output))
-			runit = unit
-			if "545" in name: runit *= factor_545
-			if "857" in name: runit *= factor_857
 			if output == "ivar":
 				imap[~bad] = 1/imap[~bad] / runit**2
 			else:
