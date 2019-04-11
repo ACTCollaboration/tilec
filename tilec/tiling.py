@@ -35,7 +35,6 @@ class TiledAnalysis(object):
         Nx = self.numx * pix_width
         dny = (iNy - Ny)//2
         dnx = (iNx - Nx)//2
-        
         self.fpixbox = [[dny,dnx],[Ny+dny,Nx+dnx]]
         self.pboxes = []
         self.ipboxes = []
@@ -57,7 +56,7 @@ class TiledAnalysis(object):
         self.pix_apod = pix_apod
         self.N = N
         self.cN = self.N-self.pix_apod*2
-        self.crossfade = self.linear_crossfade(pix_cross)
+        self.crossfade = self._linear_crossfade(pix_cross)
 
     def _prepare(self,imap):
         return imap*self.apod
@@ -82,8 +81,16 @@ class TiledAnalysis(object):
         fxs[:npix] = np.linspace(0.,1.,npix)
         fxs[cN-npix:] = np.linspace(0.,1.,npix)[::-1]
         return fys[:,None] * fxs[None,:]
-        
-dm = sints.ACTmr3(pickupsub=False)
+
+
+def filter_map(imap):
+    modlmap = imap.modlmap()
+    ells = np.arange(0,8000,1)
+    fcurve = np.exp(-(ells-4000)**2./2./200**2.)
+    return maps.filter_map(imap,maps.interp(ells,fcurve)(modlmap))
+
+mask = sints.get_act_mr3_crosslinked_mask("deep56")
+dm = sints.ACTmr3(region=mask,pickupsub=False)
 imap = enmap.pad(dm.get_coadd("s14","deep56","pa1_f150",srcfree=True,ncomp=None)[0],300)
 shape,wcs = imap.shape,imap.wcs
 
@@ -95,14 +102,19 @@ cmap = enmap.extract_pixbox(imap,ta.fpixbox)
 
 for ext,ins in ta.tiles():
     emap = ext(cmap)
+    emap = filter_map(emap)
     ins(emap,omap)
     ins(emap*0+1,nmap)
     
 if comm.rank==0:
-    io.hplot(enmap.downgrade(omap,8))
-    io.plot_img(enmap.downgrade(nmap,8))
-    io.hplot(enmap.downgrade(omap/nmap,8))
-    io.plot_img(enmap.downgrade(omap/nmap-cmap,8))
+    fcmap = filter_map(cmap)
+    # io.hplot(enmap.downgrade(omap/nmap,8))
+    # io.hplot(enmap.downgrade(fcmap,8))
+    io.plot_img(enmap.downgrade(omap/nmap-fcmap,8),lim=1e-1)
+
+    # io.hplot(enmap.downgrade(omap,8))
+    # io.plot_img(enmap.downgrade(nmap,8))
+    
 
 # brmap = enmap.zeros(observed.shape[-2:],observed.wcs)
 # bwrmap = enmap.zeros(observed.shape[-2:],observed.wcs)
