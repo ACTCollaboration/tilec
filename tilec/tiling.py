@@ -22,9 +22,12 @@ import os,sys
 from enlib import bench
 from soapack import interfaces as sints
 from orphics import io,maps
+from orphics import mpi
+comm = mpi.MPI.COMM_WORLD
+
 
 class TiledAnalysis(object):
-    def __init__(self,shape,wcs,pix_width=480,pix_pad=480):
+    def __init__(self,shape,wcs,comm=None,pix_width=480,pix_pad=480,pix_apod=120,pix_cross=240):
         iNy,iNx = shape[-2:]
         self.numy = iNy // pix_width
         self.numx = iNx // pix_width
@@ -35,78 +38,71 @@ class TiledAnalysis(object):
         
         self.fpixbox = [[dny,dnx],[Ny+dny,Nx+dnx]]
         self.pboxes = []
+        self.ipboxes = []
         sy = 0
         for i in range(self.numy):
             sx = 0
             for j in range(self.numx):
                 self.pboxes.append( [[sy-pix_pad//2,sx-pix_pad//2],[sy+pix_width+pix_pad//2,sx+pix_width+pix_pad//2]] )
+                self.ipboxes.append( [[sy-pix_pad//2+pix_apod,sx-pix_pad//2+pix_apod],
+                                      [sy+pix_width+pix_pad//2-pix_apod,sx+pix_width+pix_pad//2-pix_apod]] )
                 sx += pix_width
             sy += pix_width
+        if comm is None:
+            from orphics import mpi
+            comm = mpi.MPI.COMM_WORLD
+        self.comm = comm
+        N = pix_width + pix_pad
+        self.apod = enmap.apod(np.ones((N,N)), pix_apod, profile="cos", fill="zero")
+        self.pix_apod = pix_apod
+        self.N = N
+        self.cN = self.N-self.pix_apod*2
+        self.crossfade = self.linear_crossfade(pix_cross)
+
+    def _prepare(self,imap):
+        return imap*self.apod
+
+    def _finalize(self,imap):
+        return maps.crop_center(imap,self.cN)*self.crossfade
+
+    def tiles(self):
+        comm = self.comm
+        for i in range(comm.rank, len(self.pboxes), comm.size):
+            extracter = lambda x: self._prepare(enmap.extract_pixbox(x,self.pboxes[i]))
+            inserter = lambda inp,out: enmap.insert_at(out,self.ipboxes[i],self._finalize(inp),op=np.ndarray.__iadd__)
+            yield extracter,inserter
             
+    def _linear_crossfade(self,npix):
+        init = np.ones((self.cN,self.cN))
+        cN = self.cN
+        fys = np.ones((cN,))
+        fxs = np.ones((cN,))
+        fys[:npix] = np.linspace(0.,1.,npix)
+        fys[cN-npix:] = np.linspace(0.,1.,npix)[::-1]
+        fxs[:npix] = np.linspace(0.,1.,npix)
+        fxs[cN-npix:] = np.linspace(0.,1.,npix)[::-1]
+        return fys[:,None] * fxs[None,:]
         
 dm = sints.ACTmr3(pickupsub=False)
-#imap = enmap.pad(dm.get_coadd("s13","deep6","pa1_f150",srcfree=True,ncomp=None)[0],100)# *0+1
 imap = enmap.pad(dm.get_coadd("s14","deep56","pa1_f150",srcfree=True,ncomp=None)[0],300)
-io.hplot(enmap.downgrade(imap,8))
+shape,wcs = imap.shape,imap.wcs
 
-ta = TiledAnalysis(imap.shape,imap.wcs)
-smap = enmap.extract_pixbox(imap,ta.fpixbox)
-io.hplot(enmap.downgrade(smap,8))
-for i in range(len(ta.pboxes)):
-    pbox = ta.pboxes[i]
-    # omap = smap.copy()
-    # enmap.insert_at(omap, pbox, np.zeros((480+480,480+480)))
-    omap = enmap.extract_pixbox(smap,pbox)
-    io.hplot(enmap.downgrade(omap,4))
 
-def get_pixboxes(shape,wcs,width_deg=4.,pad_deg=4.):
-    Ny,Nx = shape[-2:]
-    ey,ex = enmap.extent(shape,wcs)
-    width = np.deg2rad(width_deg)
-    pad = np.deg2rad(pad_deg)
-    sny = int(width/ey*Ny)
-    snx = int(width/ex*Nx)
-    pady = int(pad/ey*Ny/2)
-    padx = int(pad/ex*Nx/2)
-    numy = int(Ny*1./sny)
-    numx = int(Nx*1./snx)
-    pixboxes = np.zeros((numy,numx,2,2))
-    for i in range(numy):
-        for j in range(numx):
-            sy = i*sny
-            ey = (i+1)*sny
-            sx = j*snx
-            ex = (j+1)*snx
+ta = TiledAnalysis(shape,wcs,comm)
+omap = enmap.extract_pixbox(enmap.zeros(shape,wcs),ta.fpixbox)
+nmap = enmap.extract_pixbox(enmap.zeros(shape,wcs),ta.fpixbox)
+cmap = enmap.extract_pixbox(imap,ta.fpixbox)
 
-            pbox = np.array([[sy-pady,sx-padx],
-                             [ey+pady,ex+padx]])
-            pixboxes[i,j] = pbox.copy()
-
-            
-    return pixboxes
-
+for ext,ins in ta.tiles():
+    emap = ext(cmap)
+    ins(emap,omap)
+    ins(emap*0+1,nmap)
     
-def npix(pbox):
-    return pbox[1,0]-pbox[0,0],pbox[1,1]-pbox[0,1]
-
-
-
-
-def linear_crossfade(shape,wcs,deg):
-    init = enmap.ones(shape[-2:],wcs)
-    Ny,Nx = shape[-2:]
-    npix = int(deg*60./px)
-    assert Ny%2==0
-    assert Nx%2==0
-    assert Ny==Nx
-    fys = np.ones((Ny,))
-    fxs = np.ones((Nx,))
-    fys[:npix] = np.linspace(0.,1.,npix)
-    fys[Ny-npix:] = np.linspace(0.,1.,npix)[::-1]
-    fxs[:npix] = np.linspace(0.,1.,npix)
-    fxs[Nx-npix:] = np.linspace(0.,1.,npix)[::-1]
-    return fys[:,None] * fxs[None,:]
-    
+if comm.rank==0:
+    io.hplot(enmap.downgrade(omap,8))
+    io.plot_img(enmap.downgrade(nmap,8))
+    io.hplot(enmap.downgrade(omap/nmap,8))
+    io.plot_img(enmap.downgrade(omap/nmap-cmap,8))
 
 # brmap = enmap.zeros(observed.shape[-2:],observed.wcs)
 # bwrmap = enmap.zeros(observed.shape[-2:],observed.wcs)
