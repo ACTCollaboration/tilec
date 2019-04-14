@@ -53,6 +53,8 @@ if "map" in outputs:
 		elif "857" in name: 
 			runit *= factor_857
 			npol = 1
+		elif ("smica" in name) or ("WPR2" in name):
+			npol = 1
 		else:
 			npol = 3
 		fields = range(npol)
