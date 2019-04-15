@@ -7,15 +7,15 @@ from enlib import bench
 from soapack import interfaces as sints
 from orphics import io,maps
 from orphics import mpi
-
+from math import ceil
 
 class TiledAnalysis(object):
     """MPI-enabled tiled analysis on rectangular pixel maps following
     Sigurd Naess' scheme.
-    This class currently does not handle sky wrapping.
+    This class has not been tested for sky wrapping yet.
 
     You initialize by specifying the geometry of the full map, the MPI
-    object and the pixel dimensions of the tiling scheme, with defaults
+    object and the dimensions of the tiling scheme, with defaults
     set for a 0.5 arcmin pixel resolution following:
     http://folk.uio.no/sigurdkn/actpol/coadd_article/
 
@@ -51,26 +51,21 @@ class TiledAnalysis(object):
 
     >>> outmap = ta.get_final_output("processed")
 
-    Currently, sky-wrapping and partial tiles are not supported, so the final
-    output geometry will be a cropped version of the input maps. To crop
-    any map of the original geometry to the cropped geometry of the outputs,
-    you can use:
-
-    >>> cmap = ta.native_footprint(imap)
-
-    which facilitates comparison of tiled outputs with untiled outputs.
-
+    Currently, sky-wrapping has not been tested.
     """
-    def __init__(self,shape,wcs,comm=None,pix_width=480,pix_pad=480,pix_apod=120,pix_cross=240):
+    def __init__(self,shape,wcs,comm=None,width_deg=4.,pix_arcmin=0.5):
+
+        pix_width = int(480 * (width_deg/4.) * (0.5/pix_arcmin))
+        pix_pad = int(480 * (width_deg/4.) * (0.5/pix_arcmin))
+        pix_apod = int(120 * (width_deg/4.) * (0.5/pix_arcmin))
+        pix_cross = int(240 * (width_deg/4.) * (0.5/pix_arcmin))
+
         self.ishape,self.iwcs = shape,wcs
         iNy,iNx = shape[-2:]
-        self.numy = iNy // pix_width
-        self.numx = iNx // pix_width
+        self.numy = ceil(iNy *1. / pix_width)
+        self.numx = ceil(iNx *1. / pix_width)
         Ny = self.numy * pix_width
         Nx = self.numx * pix_width
-        dny = (iNy - Ny)//2
-        dnx = (iNx - Nx)//2
-        self.fpixbox = [[dny,dnx],[Ny+dny,Nx+dnx]]
         self.pboxes = []
         self.ipboxes = []
         sy = 0
@@ -100,10 +95,13 @@ class TiledAnalysis(object):
     def _finalize(self,imap):
         return maps.crop_center(imap,self.cN)*self.crossfade
 
-    def tiles(self):
+    def tiles(self,from_file=False):
         comm = self.comm
         for i in range(comm.rank, len(self.pboxes), comm.size):
-            extracter = lambda x: self._prepare(enmap.extract_pixbox(self.native_footprint(x),self.pboxes[i]))
+            if from_file:
+                extracter = lambda x,**kwargs: self._prepare(enmap.read_map(x,pixbox=self.pboxes[i],**kwargs))
+            else:
+                extracter = lambda x: self._prepare(enmap.extract_pixbox(x,self.pboxes[i]))
             inserter = lambda inp,out: enmap.insert_at(out,self.ipboxes[i],self._finalize(inp),op=np.ndarray.__iadd__)
             yield extracter,inserter
             
@@ -123,10 +121,7 @@ class TiledAnalysis(object):
         self.outputs[name] = (omap,omap.copy())
 
     def get_empty_map(self):
-        return self.native_footprint(enmap.zeros(self.ishape,self.iwcs))
-
-    def native_footprint(self,imap):
-        return enmap.extract_pixbox(imap,self.fpixbox)
+        return enmap.zeros(self.ishape,self.iwcs)
 
     def update_output(self,name,emap,inserter):
         inserter(emap,self.outputs[name][0])

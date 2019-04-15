@@ -35,9 +35,8 @@ parser.add_argument("-m", "--memory-intensive", action='store_true',help='Do not
 args = parser.parse_args()
 
 save_scratch = not(args.memory_intensive)
-gconfig = datamodel.gconfig
-savedir = datamodel.paths['save'] + args.version + "/" + args.region +"/"
-if save_scratch: scratch = datamodel.paths['scratch'] + args.version + "/" + args.region +"/"
+savedir = save_path + args.version + "/" + args.region +"/"
+if save_scratch: scratch = scratch_pah + args.version + "/" + args.region +"/"
 if not(args.overwrite):
     assert not(os.path.exists(savedir)), \
    "This version already exists on disk. Please use a different version identifier."
