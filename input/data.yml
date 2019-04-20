@@ -1,42 +1,4 @@
 
-# """
-# An array is a unit of data that comes with:
-#   1. a coadd map
-#   2. splits
-#   3. inv var maps of each
-#   4. a beam
-#   5. a bandpass spec
-
-# All of these are specified through a subclass of DataModel.
-
-
-
-# """
-
-
-#############
-# MASKS/REGIONS
-#############
-
-mask_path_name: masks
-masks:
-  deep56: deep56_mask_run_180323_master_apo_w0.fits
-  boss: boss_mask_run_180323_master_apo_w0.fits
-
-#############
-# COV-DEFAULT-SETTINGS
-#############
-
-cov:
-  signal_bin_width: 80
-  signal_interp_order: 0
-  dfact: 16
-  rfit_bin_width: 80
-  rfit_wnoise_width: 250
-  rfit_lmin: 300
-
-
-
 #############
 # ARRAYS
 #############
@@ -53,8 +15,6 @@ example_array: # short name of array
 
 
 a1:
-  map_path_name: act_maps
-  beam_path_name: act_beams
   data_model: act_mr3
   id: 's14_pa1_f150'
   bandpass_approx_freq: 150. 
@@ -63,11 +23,8 @@ a1:
   correlated: 
   lmin: 500
   lmax: 20000
-  calibration: 1.
 
 a2:
-  map_path_name: act_maps
-  beam_path_name: act_beams
   data_model: act_mr3
   id: 's14_pa2_f150'
   bandpass_approx_freq: 150. 
@@ -76,11 +33,8 @@ a2:
   hybrid_average: True
   lmin: 500
   lmax: 20000
-  calibration: 1.
 
 a3:
-  map_path_name: act_maps
-  beam_path_name: act_beams
   data_model: act_mr3
   id: 's15_pa1_f150'
   bandpass_approx_freq: 150. 
@@ -89,11 +43,8 @@ a3:
   hybrid_average: True
   lmin: 500
   lmax: 20000
-  calibration: 1.
 
 a4:
-  map_path_name: act_maps
-  beam_path_name: act_beams
   data_model: act_mr3
   id: 's15_pa2_f150'
   bandpass_approx_freq: 150. 
@@ -102,11 +53,8 @@ a4:
   hybrid_average: True
   lmin: 500
   lmax: 20000
-  calibration: 1.
 
 a5:
-  map_path_name: act_maps
-  beam_path_name: act_beams
   data_model: act_mr3
   id: 's15_pa3_f150'
   bandpass_approx_freq: 150. 
@@ -115,11 +63,8 @@ a5:
   hybrid_average: True
   lmin: 500
   lmax: 20000
-  calibration: 1.
 
 a6:
-  map_path_name: act_maps
-  beam_path_name: act_beams
   data_model: act_mr3
   id: 's15_pa3_f090'
   bandpass_approx_freq: 90. 
@@ -128,12 +73,9 @@ a6:
   hybrid_average: True
   lmin: 500
   lmax: 20000
-  calibration: 1.
 
 
 p1:
-  map_path_name: planck_maps
-  beam_path_name: planck_beams
   data_model: planck_hybrid
   id: '070'
   bandpass_approx_freq: 70. 
@@ -141,12 +83,9 @@ p1:
   hybrid_average: False 
   lmin: 80
   lmax: 6000
-  calibration: 1.
 
 
 p2:
-  map_path_name: planck_maps
-  beam_path_name: planck_beams
   data_model: planck_hybrid
   id: '100'
   bandpass_approx_freq: 100. 
@@ -154,11 +93,8 @@ p2:
   hybrid_average: False 
   lmin: 80
   lmax: 6000
-  calibration: 1.
 
 p3:
-  map_path_name: planck_maps
-  beam_path_name: planck_beams
   data_model: planck_hybrid
   id: '143'
   bandpass_approx_freq: 143. 
@@ -166,12 +102,9 @@ p3:
   hybrid_average: False 
   lmin: 80
   lmax: 6000
-  calibration: 1.
 
 
 p4:
-  map_path_name: planck_maps
-  beam_path_name: planck_beams
   data_model: planck_hybrid
   id: '217'
   bandpass_approx_freq: 217. 
@@ -179,12 +112,9 @@ p4:
   hybrid_average: False 
   lmin: 80
   lmax: 6000
-  calibration: 1.
 
 
 p5:
-  map_path_name: planck_maps
-  beam_path_name: planck_beams
   data_model: planck_hybrid
   id: '353'
   bandpass_approx_freq: 353. 
@@ -192,12 +122,9 @@ p5:
   hybrid_average: False 
   lmin: 80
   lmax: 6000
-  calibration: 1.
 
 
 p6:
-  map_path_name: planck_maps
-  beam_path_name: planck_beams
   data_model: planck_hybrid
   id: '545'
   bandpass_approx_freq: 545. 
@@ -205,6 +132,5 @@ p6:
   hybrid_average: False 
   lmin: 80
   lmax: 6000
-  calibration: 1.
 
 

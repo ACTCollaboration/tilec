@@ -297,7 +297,7 @@ def save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=
     io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
 
 
-def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
+def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         anisotropic_pairs,
                         signal_bin_width=None,
                         signal_interp_order=0,
@@ -310,6 +310,8 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
                         verbose=True,
                         debug_plots_loc=None):
     """
+    TODO: Add docs for wins and mask
+    TODO: make noise calc consistent with actsims (use same code)
     Build an empirical covariance matrix using hybrid radial (signal) and cartesian
     (noise) binning.
 
@@ -407,9 +409,15 @@ def build_empirical_cov(ksplits,kcoadds,lmins,lmaxs,
                 assert kc2.shape[0]==1
                 kc2 = kc2[0]
             if hybrid:
-                autos,scov,ncov = maps.split_calc(ks1,ks2,kc1,kc2,fourier_calc=fc,alt=True)
+                # autos,scov,ncov = maps.split_calc(ks1,ks2,kc1,kc2,fourier_calc=fc,alt=True)
+                from actsims import noise as simnoise
+                ncov = simnoise.noise_power(ks1,_load_map(wins[aindex1])*mask,
+                                                 kmaps2=ks2,weights2=_load_map(wins[aindex2])*mask,
+                                                 coadd_estimator=True)
+                scov = fc.f2power(kc1,kc2)/np.mean(mask**2.) - ncov
+
             else:
-                scov = fc.f2power(kc1,kc2)
+                scov = fc.f2power(kc1,kc2)/np.mean(mask**2.)
                 ncov = None
 
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
