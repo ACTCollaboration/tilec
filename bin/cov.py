@@ -57,7 +57,6 @@ mask = sints.get_act_mr3_crosslinked_mask(args.region,
                                           version=args.mask_version,
                                           kind='binary_apod')
 shape,wcs = mask.shape,mask.wcs
-fc = maps.FourierCalc(shape[-2:],wcs)
 
 with bench.show("ffts"):
     kcoadds = []
@@ -77,7 +76,7 @@ with bench.show("ffts"):
         try: friends[name] = ainfo['correlated']
         except: friends[name] = None
         hybrids.append(ainfo['hybrid_average'])
-        ksplit,kcoadd,win = kspace.process(dm,args.region,name,fc,mask,ncomp=1,skip_splits=False)
+        ksplit,kcoadd,win = kspace.process(dm,args.region,name,mask,ncomp=1,skip_splits=False)
         if save_scratch: 
             kcoadd_name = scratch + "kcoadd_%s.hdf" % array
             ksplit_name = scratch + "ksplit_%s.hdf" % array
@@ -118,8 +117,10 @@ for i in range(narrays):
         
 print("Anisotropic pairs: ",anisotropic_pairs)
 
-Cov = ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
-                              anisotropic_pairs,
+save_fn = lambda x,a1,a2: enmap.write_map(enmap.enmap(x,wcs),save_dir+"tilec_hybrid_covariance_%s_%s.hdf" % (a1,a2))
+
+Cov = ilc.build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
+                              anisotropic_pairs,save_fn,
                               signal_bin_width=args.signal_bin_width,
                               signal_interp_order=args.signal_interp_order,
                               dfact=(args.dfact,args.dfact),
@@ -127,8 +128,7 @@ Cov = ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                               rfit_wnoise_width=args.rfit_wnoise_width,
                               rfit_lmin=args.rfit_lmin,
                               rfit_bin_width=None,
-                              fc=fc,return_full=False,
+                              return_full=False,
                               verbose=True,
                               debug_plots_loc=savedir)
 
-enmap.write_map("%s/datacov_triangle.hdf" % savedir,Cov.data)

@@ -284,7 +284,8 @@ def save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=
     bin_edges = np.arange(100,8000,100)
     binner = stats.bin2D(modlmap,bin_edges)
     cents = binner.centers
-    pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
+    #pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
+    pl = io.Plotter(xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
     padd = lambda p,x,ls,col: p.add(cents,binner.bin(x)[1],ls=ls,color=col)
     padd(pl,scov,"-","C0")
     padd(pl,dscov,"--","C0")
@@ -297,8 +298,8 @@ def save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=
     io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
 
 
-def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
-                        anisotropic_pairs,
+def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
+                        anisotropic_pairs,save_fn,
                         signal_bin_width=None,
                         signal_interp_order=0,
                         dfact=(16,16),
@@ -306,12 +307,11 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         rfit_wnoise_width=250,
                         rfit_lmin=300,
                         rfit_bin_width=None,
-                        fc=None,return_full=False,
                         verbose=True,
                         debug_plots_loc=None):
     """
-    TODO: Add docs for wins and mask
-    TODO: make noise calc consistent with actsims (use same code)
+    TODO: Add docs for wins and mask, and names and save_fn
+
     Build an empirical covariance matrix using hybrid radial (signal) and cartesian
     (noise) binning.
 
@@ -333,22 +333,6 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
         (i,j) is in the list, (j,i) will be added if it already doesn't exist, since
         the covariance has to be symmetric. For these pairs, an atmospheric 1/f noise 
         will be fitted out before downsampling the noise power.
-
-        fc: (optional) pre-initialized maps.FourierCalc object
-
-        return_full: if True, returns a redundant/symmetric (narray,narray,Ny,Nx) 
-        numpy array. False by default, in which case it returns a more efficient
-        orphics.maps.SymMat object, whose data attribute stores without redundancy
-        the unique elements of the covariance matrix. This matrix or slices of it
-        can be extracted using Cov.to_array().
-
-    Returns:
-
-        Cov: if return_full is True, Cov is a redundant/symmetric (narray,narray,Ny,Nx) 
-        numpy array. Otherwise (default), Cov is a more efficient
-        orphics.maps.SymMat object, whose data attribute stores without redundancy
-        the unique elements of the covariance matrix. This matrix or slices of it
-        can be extracted using Cov.to_array().
     
 
     For each pair of arrays, one of the following modes is chosen:
@@ -382,8 +366,6 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
     def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
     minell = maps.minimum_ell(shape,wcs)
     modlmap = enmap.modlmap(shape,wcs)
-    if fc is None: fc = maps.FourierCalc(shape,wcs)
-    Cov = maps.SymMat(narrays,shape)
 
     # Defaults
     if rfit_lmaxes is None:
@@ -409,15 +391,14 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                 assert kc2.shape[0]==1
                 kc2 = kc2[0]
             if hybrid:
-                # autos,scov,ncov = maps.split_calc(ks1,ks2,kc1,kc2,fourier_calc=fc,alt=True)
                 from actsims import noise as simnoise
                 ncov = simnoise.noise_power(ks1,_load_map(wins[aindex1])*mask,
                                                  kmaps2=ks2,weights2=_load_map(wins[aindex2])*mask,
                                                  coadd_estimator=True)
-                scov = fc.f2power(kc1,kc2)/np.mean(mask**2.) - ncov
+                scov = np.real(kc1*kc2.conj())/np.mean(mask**2.) - ncov
 
             else:
-                scov = fc.f2power(kc1,kc2)/np.mean(mask**2.)
+                scov = np.real(kc1*kc2.conj())/np.mean(mask**2.)
                 ncov = None
 
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
@@ -435,9 +416,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                 tcov[modlmap<=lmins[aindex1]] = np.inf
                 tcov[modlmap>=lmaxs[aindex1]] = np.inf
 
-            Cov[aindex1,aindex2] = tcov.copy()
-            if np.any(np.isnan(Cov.data)): raise ValueError
+            if np.any(np.isnan(tcov)): raise ValueError
+            # save PS
+            save_fn(tcov,names[aindex1],names[aindex2])
             if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
-            if aindex1!=aindex2: Cov[aindex2,aindex1] = tcov.copy()
-    Cov.data = enmap.enmap(Cov.data,wcs,copy=False)
-    return Cov.to_array() if return_full else Cov
