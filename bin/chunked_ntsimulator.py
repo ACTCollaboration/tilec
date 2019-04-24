@@ -23,7 +23,7 @@ Notes:
 4. lpass = False didn't fix new scatter
 """
 
-multi = True # whether to use Colin's multi-component code instead of Mat's less general max-1-component-deproject code
+multi = False # whether to use Colin's multi-component code instead of Mat's less general max-1-component-deproject code
 chunk_size = 20000 # number of fourier pixels in each chunk; lower number means lower peak memory usage but slower run
 aseed = 3 # the overall seed for the analysis
 lensing = False # whether to lens the CMB ; no need for lensing for initial tests
@@ -41,13 +41,14 @@ ycibcorr = False # whether tSZ/CIB are correlated
 # analysis
 #lmax = 6000
 #px = (1.0*10000./(lmax+500.))
-lmax = 1000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
-px = 2.0 # resolution in arcminutes of the sims
+lmax = 2000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
+px = 1.5 # resolution in arcminutes of the sims
 # sims
-nsims = 4 # number of sims
+nsims = 10 # number of sims
 # signal cov
 bin_width = 80 # the width in ell of radial bins for signal averaging
-kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance
+kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance (does it still?)
+# kind = 0 leads to disagreement between binned downsampled and binned pre-downsampled power though
 # noise cov
 dfact=(16,16) # downsample factor in ly and lx direction for noise
 
@@ -185,7 +186,7 @@ for task in my_tasks:
                                           rfit_wnoise_width=250,
                                           rfit_lmin=300,
                                           rfit_bin_width=None,
-                                          fc=fc,return_full=False)
+                                          fc=fc,return_full=False,verbose=False)
 
 
     with bench.show("more ffts"):
