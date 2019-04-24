@@ -4,7 +4,8 @@ from pixell import enmap
 from enlib import bench
 import numpy as np
 import os,sys
-from tilec import datamodel,fg as tfg,ilc
+from tilec import fg as tfg,ilc
+from soapack import interfaces as sints
 
 """
 This script will work with a saved covariance matrix to obtain component separated
@@ -12,7 +13,6 @@ maps.
 """
 
 chunk_size = 1000000
-bandpasses = True
 def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
 
 
@@ -23,14 +23,18 @@ parser.add_argument("version", type=str,help='Region name.')
 parser.add_argument("cov_version", type=str,help='Region name.')
 parser.add_argument("region", type=str,help='Region name.')
 parser.add_argument("arrays", type=str,help='Comma separated list of array names. Array names map to a data specification in data.yml')
-parser.add_argument("solutions", type=str,help='Comma separated list of solutions. Each solution is of the form x-y-... where x is solved for and the optionally provided y-,... are deprojected. The x,y,z,... can be belong to any of CMB,tSZ,CIB.')
+parser.add_argument("solutions", type=str,help='Comma separated list of solutions. Each solution is of the form x-y-... where x is solved for and the optionally provided y-,... are deprojected. The x can belong to any of CMB,tSZ and y,z,... can belong to any of CMB,tSZ,CIB.')
 parser.add_argument("beams", type=str,help='Comma separated list of beams. Each beam is either a float for FWHM in arcminutes or the name of an array whose beam will be used.')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
+parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore bandpass files and use effective frequency.')
+parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 args = parser.parse_args()
 
-gconfig = datamodel.gconfig
-savedir = datamodel.paths['save'] + args.version + "/" + args.region +"/"
-covdir = datamodel.paths['save'] + args.cov_version + "/" + args.region +"/"
+bandpasses = not(args.effective_freq)
+gconfig = io.config_from_yaml("input/data.yml")
+save_path = sints.dconfig['tilec']['save_path']
+savedir = save_path + args.version + "/" + args.region +"/"
+covdir = save_path + args.cov_version + "/" + args.region +"/"
 assert os.path.exists(covdir)
 if not(args.overwrite):
     assert not(os.path.exists(savedir)), \
@@ -40,6 +44,14 @@ except:
     if args.overwrite: pass
     else: raise
 
+
+mask = sints.get_act_mr3_crosslinked_mask(args.region,
+                                          version=args.mask_version,
+                                          kind='binary_apod')
+shape,wcs = mask.shape,mask.wcs
+Ny,Nx = shape
+modlmap = enmap.modlmap(shape,wcs)
+
 arrays = args.arrays.split(',')
 narrays = len(arrays)
 with bench.show("ffts"):
@@ -47,27 +59,31 @@ with bench.show("ffts"):
     kbeams = []
     bps = []
     for i,array in enumerate(arrays):
-        array_datamodel = gconfig[array]['data_model']
-        dm = datamodel.datamodels[array_datamodel](args.region,gconfig[array])
-        if i==0:
-            shape,wcs = dm.shape,dm.wcs
-            Ny,Nx = shape
-            modlmap = enmap.modlmap(shape,wcs)
-        _,kcoadd = dm.process(skip_splits=True,pnormalize=False)
+        ainfo = gconfig[array]
+        dm = sints.models[ainfo['data_model']](region=mask)
+        array_id = ainfo['id']
+        if dm.name=='act_mr3':
+            season,array1,array2 = array_id.split('_')
+            narray = array1 + "_" + array2
+            patch = args.region
+        elif dm.name=='planck_hybrid':
+            season,patch,narray = None,None,array_id
+        kcoadd_name = covdir + "kcoadd_%s.hdf" % array
+        kcoadd = enmap.read_map(kcoadd_name)
         kcoadds.append(kcoadd.copy())
-        kbeams.append(dm.get_beam(modlmap))
+        kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=patch,array=narray))
         if bandpasses:
-            try: bps.append(datamodel.paths['bandpass']+"/"+dm.c['bandpass_file'] )
+            try: bps.append("data/"+ainfo['bandpass_file'] )
             except:
                 warn()
                 bps.append(None)
         else:
-            try: bps.append(dm.c['bandpass_approx_freq'])
+            try: bps.append(ainfo['bandpass_approx_freq'])
             except:
                 warn()
                 bps.append(None)
                 
-kcoadds = enmap.enmap(np.stack(kcoadds),dm.wcs)
+kcoadds = enmap.enmap(np.stack(kcoadds),wcs)
 
 # Read Covmat
 cov = enmap.read_map("%s/datacov_triangle.hdf" % covdir)
@@ -132,7 +148,7 @@ for solution,beam in zip(solutions,beams):
         kbeam = dm.get_beam(modlmap)
         lbeam = dm.get_beam(ells)
         
-    smap = dm.fc.ifft(kbeam*enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)).real
+    smap = enmap.ifft(kbeam*enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs),normalize='phys').real
     enmap.write_map("%s/%s_kmap.fits" % (savedir,comps),smap)
     io.save_cols("%s/%s_beam.txt" % (savedir,comps),(ells,lbeam))
     

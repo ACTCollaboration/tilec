@@ -13,7 +13,7 @@ from enlib import bench
 import numpy as np
 import os,sys
 from szar import foregrounds as fg
-from tilec import utils as tutils,covtools,ilc,fg as tfg
+from tilec import utils as tutils,covtools,ilc,fg as tfg,kspace
 
 """
 Notes:
@@ -23,7 +23,7 @@ Notes:
 4. lpass = False didn't fix new scatter
 """
 
-multi = True # whether to use Colin's multi-component code instead of Mat's less general max-1-component-deproject code
+multi = False # whether to use Colin's multi-component code instead of Mat's less general max-1-component-deproject code
 chunk_size = 20000 # number of fourier pixels in each chunk; lower number means lower peak memory usage but slower run
 aseed = 3 # the overall seed for the analysis
 lensing = False # whether to lens the CMB ; no need for lensing for initial tests
@@ -41,10 +41,10 @@ ycibcorr = False # whether tSZ/CIB are correlated
 # analysis
 #lmax = 6000
 #px = (1.0*10000./(lmax+500.))
-lmax = 1000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
-px = 2.0 # resolution in arcminutes of the sims
+lmax = 2000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
+px = 1.5 # resolution in arcminutes of the sims
 # sims
-nsims = 4 # number of sims
+nsims = 10 # number of sims
 # signal cov
 bin_width = 80 # the width in ell of radial bins for signal averaging
 kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance
@@ -128,20 +128,20 @@ iells = modlmap[modlmap<lmax1].reshape(-1) # unraveled disk
 nells = iells.size
 Ny,Nx = shape[-2:]
 tcmb = 2.726e6
-yresponses = tfg.get_mix(tsim.freqs, "tSZ") #fg.ffunc(tsim.freqs)*tcmb
-cresponses = tfg.get_mix(tsim.freqs, "CMB") #yresponses*0.+1.
+yresponses = tfg.get_mix(tsim.freqs, "tSZ")
+cresponses = tfg.get_mix(tsim.freqs, "CMB")
 
 minell = maps.minimum_ell(tsim.shape,tsim.wcs)
 bin_edges = np.arange(np.min(lmins),lmax-50,8*minell)
 binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
-# Only do hybrid treatment for arrays with more than 2 splits (ACT)
+# Only do hybrid treatment for arrays with more than 2 splits (ACT) -- now doing for Planck as well
 anisotropic_pairs = []
 if not(noise_isotropic):
     for aindex1 in range(narrays):
         nsplits1 = tsim.nsplits[aindex1]
-        if nsplits1>2: anisotropic_pairs.append((aindex1,aindex1))
+        if True: anisotropic_pairs.append((aindex1,aindex1))
 
 
 if analytic:
@@ -151,24 +151,25 @@ if analytic:
     Cov = Cov[:,:,modlmap<lmax1].reshape((narrays,narrays,modlmap[modlmap<lmax1].size))
 
 s = stats.Stats(comm)
+wins = mask = enmap.ones(tsim.shape[-2:],tsim.wcs)
+
+covdict = {}
+names = ["a%d" % i for i in range(narrays)]
+def save_fn(tcov,a1,a2): covdict[a1+"_"+a2] = tcov.copy()
 
 for task in my_tasks:
     with bench.show("sim gen"):
         isim,isimnoise = tsim.get_sim(task)
     with bench.show("ffts"):
+        iksplits = []
         ikmaps = []
         inkmaps = []
-        iksplits = []
         for array in tsim.arrays:
-            iksplits.append([])
-            for split in range(tsim.nsplits[array]):
-                _,_,ksplit = fc.power2d(isim[array][split])
-                iksplits[array].append(ksplit.copy())
-            iksplits[array] = enmap.enmap(np.stack(iksplits[array]),tsim.wcs)
-
-            kcoadd = sum(iksplits[array])/tsim.nsplits[array]
-            ncoadd = sum(isimnoise[array])/tsim.nsplits[array]
-            _,_,kncoadd = fc.power2d(ncoadd)
+            splits = isim[array]
+            noise_splits = isimnoise[array]
+            ksplits,kcoadd = kspace.process_splits(splits,wins=wins,mask=mask)
+            _,kncoadd = kspace.process_splits(noise_splits,wins=wins,mask=mask,skip_splits=True)
+            iksplits.append(  ksplits.copy())
             ikmaps.append(  kcoadd.copy())
             inkmaps.append(  kncoadd.copy())
 
@@ -176,18 +177,18 @@ for task in my_tasks:
     with bench.show("empirical cov"):
         if not(analytic):
             atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
-            Cov = ilc.build_empirical_cov(iksplits,ikmaps,lmins,lmaxs,
-                                          anisotropic_pairs,
+            ilc.build_empirical_cov(names,iksplits,ikmaps,wins,mask,lmins,lmaxs,
+                                          anisotropic_pairs,save_fn,
                                           signal_bin_width=bin_width,
                                           signal_interp_order=kind,
                                           dfact=dfact,
                                           rfit_lmaxes=None,
                                           rfit_wnoise_width=250,
                                           rfit_lmin=300,
-                                          rfit_bin_width=None,
-                                          fc=fc,return_full=False)
+                                          rfit_bin_width=None)
 
-
+    Cov = covdict
+    print(Cov)
     with bench.show("more ffts"):
         ilensed = tsim.lensed
         _,iklensed,_ = fc.power2d(ilensed)

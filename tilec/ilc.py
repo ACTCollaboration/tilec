@@ -274,7 +274,7 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
     return snoise*cross
 
 
-def save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=None):
+def save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc=None):
     if save_loc is None: save_loc = "."
     io.plot_img(maps.ftrans(scov),"%s/debug_s2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
     io.plot_img(maps.ftrans(dscov),"%s/debug_ds2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
@@ -295,7 +295,7 @@ def save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=
         padd(pl,ncov,"-","C1")
         padd(pl,dncov,"--","C1")
         pl.done("%s/debug_n1d_%d_%d.png" % (save_loc,aindex1,aindex2))
-    io.plot_img(maps.ftrans(Cov[aindex1,aindex2]),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    io.plot_img(maps.ftrans(tcov),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
 
 
 def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
@@ -407,7 +407,7 @@ def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
                                                    radial_fit=True,lmax=rfit_lmaxes[aindex1],
                                                    wnoise_annulus=rfit_wnoise_width,
                                                    lmin = rfit_lmin,
-                                                   bin_annulus=rfit_bin_width)
+                                                   bin_annulus=rfit_bin_width,fill_lmax=max(lmaxs[aindex1],lmaxs[aindex2]))
             else:
                 dncov = np.zeros(dscov.shape)
 
@@ -419,4 +419,4 @@ def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
             if np.any(np.isnan(tcov)): raise ValueError
             # save PS
             save_fn(tcov,names[aindex1],names[aindex2])
-            if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,Cov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
+            if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)

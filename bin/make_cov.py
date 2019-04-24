@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 from tilec import kspace,ilc
 import numpy as np
 import os,sys
@@ -11,6 +13,7 @@ from soapack import interfaces as sints
 This script produces an empirical covariance matrix
 from Planck and ACT data.
 
+TODO : make all disk operations thread safe and respect sim number
 
 """
 
@@ -78,7 +81,7 @@ with bench.show("ffts"):
         hybrids.append(ainfo['hybrid_average'])
         ksplit,kcoadd,win = kspace.process(dm,args.region,name,mask,ncomp=1,skip_splits=False)
         if save_scratch: 
-            kcoadd_name = scratch + "kcoadd_%s.hdf" % array
+            kcoadd_name = savedir + "kcoadd_%s.hdf" % array
             ksplit_name = scratch + "ksplit_%s.hdf" % array
             win_name = scratch + "win_%s.hdf" % array
             assert win_name not in save_names
@@ -117,9 +120,9 @@ for i in range(narrays):
         
 print("Anisotropic pairs: ",anisotropic_pairs)
 
-save_fn = lambda x,a1,a2: enmap.write_map(enmap.enmap(x,wcs),save_dir+"tilec_hybrid_covariance_%s_%s.hdf" % (a1,a2))
+save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (a1,a2),enmap.enmap(x,wcs))
 
-Cov = ilc.build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
+Cov = ilc.build_empirical_cov(args.arrays.split(','),ksplits,kcoadds,wins,mask,lmins,lmaxs,
                               anisotropic_pairs,save_fn,
                               signal_bin_width=args.signal_bin_width,
                               signal_interp_order=args.signal_interp_order,
@@ -128,7 +131,6 @@ Cov = ilc.build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
                               rfit_wnoise_width=args.rfit_wnoise_width,
                               rfit_lmin=args.rfit_lmin,
                               rfit_bin_width=None,
-                              return_full=False,
                               verbose=True,
                               debug_plots_loc=savedir)
 

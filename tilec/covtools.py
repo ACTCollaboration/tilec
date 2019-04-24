@@ -44,7 +44,8 @@ def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
     rms_noise in muK-arcmin
     [(lknee/ells)^(-alpha) + 1] * rms_noise**2
     """
-    atm_factor = (lknee*np.nan_to_num(1./ells))**(-alpha) if lknee>1.e-3 else 0.
+    with np.errstate(divide='ignore', invalid='ignore',over='ignore'):
+        atm_factor = (lknee*np.nan_to_num(1./ells))**(-alpha) if lknee>1.e-3 else 0.
     rms = rms_noise * (1./60.)*(np.pi/180.)
     wnoise = ells*0.+rms**2.
     return (atm_factor+1.)*wnoise
@@ -80,7 +81,7 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
 def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
                   lknee_guess=3000,alpha_guess=-4,nparams=None,modlmap=None,
                   verbose=False,method="fft",radial_fit=True,
-                  oshape=None,upsample=True):
+                  oshape=None,upsample=True,fill_lmax=None,fill_lmax_width=100):
     """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
     Most arguments are for the radial fitting part.
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
@@ -103,6 +104,9 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
         nparams = None
         nfitted = 1.
     nflat = enmap.enmap(np.nan_to_num(n2d/nfitted),wcs) # flattened 2d noise power
+    if fill_lmax is not None:
+        fill_avg = nflat[np.logical_and(modlmap>(fill_lmax-fill_lmax_width),modlmap<=fill_lmax)].mean()
+        nflat[modlmap>fill_lmax] = fill_avg
     if oshape is None: oshape = (Ny//dfact[0],Nx//dfact[1])
     if verbose: print("Resampling...")
     nint = enmap.resample(enmap.enmap(nflat,wcs), oshape, method=method)
@@ -116,12 +120,19 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
         ndown = enmap.enmap(enmap.resample(nint,shape,method=method),wcs)
     outcov = ndown*nfitted
     outcov[modlmap<minell] = np.inf
-    assert not(np.any(np.isnan(outcov)))
+    if fill_lmax is not None: outcov[modlmap>fill_lmax] = 0
 
+
+
+    # bad_ells = modlmap[np.isnan(outcov)]
+    # for ell in bad_ells:
+    #     print(ell)
     # print(maps.minimum_ell(shape,wcs))
     # from orphics import io
-    # io.hplot(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower.png")
-    # io.hplot(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_ndown.png")
+    # # io.hplot(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower.png")
+    # # io.hplot(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_ndown.png")
+    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower_lowres.png",aspect='auto',lim=[-20,-16])
+    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_ndown_lowres.png",aspect='auto',lim=[-20,-16])
 
     # import time
     # t = time.time()
@@ -135,6 +146,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     # pl.done("fitnoise2_%s.png" % t)
     # sys.exit()
 
+    assert not(np.any(np.isnan(outcov)))
     return outcov,nfitted,nparams
 
 

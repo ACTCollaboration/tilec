@@ -18,16 +18,21 @@ def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False):
         season,patch,array = None,None,array_id
     wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None)[0,:,0,:,:]
     splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=ncomp,srcfree=True)[0,:,0,:,:]
-    coadd = (splits*wins).sum(axis=0)/wins.sum(axis=0)
+    ksplits,kcoadd = process_splits(splits,wins,mask)
+    return ksplits,kcoadd,wins
+
+def process_splits(splits,wins,mask,skip_splits=False):
+    with np.errstate(divide='ignore', invalid='ignore'):
+        coadd = (splits*wins).sum(axis=0)/wins.sum(axis=0)
     coadd[~np.isfinite(coadd)] = 0
     Ny,Nx = splits.shape[-2:]
-    assert splits.shape == (dm.get_nsplits(season,patch,array),Ny,Nx)
     assert coadd.shape == (Ny,Nx)
     kcoadd = enmap.enmap(enmap.fft(coadd*mask,normalize='phys'),wins.wcs)
-    if not(skip_splits): 
+    if not(skip_splits):
         data = (splits-coadd)*wins*mask
         ksplits = enmap.fft(data,normalize='phys')
-    else: ksplits = None
-    return ksplits,kcoadd,wins
+    else:
+        ksplits = None
+    return ksplits,kcoadd
 
 
