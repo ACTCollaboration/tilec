@@ -185,10 +185,12 @@ for task in my_tasks:
                                           rfit_lmaxes=None,
                                           rfit_wnoise_width=250,
                                           rfit_lmin=300,
-                                          rfit_bin_width=None)
+                                          rfit_bin_width=None,debug_plots_loc='./')
 
     Cov = covdict
     print(Cov)
+    for key in Cov.keys():
+        io.plot_img(enmap.enmap(np.fft.fftshift(np.log10(Cov[key])),tsim.wcs),"%s.png" % key)
     with bench.show("more ffts"):
         ilensed = tsim.lensed
         _,iklensed,_ = fc.power2d(ilensed)
