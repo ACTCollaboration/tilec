@@ -299,7 +299,7 @@ def save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc
 
 
 def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
-                        anisotropic_pairs,save_fn,
+                        anisotropic_pairs,do_radial_fit,save_fn,
                         signal_bin_width=None,
                         signal_interp_order=0,
                         dfact=(16,16),
@@ -404,7 +404,7 @@ def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if ncov is not None:
                 dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
-                                                   radial_fit=True,lmax=rfit_lmaxes[aindex1],
+                                                   radial_fit=do_radial_fit[aindex1],lmax=max(rfit_lmaxes[aindex1],rfit_lmaxes[aindex2]),
                                                    wnoise_annulus=rfit_wnoise_width,
                                                    lmin = rfit_lmin,
                                                    bin_annulus=rfit_bin_width,fill_lmax=max(lmaxs[aindex1],lmaxs[aindex2]))

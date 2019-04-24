@@ -57,7 +57,6 @@ height = 15.
 
 
 
-
 beams,freqs,noises,lknees,alphas,nsplits,lmins,lmaxs = np.loadtxt("input/simple_sim.txt",unpack=True)
 if not(fgs):
     components = []
@@ -177,8 +176,9 @@ for task in my_tasks:
     with bench.show("empirical cov"):
         if not(analytic):
             atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
+            print(atmospheres)
             ilc.build_empirical_cov(names,iksplits,ikmaps,wins,mask,lmins,lmaxs,
-                                          anisotropic_pairs,save_fn,
+                                          anisotropic_pairs,atmospheres,save_fn,
                                           signal_bin_width=bin_width,
                                           signal_interp_order=kind,
                                           dfact=dfact,
@@ -188,7 +188,6 @@ for task in my_tasks:
                                           rfit_bin_width=None,debug_plots_loc='./')
 
     Cov = covdict
-    print(Cov)
     for key in Cov.keys():
         io.plot_img(enmap.enmap(np.fft.fftshift(np.log10(Cov[key])),tsim.wcs),"%s.png" % key)
     with bench.show("more ffts"):

@@ -68,6 +68,7 @@ with bench.show("ffts"):
     lmins = []
     lmaxs = []
     hybrids = []
+    do_radial_fit = []
     save_names = [] # to make sure nothing is overwritten
     friends = {} # what arrays are each correlated with?
     names = []
@@ -76,6 +77,9 @@ with bench.show("ffts"):
         dm = sints.models[ainfo['data_model']](region=mask)
         name = ainfo['id']
         names.append(name)
+        rfit = ainfo['radial_fit']
+        assert isinstance(rfit,bool)
+        do_radial_fit.append(rfit)
         try: friends[name] = ainfo['correlated']
         except: friends[name] = None
         hybrids.append(ainfo['hybrid_average'])
@@ -123,7 +127,7 @@ print("Anisotropic pairs: ",anisotropic_pairs)
 save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (a1,a2),enmap.enmap(x,wcs))
 
 Cov = ilc.build_empirical_cov(args.arrays.split(','),ksplits,kcoadds,wins,mask,lmins,lmaxs,
-                              anisotropic_pairs,save_fn,
+                              anisotropic_pairs,do_radial_fit,save_fn,
                               signal_bin_width=args.signal_bin_width,
                               signal_interp_order=args.signal_interp_order,
                               dfact=(args.dfact,args.dfact),
