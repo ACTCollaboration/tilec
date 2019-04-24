@@ -22,6 +22,7 @@ def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False):
     return ksplits,kcoadd,wins
 
 def process_splits(splits,wins,mask,skip_splits=False):
+    assert wins.ndim>2
     with np.errstate(divide='ignore', invalid='ignore'):
         coadd = (splits*wins).sum(axis=0)/wins.sum(axis=0)
     coadd[~np.isfinite(coadd)] = 0

@@ -124,17 +124,17 @@ for i in range(narrays):
         
 print("Anisotropic pairs: ",anisotropic_pairs)
 
-save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (a1,a2),enmap.enmap(x,wcs))
+save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[a1],names[a2]),enmap.enmap(x,wcs))
 
-Cov = ilc.build_empirical_cov(args.arrays.split(','),ksplits,kcoadds,wins,mask,lmins,lmaxs,
-                              anisotropic_pairs,do_radial_fit,save_fn,
-                              signal_bin_width=args.signal_bin_width,
-                              signal_interp_order=args.signal_interp_order,
-                              dfact=(args.dfact,args.dfact),
-                              rfit_lmaxes=None,
-                              rfit_wnoise_width=args.rfit_wnoise_width,
-                              rfit_lmin=args.rfit_lmin,
-                              rfit_bin_width=None,
-                              verbose=True,
-                              debug_plots_loc=savedir)
+ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
+                        anisotropic_pairs,do_radial_fit,save_fn,
+                        signal_bin_width=args.signal_bin_width,
+                        signal_interp_order=args.signal_interp_order,
+                        dfact=(args.dfact,args.dfact),
+                        rfit_lmaxes=None,
+                        rfit_wnoise_width=args.rfit_wnoise_width,
+                        rfit_lmin=args.rfit_lmin,
+                        rfit_bin_width=None,
+                        verbose=True,
+                        debug_plots_loc=savedir)
 

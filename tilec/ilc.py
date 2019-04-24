@@ -30,7 +30,7 @@ def map_term(kmaps,response,cov=None,cinv=None):
     Cinvk = cinv_x(kmaps,cov,cinv)
     return np.einsum('...k,...k->...',response,Cinvk)
 
-def chunked_ilc(ells,kbeams,cov,chunk_size,responses=None,invert=True):
+def chunked_ilc(ells,kbeams,covfunc,chunk_size,responses=None,invert=True):
     """
     Provides a generator that can loop over chunks of fourier space
     and returns a HILC object for each.
@@ -41,7 +41,7 @@ def chunked_ilc(ells,kbeams,cov,chunk_size,responses=None,invert=True):
     Args:
         kmaps: fourier transforms of tapered coadds
         of shape (narrays,Ny,Nx)
-        cov: symmetric covariance matrix of type SymMat
+        covfunc: function(sel) that retuns a symmetric covariance matrix for that sel chunk
         chunk_size: number of fourier pixels in each chunk
         
     """
@@ -53,7 +53,7 @@ def chunked_ilc(ells,kbeams,cov,chunk_size,responses=None,invert=True):
     num_chunks = len(chunk_indices)
     for i in chunk_indices:
         selchunk = np.s_[i:i+chunk_size]
-        hilc = HILC(ls[selchunk],kbeams[:,selchunk],cov.to_array(selchunk,flatten=True),responses=responses,invert=invert)
+        hilc = HILC(ls[selchunk],kbeams[:,selchunk],covfunc(selchunk),responses=responses,invert=invert)
         yield hilc,selchunk
 
     
@@ -298,7 +298,7 @@ def save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc
     io.plot_img(maps.ftrans(tcov),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
 
 
-def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
+def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         anisotropic_pairs,do_radial_fit,save_fn,
                         signal_bin_width=None,
                         signal_interp_order=0,
@@ -418,5 +418,5 @@ def build_empirical_cov(names,ksplits,kcoadds,wins,mask,lmins,lmaxs,
 
             if np.any(np.isnan(tcov)): raise ValueError
             # save PS
-            save_fn(tcov,names[aindex1],names[aindex2])
+            save_fn(tcov,aindex1,aindex2)
             if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)

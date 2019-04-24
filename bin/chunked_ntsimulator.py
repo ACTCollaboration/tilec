@@ -5,8 +5,8 @@ Simulates arrays specified in input/simple_sim.txt (check that first)!
 """
 
 from __future__ import print_function
-import matplotlib
-matplotlib.use('Agg')
+# import matplotlib
+# matplotlib.use('Agg')
 from orphics import maps,io,cosmology,lensing,stats,mpi
 from pixell import enmap,lensing as enlensing,utils
 from enlib import bench
@@ -14,6 +14,10 @@ import numpy as np
 import os,sys
 from szar import foregrounds as fg
 from tilec import utils as tutils,covtools,ilc,fg as tfg,kspace
+
+nfft = lambda x: enmap.fft(x,normalize="phys")
+nifft = lambda x: enmap.ifft(x,normalize="phys")
+f2power = lambda x,y: np.real(x*y.conj())
 
 """
 Notes:
@@ -47,7 +51,8 @@ px = 1.5 # resolution in arcminutes of the sims
 nsims = 10 # number of sims
 # signal cov
 bin_width = 80 # the width in ell of radial bins for signal averaging
-kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance
+kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance (does it still?)
+# kind = 0 leads to disagreement between binned downsampled and binned pre-downsampled power though
 # noise cov
 dfact=(16,16) # downsample factor in ly and lx direction for noise
 
@@ -68,12 +73,12 @@ def compute(ik1,ik2,tag):
     kmap = ik1.reshape((Ny,Nx))
     # imap = enmap.enmap(fc.ifft(kmap).real,wcs)
     # io.hplot(imap,tag)
-    pcross2d = fc.f2power(ik1.reshape((Ny,Nx)),ik2.reshape((Ny,Nx)))
+    pcross2d = f2power(ik1.reshape((Ny,Nx)),ik2.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pcross2d)
     s.add_to_stats(tag,p1d.copy())
 
 def ncompute(ik,nk,tag):
-    pauto2d = fc.f2power(ik.reshape((Ny,Nx)),ik.reshape((Ny,Nx))) - fc.f2power(nk.reshape((Ny,Nx)),nk.reshape((Ny,Nx)))
+    pauto2d = f2power(ik.reshape((Ny,Nx)),ik.reshape((Ny,Nx))) - f2power(nk.reshape((Ny,Nx)),nk.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pauto2d)
     s.add_to_stats(tag,p1d.copy())
     
@@ -150,11 +155,12 @@ if analytic:
     Cov = Cov[:,:,modlmap<lmax1].reshape((narrays,narrays,modlmap[modlmap<lmax1].size))
 
 s = stats.Stats(comm)
-wins = mask = enmap.ones(tsim.shape[-2:],tsim.wcs)
+mask = enmap.ones(tsim.shape[-2:],tsim.wcs)
 
 covdict = {}
+Cov = maps.SymMat(narrays,tsim.shape[-2:])
 names = ["a%d" % i for i in range(narrays)]
-def save_fn(tcov,a1,a2): covdict[a1+"_"+a2] = tcov.copy()
+def save_fn(tcov,a1,a2): Cov[a1,a2] = tcov.copy()
 
 for task in my_tasks:
     with bench.show("sim gen"):
@@ -163,9 +169,13 @@ for task in my_tasks:
         iksplits = []
         ikmaps = []
         inkmaps = []
-        for array in tsim.arrays:
+        all_wins = []
+        for aindex,array in enumerate(tsim.arrays):
             splits = isim[array]
             noise_splits = isimnoise[array]
+            nsplits = tsim.nsplits[aindex]
+            wins = enmap.ones((nsplits,)+tsim.shape[-2:],tsim.wcs)
+            all_wins.append(wins)
             ksplits,kcoadd = kspace.process_splits(splits,wins=wins,mask=mask)
             _,kncoadd = kspace.process_splits(noise_splits,wins=wins,mask=mask,skip_splits=True)
             iksplits.append(  ksplits.copy())
@@ -176,8 +186,7 @@ for task in my_tasks:
     with bench.show("empirical cov"):
         if not(analytic):
             atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
-            print(atmospheres)
-            ilc.build_empirical_cov(names,iksplits,ikmaps,wins,mask,lmins,lmaxs,
+            ilc.build_empirical_cov(iksplits,ikmaps,all_wins,mask,lmins,lmaxs,
                                           anisotropic_pairs,atmospheres,save_fn,
                                           signal_bin_width=bin_width,
                                           signal_interp_order=kind,
@@ -185,22 +194,21 @@ for task in my_tasks:
                                           rfit_lmaxes=None,
                                           rfit_wnoise_width=250,
                                           rfit_lmin=300,
-                                          rfit_bin_width=None,debug_plots_loc='./')
+                                          rfit_bin_width=None,verbose=False)
 
-    Cov = covdict
-    for key in Cov.keys():
-        io.plot_img(enmap.enmap(np.fft.fftshift(np.log10(Cov[key])),tsim.wcs),"%s.png" % key)
+    Cov.data = enmap.enmap(Cov.data,tsim.wcs,copy=False)
+    covfunc = lambda sel: Cov.to_array(sel,flatten=True)
     with bench.show("more ffts"):
         ilensed = tsim.lensed
-        _,iklensed,_ = fc.power2d(ilensed)
+        iklensed = nfft(ilensed)
         iy = tsim.y
-        _,iky,_ = fc.power2d(iy)
+        iky = nfft(iy)
         
     ikmaps = np.stack(ikmaps)
     # ikmaps[:,modlmap>lmax1] = 0
     inkmaps = np.stack(inkmaps)
     # inkmaps[:,modlmap>lmax1] = 0
-    ilcgen = ilc.chunked_ilc(modlmap,np.stack(tsim.kbeams),Cov,chunk_size,responses={'tsz':yresponses,'cmb':cresponses},invert=invert)
+    ilcgen = ilc.chunked_ilc(modlmap,np.stack(tsim.kbeams),covfunc,chunk_size,responses={'tsz':yresponses,'cmb':cresponses},invert=invert)
 
     yksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
     ynksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
