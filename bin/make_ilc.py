@@ -86,8 +86,13 @@ with bench.show("ffts"):
 kcoadds = enmap.enmap(np.stack(kcoadds),wcs)
 
 # Read Covmat
-cov = enmap.read_map("%s/datacov_triangle.hdf" % covdir)
-cov = maps.symmat_from_data(cov)
+cov = maps.SymMat(narrays,shape[-2:])
+for aindex1 in range(narrays):
+    for aindex2 in range(aindex1,narrays):
+        cov[aindex1,aindex2] = enmap.read_map(covdir+"tilec_hybrid_covariance_%s_%s.hdf" % (arrays[a1],arrays[a2]))
+cov.data = enmap.enmap(cov.data,wcs,copy=False)
+covfunc = lambda sel: cov.to_array(sel,flatten=True)
+
 assert cov.data.shape[0]==((narrays*(narrays+1))/2) # FIXME: generalize
 if np.any(np.isnan(cov.data)): raise ValueError 
 
@@ -99,7 +104,7 @@ for comp in ['tSZ','CMB','CIB']:
     else:
         responses[comp] = tfg.get_mix(bps, comp)
         
-ilcgen = ilc.chunked_ilc(modlmap,np.stack(kbeams),cov,chunk_size,responses=responses,invert=True)
+ilcgen = ilc.chunked_ilc(modlmap,np.stack(kbeams),covfunc,chunk_size,responses=responses,invert=True)
 
 # Initialize containers
 solutions = args.solutions.split(',')

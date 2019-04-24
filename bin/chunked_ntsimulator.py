@@ -157,7 +157,6 @@ if analytic:
 s = stats.Stats(comm)
 mask = enmap.ones(tsim.shape[-2:],tsim.wcs)
 
-covdict = {}
 Cov = maps.SymMat(narrays,tsim.shape[-2:])
 names = ["a%d" % i for i in range(narrays)]
 def save_fn(tcov,a1,a2): Cov[a1,a2] = tcov.copy()

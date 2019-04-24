@@ -76,6 +76,7 @@ a6:
   bandpass_file: PA3_avg_passband_90_wErr_trunc.txt
   correlated: 's15_pa3_f150'
   hybrid_average: True
+  radial_fit: True
   lmin: 500
   lmax: 20000
 
