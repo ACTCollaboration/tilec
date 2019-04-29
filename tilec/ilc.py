@@ -93,12 +93,23 @@ class HILC(object):
         self.nmap = nmap
         self.kbeams = kbeams
         self.cov = np.moveaxis(cov,(0,1),(-2,-1))
-        if np.any(np.isnan(self.cov)): raise ValueError
+        if np.any(np.isnan(self.cov)): 
+            for i in range(self.cov.shape[-1]):
+                for j in range(i,self.cov.shape[-1]):
+                    print(ells[np.isnan(self.cov[...,i,j])])
+            raise ValueError
         if invert:
             self.cinv = np.linalg.inv(self.cov) #utils.eigpow(np.nan_to_num(self.cov),-1,alim=0,rlim=0)
             self.cinv[self.ells<2] = 0
         else: self.cinv = None
-        if np.any(np.isnan(self.cinv)): raise ValueError
+        if np.any(np.isnan(self.cinv)): 
+            print(ells.shape)
+            print(self.cinv.shape)
+            for i in range(self.cinv.shape[-1]):
+                for j in range(i,self.cinv.shape[-1]):
+                    print(ells[np.isnan(self.cinv[...,i,j])])
+            print(self.cov[ells[np.isnan(self.cinv[...,i,j])].astype(np.int),...])
+            raise ValueError
         self.responses = {}
         if responses is None: responses = {}
         if "cmb" not in responses.keys(): responses['cmb'] = np.ones((1,nmap))
@@ -236,8 +247,8 @@ def build_analytic_cov(ells,cmb_ps,fgdict,freqs,kbeams,noises,lmins=None,lmaxs=N
             Covmat[i,j,...] = Covmat[i,j,...] * kbeams[i] * kbeams[j]
             if i==j:
                 Covmat[i,j,...] = Covmat[i,j,...] + noises[i]
-                if lmins is not None: Covmat[i,j][ells<lmins[i]] = np.inf
-                if lmaxs is not None: Covmat[i,j][ells>lmaxs[i]] = np.inf
+                # if lmins is not None: Covmat[i,j][ells<lmins[i]] = 1e90
+                # if lmaxs is not None: Covmat[i,j][ells>lmaxs[i]] = 1e90
             else: Covmat[j,i,...] = Covmat[i,j,...].copy()
     return Covmat
 
@@ -374,6 +385,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
     if rfit_bin_width is None: rfit_bin_width = minell*4.
     if signal_bin_width is None: signal_bin_width = minell*8.
 
+    maxval = -np.inf
     # Loop over unique covmat elements
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
@@ -412,11 +424,16 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                 dncov = np.zeros(dscov.shape)
 
             tcov = dscov + dncov
-            if aindex1==aindex2:
-                tcov[modlmap<=lmins[aindex1]] = np.inf
-                tcov[modlmap>=lmaxs[aindex1]] = np.inf
+            assert np.all(np.isfinite(tcov))
+            # print(modlmap[np.isinf(tcov)])
+            # if aindex1==aindex2:
+            #     tcov[modlmap<=lmins[aindex1]] = 1e90
+            #     tcov[modlmap>=lmaxs[aindex1]] = 1e90
 
+            maxcov = tcov.max()
+            if maxcov>maxval: maxval = maxcov
             if np.any(np.isnan(tcov)): raise ValueError
             # save PS
             save_fn(tcov,aindex1,aindex2)
             if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
+    return maxval

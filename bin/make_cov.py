@@ -29,6 +29,7 @@ parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask 
 parser.add_argument("--nsim",     type=int,  default=None,help="Number of sims. If not specified, runs on data.")
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
 parser.add_argument("-m", "--memory-intensive", action='store_true',help='Do not save FFTs to scratch disk. Can be faster, but very memory intensive.')
+parser.add_argument("--uncalibrated", action='store_true',help='Do not use calibration factors.')
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
 parser.add_argument("--dfact",     type=int,  default=pdefaults['dfact'],help="A description.")
@@ -74,7 +75,7 @@ with bench.show("ffts"):
     names = []
     for array in args.arrays.split(','):
         ainfo = gconfig[array]
-        dm = sints.models[ainfo['data_model']](region=mask)
+        dm = sints.models[ainfo['data_model']](region=mask,calibrated=not(args.uncalibrated))
         name = ainfo['id']
         names.append(name)
         rfit = ainfo['radial_fit']
@@ -126,7 +127,7 @@ print("Anisotropic pairs: ",anisotropic_pairs)
 
 save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[a1],names[a2]),enmap.enmap(x,wcs))
 
-ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
+maxval = ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         anisotropic_pairs,do_radial_fit,save_fn,
                         signal_bin_width=args.signal_bin_width,
                         signal_interp_order=args.signal_interp_order,
@@ -138,3 +139,4 @@ ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         verbose=True,
                         debug_plots_loc=savedir)
 
+np.savetxt(savedir + "maximum_value_of_covariances.txt",np.array([[maxval]]))

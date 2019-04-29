@@ -119,7 +119,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     else:
         ndown = enmap.enmap(enmap.resample(nint,shape,method=method),wcs)
     outcov = ndown*nfitted
-    outcov[modlmap<minell] = np.inf
+    outcov[modlmap<minell] = 0 #np.inf
     if fill_lmax is not None: outcov[modlmap>fill_lmax] = 0
 
 
