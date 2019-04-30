@@ -150,16 +150,25 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     return outcov,nfitted,nparams
 
 
-def signal_average(cov,bin_edges=None,bin_width=40,kind=5,lmin=None,**kwargs):
-    assert not(np.any(np.isnan(cov)))
+def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True,**kwargs):
+    """
+    dcov = cov * ellfact
+    bin dcov in annuli
+    interpolate back on to ell
+    cov = dcov / ellfact
+    where ellfact = ell**2 if dlspace else 1
+    """
+    assert np.all(np.isfinite(cov))
     modlmap = cov.modlmap()
-    minell = maps.minimum_ell(cov.shape,cov.wcs) if lmin is None else lmin
+    dcov = cov*modlmap**2. if dlspace else cov.copy()
+    minell = maps.minimum_ell(dcov.shape,dcov.wcs) if lmin is None else lmin
     if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
     binner = stats.bin2D(modlmap,bin_edges)
-    cents,c1d = binner.bin(cov)
-    outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),cov.wcs)
+    cents,c1d = binner.bin(dcov)
+    outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),dcov.wcs)
+    outcov = outcov / modlmap**2. if dlspace else outcov
     outcov[modlmap<minell] = 0
-    assert not(np.any(np.isnan(outcov)))
+    assert np.all(np.isfinite(outcov))
     return outcov
 
 
@@ -169,8 +178,7 @@ def get_anisotropic_noise_template(shape,wcs,template_file=None,tmin=0,tmax=100)
     This function reads in a 2D PS unredenned template and returns a full 2D noise PS.
     It doesn't use the template in the most sensible way though.
     """
-    if template_file is None:
-        template_file = "data/anisotropy_template.fits"
+    if template_file is None: template_file = "data/anisotropy_template.fits"
     template = np.nan_to_num(enmap.read_map(template_file))
     template[template<tmin] = tmin
     template[template>tmax] = tmax
