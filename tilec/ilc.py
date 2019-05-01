@@ -426,9 +426,9 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
             tcov = dscov + dncov
             assert np.all(np.isfinite(tcov))
             # print(modlmap[np.isinf(tcov)])
-            # if aindex1==aindex2:
-            #     tcov[modlmap<=lmins[aindex1]] = 1e90
-            #     tcov[modlmap>=lmaxs[aindex1]] = 1e90
+            if aindex1==aindex2:
+                tcov[modlmap<=lmins[aindex1]] = 1e90
+                tcov[modlmap>=lmaxs[aindex1]] = 1e90
 
             maxcov = tcov.max()
             if maxcov>maxval: maxval = maxcov

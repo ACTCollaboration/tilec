@@ -48,10 +48,10 @@ ycibcorr = False # whether tSZ/CIB are correlated
 lmax = 2000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
 px = 1.5 # resolution in arcminutes of the sims
 # sims
-nsims = 10 # number of sims
+nsims = 4 # number of sims
 # signal cov
 bin_width = 80 # the width in ell of radial bins for signal averaging
-kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance (does it still?)
+kind = 3 # order of interpolation for signal binning; higher order interpolation breaks covariance (does it still?)
 # kind = 0 leads to disagreement between binned downsampled and binned pre-downsampled power though
 # noise cov
 dfact=(16,16) # downsample factor in ly and lx direction for noise
@@ -185,15 +185,15 @@ for task in my_tasks:
     with bench.show("empirical cov"):
         if not(analytic):
             atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
-            ilc.build_empirical_cov(iksplits,ikmaps,all_wins,mask,lmins,lmaxs,
-                                          anisotropic_pairs,atmospheres,save_fn,
-                                          signal_bin_width=bin_width,
-                                          signal_interp_order=kind,
-                                          dfact=dfact,
-                                          rfit_lmaxes=None,
-                                          rfit_wnoise_width=250,
-                                          rfit_lmin=300,
-                                          rfit_bin_width=None,verbose=False)
+            maxval = ilc.build_empirical_cov(iksplits,ikmaps,all_wins,mask,lmins,lmaxs,
+                                             anisotropic_pairs,atmospheres,save_fn,
+                                             signal_bin_width=bin_width,
+                                             signal_interp_order=kind,
+                                             dfact=dfact,
+                                             rfit_lmaxes=None,
+                                             rfit_wnoise_width=250,
+                                             rfit_lmin=300,
+                                             rfit_bin_width=None,verbose=False)
 
     Cov.data = enmap.enmap(Cov.data,tsim.wcs,copy=False)
     covfunc = lambda sel: Cov.to_array(sel,flatten=True)
@@ -262,20 +262,20 @@ if rank==0:
     y_silc_cross = s.stats["y_silc_cross"]['mean']
     y_cilc_cross = s.stats["y_cilc_cross"]['mean']
     # Errors on those
-    ecmb_silc_cross = s.stats["cmb_silc_cross"]['errmean']
-    ecmb_cilc_cross = s.stats["cmb_cilc_cross"]['errmean']
-    ey_silc_cross = s.stats["y_silc_cross"]['errmean']
-    ey_cilc_cross = s.stats["y_cilc_cross"]['errmean']
+    ecmb_silc_cross = s.stats["cmb_silc_cross"]['err']
+    ecmb_cilc_cross = s.stats["cmb_cilc_cross"]['err']
+    ey_silc_cross = s.stats["y_silc_cross"]['err']
+    ey_cilc_cross = s.stats["y_cilc_cross"]['err']
     # Auto of ILC CMB minus Auto of ILC CMB noise only
     cmb_silc_auto = s.stats["cmb_silc_auto"]['mean']
     cmb_cilc_auto = s.stats["cmb_cilc_auto"]['mean']
     # Auto of ILC y-map minus Auto of ILC y map noise only
     y_silc_auto = s.stats["y_silc_auto"]['mean']
     y_cilc_auto = s.stats["y_cilc_auto"]['mean']
-    ecmb_silc_auto = s.stats["cmb_silc_auto"]['errmean']
-    ecmb_cilc_auto = s.stats["cmb_cilc_auto"]['errmean']
-    ey_silc_auto = s.stats["y_silc_auto"]['errmean']
-    ey_cilc_auto = s.stats["y_cilc_auto"]['errmean']
+    ecmb_silc_auto = s.stats["cmb_silc_auto"]['err']
+    ecmb_cilc_auto = s.stats["cmb_cilc_auto"]['err']
+    ey_silc_auto = s.stats["y_silc_auto"]['err']
+    ey_cilc_auto = s.stats["y_cilc_auto"]['err']
     ells = np.arange(0,lmax,1)
     cltt = theory.lCl('TT',ells)
     clyy = fg.power_y(ells)
@@ -300,8 +300,10 @@ if rank==0:
     io.save_cols("cmb_results.txt",(cents,cmb_silc_cross,ecmb_silc_cross,cmb_cilc_cross,ecmb_cilc_cross,cmb_silc_auto,ecmb_silc_auto,cmb_cilc_auto,ecmb_cilc_auto))
 
 
+    iclyy = binner.bin(maps.interp(ells,clyy)(modlmap))[1]
     pl = io.Plotter(scalefn=lambda x: x**2,xlabel='l',ylabel='D',yscale='log')
     pl.add(ells,clyy)
+    pl.add(cents,iclyy,marker="x",ls="none",color='k')
     pl.add_err(cents-5,y_silc_cross,yerr=ey_silc_cross,marker="o",ls="none",label='standard cross')
     pl.add_err(cents-10,y_cilc_cross,yerr=ey_cilc_cross,marker="o",ls="none",label='constrained cross')
     pl.add_err(cents+5,y_silc_auto,yerr=ey_silc_auto,marker="x",ls="none",label='standard - noise')
