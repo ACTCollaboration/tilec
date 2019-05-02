@@ -413,7 +413,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                 scov = np.real(kc1*kc2.conj())/np.mean(mask**2.)
                 ncov = None
 
-            dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2])) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
+            dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2]),dlspace=True) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if ncov is not None:
                 dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
                                                    radial_fit=do_radial_fit[aindex1],lmax=max(rfit_lmaxes[aindex1],rfit_lmaxes[aindex2]),

@@ -125,6 +125,7 @@ for i in range(narrays):
         
 print("Anisotropic pairs: ",anisotropic_pairs)
 
+enmap.write_map(savedir+"tilec_mask.fits",mask)
 save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[a1],names[a2]),enmap.enmap(x,wcs))
 
 maxval = ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,

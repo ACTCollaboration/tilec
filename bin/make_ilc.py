@@ -31,7 +31,6 @@ parser.add_argument("solutions", type=str,help='Comma separated list of solution
 parser.add_argument("beams", type=str,help='Comma separated list of beams. Each beam is either a float for FWHM in arcminutes or the name of an array whose beam will be used.')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
 parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore bandpass files and use effective frequency.')
-parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("--beam-version", type=str,  default=None,help='Mask version')
 args = parser.parse_args()
 
@@ -50,9 +49,7 @@ except:
     else: raise
 
 
-mask = sints.get_act_mr3_crosslinked_mask(args.region,
-                                          version=args.mask_version,
-                                          kind='binary_apod')
+mask = enmap.read_map(covdir+"tilec_mask.fits")
 shape,wcs = mask.shape,mask.wcs
 Ny,Nx = shape
 modlmap = enmap.modlmap(shape,wcs)
@@ -75,8 +72,13 @@ for i,array in enumerate(arrays):
     elif dm.name=='planck_hybrid':
         season,patch,narray = None,None,array_id
     kcoadd_name = covdir + "kcoadd_%s.hdf" % array
+    ainfo = gconfig[array]
+    lmax = ainfo['lmax']
+    lmin = ainfo['lmin']
+    kmask = maps.mask_kspace(shape,wcs,lmin=lmin,lmax=lmax)
     kcoadd = enmap.read_map(kcoadd_name)
-    kcoadds.append(kcoadd.copy())
+    dtype = kcoadd.dtype
+    kcoadds.append(kcoadd.copy()*kmask)
     kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=patch,array=narray,version=args.beam_version))
     if bandpasses:
         try: bps.append("data/"+ainfo['bandpass_file'] )
@@ -99,14 +101,14 @@ cov = maps.SymMat(narrays,shape[-2:])
 for aindex1 in range(narrays):
     for aindex2 in range(aindex1,narrays):
         icov = enmap.read_map(covdir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[aindex1],names[aindex2]))
-        if aindex1==aindex2: # why is this necsessary if make_cov should already be doing it?
-            # and should we do it for cross-covariances too?
-            array = arrays[aindex1]
-            ainfo = gconfig[array]
-            lmax = ainfo['lmax']
-            lmin = ainfo['lmin']
-            icov[modlmap>=lmax] = 1e4 * maxval
-            icov[modlmap<=lmin] = 1e4 * maxval
+        # if aindex1==aindex2: # why is this necsessary if make_cov should already be doing it?
+        #     # and should we do it for cross-covariances too?
+        #     array = arrays[aindex1]
+        #     ainfo = gconfig[array]
+        #     lmax = ainfo['lmax']
+        #     lmin = ainfo['lmin']
+        #     icov[modlmap>=lmax] = 1e4 * maxval
+        #     icov[modlmap<=lmin] = 1e4 * maxval
         cov[aindex1,aindex2] = icov
             
 cov.data = enmap.enmap(cov.data,wcs,copy=False)
@@ -134,9 +136,10 @@ for solution in solutions:
     comps = solution.split('-')
     data[solution]['comps'] = comps
     if len(comps)<=2: 
-        data[solution]['noise'] = enmap.empty((Ny*Nx),wcs)
-        data[solution]['cnoise'] = enmap.empty((Ny*Nx),wcs)
-    data[solution]['kmap'] = enmap.empty((Ny*Nx),wcs,dtype=np.complex128) # FIXME: reduce dtype?
+        data[solution]['noise'] = enmap.zeros((Ny*Nx),wcs)
+    if len(comps)==2: 
+        data[solution]['cnoise'] = enmap.zeros((Ny*Nx),wcs)
+    data[solution]['kmap'] = enmap.zeros((Ny*Nx),wcs,dtype=dtype) # FIXME: reduce dtype?
         
 for chunknum,(hilc,selchunk) in enumerate(ilcgen):
     print("ILC on chunk ", chunknum+1, " / ",int(modlmap.size/chunk_size)+1," ...")
@@ -197,3 +200,4 @@ for solution,beam in zip(solutions,beams):
     io.save_cols("%s/%s_beam.txt" % (savedir,comps),(ells,lbeam),header="ell beam")
     
 
+enmap.write_map(savedir+"/tilec_mask.fits",mask)

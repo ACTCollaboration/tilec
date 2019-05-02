@@ -150,7 +150,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     return outcov,nfitted,nparams
 
 
-def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=False,**kwargs):
+def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True,**kwargs):
     """
     dcov = cov * ellfact
     bin dcov in annuli
