@@ -16,8 +16,8 @@ def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False):
         array = array1 + "_" + array2
     elif dm.name=='planck_hybrid':
         season,patch,array = None,None,array_id
-    wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None)[0,:,0,:,:]
-    splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=ncomp,srcfree=True)[0,:,0,:,:]
+    wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None,inpainted=True)[0,:,0,:,:]
+    splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=ncomp,srcfree=True,inpainted=True)[0,:,0,:,:]
     ksplits,kcoadd = process_splits(splits,wins,mask,skip_splits=skip_splits)
     return ksplits,kcoadd,wins
 
