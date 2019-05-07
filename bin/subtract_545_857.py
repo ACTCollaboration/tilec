@@ -24,7 +24,7 @@ decs = np.deg2rad(cat['DEC'])
 fluxes = cat['DETFLUX']
 sns = cat['DETFLUX']/cat['DETFLUX_ERR']
 
-arc = 40.
+arc = 30.
 decmax = 70.
 npix = int(arc/0.5)
 
@@ -43,7 +43,7 @@ if True:
     oname = dm.get_split_fname(None,None,freq,i,srcfree=True,pccs_sub=True)
     assert "pccs" not in fname
     assert "pccs" in oname
-    div = dm.get_split(freq,i,ncomp=None)[0]
+    div = dm.get_split_ivar(freq,i,ncomp=None)[0]
 
     sras = []
     sdecs = []
@@ -56,6 +56,15 @@ if True:
         if stamp is None: continue
         divstamp = reproject.cutout(div, ra=ra, dec=dec, pad=1,  npix=npix)
         famp,cov,pfit = ptfit.ptsrc_fit(stamp,dec,ra,maps.sigma_from_fwhm(np.deg2rad(pfwhm/60.)),div=divstamp,ps=ps,beam=pfwhm,n2d=None)
+        model = pointsrcs.sim_srcs(stamp.shape, stamp.wcs, 
+                                   np.array((dec,ra,famp.reshape(-1)[0]))[None], 
+                                   maps.sigma_from_fwhm(np.deg2rad(pfwhm/60.)))
+        # io.plot_img(stamp,"stamp.png")
+        # io.plot_img(divstamp,"divstamp.png")
+        # io.plot_img(model,"model.png")
+        # io.plot_img(stamp-model,"residual.png")
+
+        # if k==1: sys.exit()
         sdecs.append(dec)
         sras.append(ra)
         amps.append(famp.reshape(-1)[0])
