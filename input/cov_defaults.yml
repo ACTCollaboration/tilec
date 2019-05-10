@@ -1,0 +1,12 @@
+#############
+# COV-DEFAULT-SETTINGS
+#############
+
+cov:
+  signal_bin_width: 80
+  signal_interp_order: 3
+  dfact: 16
+  rfit_bin_width: 80
+  rfit_wnoise_width: 250
+  rfit_lmin: 300
+

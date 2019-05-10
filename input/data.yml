@@ -13,6 +13,17 @@ example_array: # short name of array
   correlated: # List of arrays that this one has noise correlations with
 
 
+a0:
+  data_model: act_mr3
+  id: 's13_pa1_f150'
+  bandpass_approx_freq: 150. 
+  bandpass_file: PA1_avg_passband_wErr_trunc.txt
+  hybrid_average: True
+  radial_fit: True
+  correlated: 
+  lmin: 500
+  lmax: 20000
+  
 
 a1:
   data_model: act_mr3

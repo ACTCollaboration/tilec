@@ -3,7 +3,7 @@ from pixell import enmap,wcsutils
 import numpy as np
 import os,sys
 
-def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False):
+def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False,splits=None):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
@@ -17,7 +17,7 @@ def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False):
     elif dm.name=='planck_hybrid':
         season,patch,array = None,None,array_id
     wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None,inpainted=True)[0,:,0,:,:]
-    splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=ncomp,srcfree=True,inpainted=True)[0,:,0,:,:]
+    if splits is None: splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=ncomp,srcfree=True,inpainted=True)[0,:,0,:,:]
     ksplits,kcoadd = process_splits(splits,wins,mask,skip_splits=skip_splits)
     return ksplits,kcoadd,wins
 
