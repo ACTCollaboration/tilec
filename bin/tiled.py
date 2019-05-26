@@ -63,30 +63,44 @@ def get_splits(qid,extracter):
         splits.append(omap.copy())
     return enmap.enmap(np.stack(splits),ewcs)
 
+def apodize_zero(imap,width):
+    ivar = imap.copy()
+    ivar[...,:1,:] = 0; ivar[...,-1:] = 0; ivar[...,:,:1] = 0; ivar[...,:,-1:] = 0
+    from scipy import ndimage
+    dist = ndimage.distance_transform_edt(ivar>0)
+    apod = 0.5*(1-np.cos(np.pi*np.minimum(1,dist/width)))
+    return apod
+
 def is_planck(qid):
     dmodel = sints.arrays(qid,'data_model')
     return True if dmodel=='planck_hybrid' else False
     
+def coadd(imap,ivar):
+    isum = np.sum(ivar,axis=0)
+    c = np.sum(imap*ivar,axis=0)/isum
+    c[~np.isfinite(c)] = 0
+    return c,isum
     
 # args
 qids = ['d5',
         'd6',
-        'd56_01']
-        # 'd56_02',
-        # 'd56_03',
-        # 'd56_04',
-        # 'd56_05',
-        # 'd56_06'] # list of quick IDs
+        'd56_01',
+        'd56_02',
+        'd56_03',
+        'd56_04',
+        'd56_05',
+        'd56_06','s16_01','s16_02','s16_03','p04','p05'] # list of quick IDs
 parent_qid = 'd56_01' # qid of array whose geometry will be used for the full map
 
 #qids = args.qids.split(',')
 geoms = load_geometries(qids)
-print(geoms)
 pshape,pwcs = geoms[parent_qid]
 ta = tiling.TiledAnalysis(pshape,pwcs,comm=comm,width_deg=4.,pix_arcmin=0.5)
 ta.initialize_output(name="processed")
+ta.initialize_output(name="processed_ivar")
+down = lambda x,n=2: enmap.downgrade(x,n)
 
-for extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an MPI loop
+for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an MPI loop
     # What is the shape and wcs of the tile? is this needed?
     aids = []
     for qid in qids:
@@ -100,18 +114,35 @@ for extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an MPI
         # Ok so the center of the tile is inside this array, but are there any missing pixels?
         eivars = get_splits_ivar(qid,extracter)
         # Only check for missing pixels if array is not a Planck array
-        if not(is_planck(qid)) and np.any(ta.crop_main(eivars)<=0): continue
-        io.hplot(eivars)
+        if not(is_planck(qid)) and np.any(ta.crop_main(eivars)<=0):
+            continue
+
+        apod = ta.apod * apodize_zero(np.sum(eivars,axis=0),60) #eivars[0]
+        #io.hplot(enmap.enmap(apod,ewcs))
+        #sys.exit()
+        
         esplits = get_splits(qid,extracter)
-        io.hplot(esplits*ta.apod)
-        continue
-        kspace.process
-        aids.append(aid)
+        c,civar = coadd(esplits,eivars)
+        # io.hplot(down(c*apod))
+        ta.update_output("processed",c*civar,inserter)
+        ta.update_output("processed_ivar",civar,inserter)
+        # kspace.process
+        aids.append(qid)
+    print(comm.rank, ": Tile %d has arrays " % i, aids) 
     #ilc.build_empirical_cov
     #pmap = ilc.do_ilc
     #ta.update_output("processed",pmap,inserter)
-
-
+print("Rank %d done" % comm.rank)
+pmap = ta.get_final_output("processed")
+wmap = ta.get_final_output("processed_ivar")
+outmap = pmap/wmap
+if comm.rank==0:
+    io.hplot(down(outmap),"outmap")
+    io.hplot(down(wmap),"wmap")
+    mask = sints.get_act_mr3_crosslinked_mask("deep56")
+    io.hplot(down(enmap.extract(outmap,mask.shape,mask.wcs)*mask),"moutmap")
+    # io.hplot(down(enmap.extract(wmap,mask.shape,mask.wcs)*mask),"mwmap")
+    
 
 
 

@@ -60,6 +60,7 @@ class TiledAnalysis(object):
         pix_apod = int(120 * (width_deg/4.) * (0.5/pix_arcmin))
         pix_cross = int(240 * (width_deg/4.) * (0.5/pix_arcmin))
         self.pix_width = pix_width
+        self.pix_pad = pix_pad
 
         self.ishape,self.iwcs = shape,wcs
         iNy,iNx = shape[-2:]
@@ -92,6 +93,7 @@ class TiledAnalysis(object):
         self._pempty = self.get_empty_map()
 
     def crop_main(self,img):
+        #return maps.crop_center(img,self.pix_width+self.pix_pad) # very restrictive
         return maps.crop_center(img,self.pix_width)
 
     def _prepare(self,imap):
@@ -120,7 +122,7 @@ class TiledAnalysis(object):
                                              x.wcs,
                                              eshape,ewcs)))
             inserter = lambda inp,out: enmap.insert_at(out,self.ipboxes[i],self._finalize(inp),op=np.ndarray.__iadd__)
-            yield extracter,inserter,eshape,ewcs
+            yield i,extracter,inserter,eshape,ewcs
             
     def _linear_crossfade(self,npix):
         init = np.ones((self.cN,self.cN))
