@@ -59,6 +59,7 @@ class TiledAnalysis(object):
         pix_pad = int(480 * (width_deg/4.) * (0.5/pix_arcmin))
         pix_apod = int(120 * (width_deg/4.) * (0.5/pix_arcmin))
         pix_cross = int(240 * (width_deg/4.) * (0.5/pix_arcmin))
+        self.pix_width = pix_width
 
         self.ishape,self.iwcs = shape,wcs
         iNy,iNx = shape[-2:]
@@ -88,9 +89,13 @@ class TiledAnalysis(object):
         self.cN = self.N-self.pix_apod*2
         self.crossfade = self._linear_crossfade(pix_cross)
         self.outputs = {}
+        self._pempty = self.get_empty_map()
+
+    def crop_main(self,img):
+        return maps.crop_center(img,self.pix_width)
 
     def _prepare(self,imap):
-        return imap*self.apod
+        return imap #*self.apod ! # not apodizing anymore
 
     def _finalize(self,imap):
         return maps.crop_center(imap,self.cN)*self.crossfade
@@ -98,12 +103,24 @@ class TiledAnalysis(object):
     def tiles(self,from_file=False):
         comm = self.comm
         for i in range(comm.rank, len(self.pboxes), comm.size):
+            etemplate = enmap.extract_pixbox(self._pempty,self.pboxes[i])
+            eshape,ewcs = etemplate.shape,etemplate.wcs
             if from_file:
-                extracter = lambda x,**kwargs: self._prepare(enmap.read_map(x,pixbox=self.pboxes[i],**kwargs))
+                extracter = lambda x,**kwargs: self._prepare(
+                    enmap.read_map(x,
+                                   pixbox=
+                                   enmap.pixbox_of(
+                                       enmap.read_map_geometry(x)[1],
+                                       eshape,ewcs),
+                                   **kwargs))
             else:
-                extracter = lambda x: self._prepare(enmap.extract_pixbox(x,self.pboxes[i]))
+                extracter = lambda x: self._prepare(
+                    enmap.extract_pixbox(x,
+                                         enmap.pixbox_of(
+                                             x.wcs,
+                                             eshape,ewcs)))
             inserter = lambda inp,out: enmap.insert_at(out,self.ipboxes[i],self._finalize(inp),op=np.ndarray.__iadd__)
-            yield extracter,inserter
+            yield extracter,inserter,eshape,ewcs
             
     def _linear_crossfade(self,npix):
         init = np.ones((self.cN,self.cN))
@@ -130,3 +147,6 @@ class TiledAnalysis(object):
     def get_final_output(self,name):
         return utils.allreduce(self.outputs[name][0],self.comm)/utils.allreduce(self.outputs[name][1],self.comm)
         
+
+
+
