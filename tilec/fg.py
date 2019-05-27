@@ -66,6 +66,8 @@ default_dict = read_param_dict_from_yaml(fpath+'/../input/fg_SEDs_default_params
 ######################################
 def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies in GHz; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for some SEDs)
     assert (comp != None)
+    nu_ghz = np.atleast_1d(nu_ghz) #catch possible scalar input
+    assert (len(nu_ghz) > 0)
     if (comp == 'CMB' or comp == 'kSZ'): #CMB (or kSZ)
         resp = np.ones(len(np.asarray(nu_ghz))) #this is unity by definition, since we're working in Delta T units [uK_CMB]; output ILC map will thus also be in uK_CMB
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
