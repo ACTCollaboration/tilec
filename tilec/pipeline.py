@@ -13,7 +13,22 @@ These have been put into a module so that sims can be injected
 seamlessly.
 """
 
-
+def get_aniso_pairs(aids,hybrids,friends):
+    narrays = len(aids)
+    # Decide what pairs to do hybrid smoothing for
+    anisotropic_pairs = []
+    for i in range(narrays):
+        for j in range(i,narrays):
+            name1 = aids[i]
+            name2 = aids[j]
+            if (i==j) and (hybrids[i] and hybrids[j]):
+                anisotropic_pairs.append((i,j))
+                continue
+            if (friends[name1] is None) or (friends[name2] is None): continue
+            if name2 in friends[name1]:
+                assert name1 in friends[name2], "Correlated arrays spec is not consistent."
+                anisotropic_pairs.append((i,j))
+    return anisotropic_pairs
 
 def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,dfact,
@@ -91,20 +106,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
             lmaxs.append(ainfo['lmax'])
 
     # Decide what pairs to do hybrid smoothing for
-    narrays = len(arrays.split(','))
-    anisotropic_pairs = []
-    for i in range(narrays):
-        for j in range(i,narrays):
-            name1 = names[i]
-            name2 = names[j]
-            if (i==j) and (hybrids[i] and hybrids[j]):
-                anisotropic_pairs.append((i,j))
-                continue
-            if (friends[name1] is None) or (friends[name2] is None): continue
-            if name2 in friends[name1]:
-                assert name1 in friends[name2], "Correlated arrays spec is not consistent."
-                anisotropic_pairs.append((i,j))
-
+    anisotropic_pairs  = get_aniso_pairs(names,hybrids,friends)
     print("Anisotropic pairs: ",anisotropic_pairs)
 
     enmap.write_map(savedir+"tilec_mask.fits",mask)

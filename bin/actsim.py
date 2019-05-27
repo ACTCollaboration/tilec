@@ -37,7 +37,8 @@ args = parser.parse_args()
 
 # Generate each ACT and Planck sim and store kdiffs,kcoadd in memory
 
-simgen = simgen.SimGen(version=args.sim_version,max_cached=max_caches[args.region],cmb_type='LensedUnabberatedCMB')
+asimgen = simgen.SimGen(version=args.sim_version,max_cached=max_caches[args.region],cmb_type='LensedUnabberatedCMB', model="act_mr3")
+psimgen = simgen.SimGen(version=args.sim_version,max_cached=max_caches[args.region],cmb_type='LensedUnabberatedCMB', model="planck_hybrid")
 
 
 bandpasses = not(args.effective_freq)
@@ -60,14 +61,17 @@ for sim_index in range(nsims):
     for aindex in range(narrays):
         array = arrays[aindex]
         ainfo = gconfig[array]
-        dm = sints.models[ainfo['data_model']](region=mask)
+        model = ainfo['data_model']
+        dm = sints.models[model](region=mask)
         array_id = ainfo['id']
+        patch = args.region
         if dm.name=='act_mr3':
             season,array1,array2 = array_id.split('_')
             narray = array1 + "_" + array2
-            patch = args.region
+            simgen = asimgen
         elif dm.name=='planck_hybrid':
-            season,patch,narray = None,None,array_id
+            season,narray = None,array_id
+            simgen = psimgen
 
         # Special treatment for pa3
         farray = narray.split('_')[0]

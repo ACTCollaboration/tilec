@@ -9,6 +9,10 @@ from orphics import io,maps
 from orphics import mpi
 from math import ceil
 
+def slice_geometry_by_pixbox(ishape,iwcs,pixbox):
+    pb = np.asarray(pixbox)
+    return enmap.slice_geometry(ishape[-2:], iwcs, (slice(*pb[:,-2]),slice(*pb[:,-1])), nowrap=True) 
+
 class TiledAnalysis(object):
     """MPI-enabled tiled analysis on rectangular pixel maps following
     Sigurd Naess' scheme.
@@ -90,7 +94,6 @@ class TiledAnalysis(object):
         self.cN = self.N-self.pix_apod*2
         self.crossfade = self._linear_crossfade(pix_cross)
         self.outputs = {}
-        self._pempty = self.get_empty_map()
 
     def crop_main(self,img):
         #return maps.crop_center(img,self.pix_width+self.pix_pad) # very restrictive
@@ -105,8 +108,8 @@ class TiledAnalysis(object):
     def tiles(self,from_file=False):
         comm = self.comm
         for i in range(comm.rank, len(self.pboxes), comm.size):
-            etemplate = enmap.extract_pixbox(self._pempty,self.pboxes[i])
-            eshape,ewcs = etemplate.shape,etemplate.wcs
+            eshape,ewcs = slice_geometry_by_pixbox(self.ishape,self.iwcs,self.pboxes[i])
+
             if from_file:
                 extracter = lambda x,**kwargs: self._prepare(
                     enmap.read_map(x,

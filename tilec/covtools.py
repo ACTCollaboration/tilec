@@ -72,6 +72,7 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
     # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
     # pl.add(cents,dn1d)
     # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
+    # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_guess,alpha=alpha_guess),ls="-.")
     # pl.done("fitnoise.png")
     # sys.exit()
 
@@ -131,8 +132,9 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     # from orphics import io
     # # io.hplot(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower.png")
     # # io.hplot(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_ndown.png")
-    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower_lowres.png",aspect='auto',lim=[-20,-16])
-    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_ndown_lowres.png",aspect='auto',lim=[-20,-16])
+    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(n2d)),wcs),"fitnoise_npower_lowres.png",aspect='auto')#,lim=[-20,-16])
+    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(ndown)),wcs),"fitnoise_ndown_lowres.png",aspect='auto')#,lim=[-20,-16])
+    # io.plot_img(enmap.enmap(np.fft.fftshift(np.log(outcov)),wcs),"fitnoise_outcov_lowres.png",aspect='auto')#,lim=[-20,-16])
 
     # import time
     # t = time.time()

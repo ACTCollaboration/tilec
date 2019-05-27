@@ -287,11 +287,11 @@ def cross_noise(response_a,response_b,cov=None,cinv=None):
 
 def save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc=None):
     if save_loc is None: save_loc = "."
-    io.plot_img(maps.ftrans(scov),"%s/debug_s2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
-    io.plot_img(maps.ftrans(dscov),"%s/debug_ds2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    io.plot_img(maps.ftrans(scov),"%sdebug_s2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    io.plot_img(maps.ftrans(dscov),"%sdebug_ds2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
     if ncov is not None:
-        io.plot_img(maps.ftrans(ncov),"%s/debug_n2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
-        io.plot_img(maps.ftrans(dncov),"%s/debug_dn2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+        io.plot_img(maps.ftrans(ncov),"%sdebug_n2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+        io.plot_img(maps.ftrans(dncov),"%sdebug_dn2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
     bin_edges = np.arange(100,8000,100)
     binner = stats.bin2D(modlmap,bin_edges)
     cents = binner.centers
@@ -300,13 +300,13 @@ def save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc
     padd = lambda p,x,ls,col: p.add(cents,binner.bin(x)[1],ls=ls,color=col)
     padd(pl,scov,"-","C0")
     padd(pl,dscov,"--","C0")
-    pl.done("%s/debug_s1d_%d_%d.png" % (save_loc,aindex1,aindex2))
+    pl.done("%sdebug_s1d_%d_%d.png" % (save_loc,aindex1,aindex2))
     if ncov is not None: 
         pl = io.Plotter(yscale='log',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn=lambda x:x**2./np.pi)
         padd(pl,ncov,"-","C1")
         padd(pl,dncov,"--","C1")
-        pl.done("%s/debug_n1d_%d_%d.png" % (save_loc,aindex1,aindex2))
-    io.plot_img(maps.ftrans(tcov),"%s/debug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+        pl.done("%sdebug_n1d_%d_%d.png" % (save_loc,aindex1,aindex2))
+    io.plot_img(maps.ftrans(tcov),"%sdebug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
 
 
 def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
@@ -319,7 +319,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         rfit_lmin=300,
                         rfit_bin_width=None,
                         verbose=True,
-                        debug_plots_loc=None):
+                        debug_plots_loc=None,separate_masks=False):
     """
     TODO: Add docs for wins and mask, and names and save_fn
 
@@ -377,6 +377,12 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
     def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
     minell = maps.minimum_ell(shape,wcs)
     modlmap = enmap.modlmap(shape,wcs)
+    def get_mask(aind):
+        if separate_masks: 
+            return _load_map(mask[aind])
+        else: 
+            assert mask.ndim==2
+            return mask
 
     # Defaults
     if rfit_lmaxes is None:
@@ -402,15 +408,19 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
             if kc2.ndim>2:
                 assert kc2.shape[0]==1
                 kc2 = kc2[0]
+            m1 = get_mask(aindex1)
+            m2 = get_mask(aindex2)
             if hybrid:
                 from actsims import noise as simnoise
-                ncov = simnoise.noise_power(ks1,_load_map(wins[aindex1])*mask,
-                                                 kmaps2=ks2,weights2=_load_map(wins[aindex2])*mask,
+                w1 = _load_map(wins[aindex1])
+                w2 = _load_map(wins[aindex2])
+                ncov = simnoise.noise_power(ks1,w1*m1,
+                                                 kmaps2=ks2,weights2=w2*m2,
                                                  coadd_estimator=True)
-                scov = np.real(kc1*kc2.conj())/np.mean(mask**2.) - ncov
+                scov = np.real(kc1*kc2.conj())/np.mean(m1*m2) - ncov
 
             else:
-                scov = np.real(kc1*kc2.conj())/np.mean(mask**2.)
+                scov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
                 ncov = None
 
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2]),dlspace=True) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
