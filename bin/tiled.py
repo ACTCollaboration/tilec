@@ -30,9 +30,7 @@ beams = ['2.0','2.0']
 
 # args
 ivar_apod_pix = 120
-qids = ['p04',
-        'p05',
-        'p06','p07']#,'d5','d56_05','d56_06','s16_01','s16_02','s16_03']
+qids = ['p06','p07','d56_05','d56_06','s16_01','s16_02','s16_03']
         # 'd56_02',
         # 'd56_03',
         # 'd56_04',
@@ -181,7 +179,7 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
 
     
     #if i not in [18,19,44,69]: continue
-    #if i!=69: continue
+    if i!=69: continue
 
     for qid in qids:
         # Check if this array is useful
@@ -207,9 +205,8 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         wins.append(eivars.copy())
         ksplits.append(ksplit.copy())
         lmin,lmax,hybrid,radial,friend,cfreq = get_specs(qid)
-        kmask = maps.mask_kspace(eshape,ewcs,lmin=lmin,lmax=lmax)
         dtype = kcoadd.dtype
-        kcoadds.append(kcoadd.copy() * kmask)
+        kcoadds.append(kcoadd.copy())
         masks.append(apod.copy())
         lmins.append(lmin)
         lmaxs.append(lmax)
@@ -228,6 +225,12 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
     anisotropic_pairs = pipeline.get_aniso_pairs(aids,hybrids,friends)
     def stack(x): return enmap.enmap(np.stack(x),ewcs)
 
+    for qind,qid in enumerate(aids):
+        lmin = lmins[qind]
+        lmax = lmaxs[qind]
+        kmask = maps.mask_kspace(eshape,ewcs,lmin=lmin,lmax=lmax)
+        kcoadds[qind] = kcoadds[qind] * kmask
+
     kcoadds = stack(kcoadds)
     masks = stack(masks)
     maxval = ilc.build_empirical_cov(ksplits,kcoadds,wins,masks,lmins,lmaxs,
@@ -240,7 +243,7 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
                                      rfit_lmin=args.rfit_lmin,
                                      rfit_bin_width=None,
                                      verbose=True,
-                                     debug_plots_loc=False, #os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
+                                     debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
                                      separate_masks=True)#)
 
     cov.data = enmap.enmap(cov.data,ewcs,copy=False)
