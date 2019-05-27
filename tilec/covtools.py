@@ -152,6 +152,75 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     return outcov,nfitted,nparams
 
 
+log_smooth_corrections = [ 1.0, # dummy for 0 dof
+ 3.559160, 1.780533, 1.445805, 1.310360, 1.237424, 1.192256, 1.161176, 1.139016,
+ 1.121901, 1.109064, 1.098257, 1.089441, 1.082163, 1.075951, 1.070413, 1.065836,
+ 1.061805, 1.058152, 1.055077, 1.052162, 1.049591, 1.047138, 1.045077, 1.043166,
+ 1.041382, 1.039643, 1.038231, 1.036866, 1.035605, 1.034236, 1.033090, 1.032054,
+ 1.031080, 1.030153, 1.029221, 1.028458, 1.027655, 1.026869, 1.026136, 1.025518,
+ 1.024864, 1.024259, 1.023663, 1.023195, 1.022640, 1.022130, 1.021648, 1.021144,
+ 1.020772]
+
+def smooth_ps_grid(ps, res, alpha=4, log=False, ndof=2):
+    """Smooth a 2d power spectrum to the target resolution in l"""
+    # First get our pixel size in l
+    lx, ly = enmap.laxes(ps.shape, ps.wcs)
+    ires   = np.array([lx[1],ly[1]])
+    smooth = np.abs(res/ires)
+    # We now know how many pixels to somoth by in each direction,
+    # so perform the actual smoothing
+    if log: ps = np.log(ps)
+    fmap  = enmap.fft(ps)
+    ky    = np.fft.fftfreq(ps.shape[-2])
+    kx    = np.fft.fftfreq(ps.shape[-1])
+    fmap /= 1 + np.abs(2*ky[:,None]*smooth[0])**alpha
+    fmap /= 1 + np.abs(2*kx[None,:]*smooth[1])**alpha
+    ps    = enmap.ifft(fmap).real
+    if log: ps = np.exp(ps)*log_smooth_corrections[ndof]
+    return ps
+
+
+def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
+                  lknee_guess=3000,alpha_guess=-4,nparams=None,
+                  verbose=False,radial_fit=True,fill_lmax=None,fill_lmax_width=100):
+    """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
+    Most arguments are for the radial fitting part.
+    A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
+    Watch for ringing in the final output.
+    n2d noise power
+    """
+    assert np.all(np.isfinite(n2d))
+    shape,wcs = n2d.shape,n2d.wcs
+    modlmap = n2d.modlmap()
+    minell = maps.minimum_ell(shape,wcs)
+    Ny,Nx = shape[-2:]
+    if radial_fit:
+        if nparams is None:
+            if verbose: print("Radial fitting...")
+            nparams = fit_noise_1d(n2d,lmin=lmin,lmax=lmax,wnoise_annulus=wnoise_annulus,
+                                bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess)
+        wfit,lfit,afit = nparams
+        nfitted = rednoise(modlmap,wfit,lfit,afit)
+    else:
+        nparams = None
+        nfitted = 1.
+    nfitted = np.maximum(nfitted,np.max(n2d)*1e-14)
+    nflat = enmap.enmap(n2d/nfitted,wcs) # flattened 2d noise power
+    fval = nflat[np.logical_and(modlmap>2,modlmap<2*minell)].mean()
+    nflat[modlmap<2] = fval
+    if fill_lmax is not None:
+        fill_avg = nflat[np.logical_and(modlmap>(fill_lmax-fill_lmax_width),modlmap<=fill_lmax)].mean()
+        nflat[modlmap>fill_lmax] = fill_avg
+    if verbose: print("Resampling...")
+    assert np.all(np.isfinite(nflat))
+    ndown = smooth_ps_grid(nflat, res=delta_ell, alpha=4, log=True, ndof=2*(nsplits-1))
+    outcov = ndown*nfitted
+    outcov[modlmap<minell] = 0
+    if fill_lmax is not None: outcov[modlmap>fill_lmax] = 0
+    assert np.all(np.isfinite(outcov))
+    return outcov,nfitted,nparams
+
+
 def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True,**kwargs):
     """
     dcov = cov * ellfact

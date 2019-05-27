@@ -313,7 +313,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         anisotropic_pairs,do_radial_fit,save_fn,
                         signal_bin_width=None,
                         signal_interp_order=0,
-                        dfact=(16,16),
+                        delta_ell=400,
                         rfit_lmaxes=None,
                         rfit_wnoise_width=250,
                         rfit_lmin=300,
@@ -400,6 +400,9 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
             hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
             ks1 = _load_map(ksplits[aindex1])
             ks2 = _load_map(ksplits[aindex2])
+            nsplits1 = ks1.shape[0]
+            nsplits2 = ks2.shape[0]
+            assert (nsplits1==2 or nsplits1==4) and (nsplits2==2 or nsplits2==4)
             kc1 = _load_map(kcoadds[aindex1])
             kc2 = _load_map(kcoadds[aindex2])
             if kc1.ndim>2:
@@ -425,7 +428,9 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
 
             dscov = covtools.signal_average(scov,bin_width=signal_bin_width,kind=signal_interp_order,lmin=max(lmins[aindex1],lmins[aindex2]),dlspace=True) # ((a,inf),(inf,inf))  doesn't allow the first element to be used, so allow for cross-covariance from non informative
             if ncov is not None:
-                dncov,_,_ = covtools.noise_average(ncov,dfact=dfact,
+                assert nsplits1==nsplits2
+                nsplits = nsplits1
+                dncov,_,_ = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
                                                    radial_fit=do_radial_fit[aindex1],lmax=max(rfit_lmaxes[aindex1],rfit_lmaxes[aindex2]),
                                                    wnoise_annulus=rfit_wnoise_width,
                                                    lmin = rfit_lmin,
