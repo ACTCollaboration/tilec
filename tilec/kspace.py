@@ -21,7 +21,7 @@ def process(dm,patch,array_id,mask,ncomp=1,skip_splits=False,splits=None):
     ksplits,kcoadd = process_splits(splits,wins,mask,skip_splits=skip_splits)
     return ksplits,kcoadd,wins
 
-def process_splits(splits,wins,mask,skip_splits=False):
+def process_splits(splits,wins,mask,skip_splits=False,do_fft_splits=False):
     assert wins.ndim>2
     with np.errstate(divide='ignore', invalid='ignore'):
         coadd = (splits*wins).sum(axis=0)/wins.sum(axis=0)
@@ -30,10 +30,14 @@ def process_splits(splits,wins,mask,skip_splits=False):
     assert coadd.shape == (Ny,Nx)
     kcoadd = enmap.enmap(enmap.fft(coadd*mask,normalize='phys'),wins.wcs)
     if not(skip_splits):
-        data = (splits-coadd)*wins*mask
-        ksplits = enmap.fft(data,normalize='phys')
+        data = (splits-coadd)*mask # !!!! wins removed, was (splits-coadd)*wins*mask earlier
+        kdiffs = enmap.fft(data,normalize='phys')
     else:
         ksplits = None
-    return ksplits,kcoadd
+    if do_fft_splits:
+        ksplits = enmap.fft(splits*wins*mask,normalize='phys')
+        return kdiffs,kcoadd,ksplits
+    else:
+        return kdiffs,kcoadd
 
 

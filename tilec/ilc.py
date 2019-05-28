@@ -306,10 +306,10 @@ def save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc
         padd(pl,ncov,"-","C1")
         padd(pl,dncov,"--","C1")
         pl.done("%sdebug_n1d_%d_%d.png" % (save_loc,aindex1,aindex2))
-    io.plot_img(maps.ftrans(tcov),"%sdebug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto')
+    io.plot_img(maps.ftrans(tcov),"%sdebug_fcov2d_%d_%d.png" % (save_loc,aindex1,aindex2),aspect='auto',lim=3)
 
 
-def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
+def build_empirical_cov(kdiffs,kcoadds,wins,mask,lmins,lmaxs,
                         anisotropic_pairs,do_radial_fit,save_fn,
                         signal_bin_width=None,
                         signal_interp_order=0,
@@ -319,7 +319,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                         rfit_lmin=300,
                         rfit_bin_width=None,
                         verbose=True,
-                        debug_plots_loc=None,separate_masks=False):
+                        debug_plots_loc=None,separate_masks=False,ksplits=None):
     """
     TODO: Add docs for wins and mask, and names and save_fn
 
@@ -328,7 +328,7 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
 
     Args:
 
-        ksplits: list of length narrays of (nsplits,Ny,Nx) fourier transforms of
+        kdiffs: list of length narrays of (nsplits,Ny,Nx) fourier transforms of
         maps that have already been inverse noise weighted and tapered. This
         routine will not apply any corrections for the windowing. Alternatively,
         list of strings containing filenames to versions of these on disk.
@@ -365,13 +365,13 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
 
     """
     # Setup
-    narrays = len(ksplits)
+    narrays = len(kdiffs)
     on_disk = False
     try:
-        shape,wcs = ksplits[0].shape[-2:],ksplits[0].wcs
+        shape,wcs = kdiffs[0].shape[-2:],kdiffs[0].wcs
     except:
-        assert isinstance(ksplits[0],basestring), "List contents are neither enmaps nor filenames."
-        shape,wcs = enmap.read_map_geometry(ksplits[0])
+        assert isinstance(kdiffs[0],basestring), "List contents are neither enmaps nor filenames."
+        shape,wcs = enmap.read_map_geometry(kdiffs[0])
         shape = shape[-2:]
         on_disk = True
     def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
@@ -398,10 +398,10 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
             if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
 
             hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
-            ks1 = _load_map(ksplits[aindex1])
-            ks2 = _load_map(ksplits[aindex2])
-            nsplits1 = ks1.shape[0]
-            nsplits2 = ks2.shape[0]
+            kd1 = _load_map(kdiffs[aindex1])
+            kd2 = _load_map(kdiffs[aindex2])
+            nsplits1 = kd1.shape[0]
+            nsplits2 = kd2.shape[0]
             assert (nsplits1==2 or nsplits1==4) and (nsplits2==2 or nsplits2==4)
             kc1 = _load_map(kcoadds[aindex1])
             kc2 = _load_map(kcoadds[aindex2])
@@ -417,10 +417,17 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                 from actsims import noise as simnoise
                 w1 = _load_map(wins[aindex1])
                 w2 = _load_map(wins[aindex2])
-                ncov = simnoise.noise_power(ks1,w1*m1,
-                                                 kmaps2=ks2,weights2=w2*m2,
+                ncov = simnoise.noise_power(kd1,m1,
+                                                 kmaps2=kd2,weights2=m2,
                                                  coadd_estimator=True)
                 scov = np.real(kc1*kc2.conj())/np.mean(m1*m2) - ncov
+
+                # import os
+                # # newcov = np.real(kd1[aindex1][0]*ksplits[aindex2][1].conj())/np.mean(w1*w2*m1*m2)
+                # # enmap.write_map(os.environ['WORK']+'/tiling/newcov.fits',newcov)
+                # #enmap.write_map(os.environ['WORK']+'/tiling/acov.fits',np.real(kc1*kc2.conj())/np.mean(m1*m2))
+                # enmap.write_map(os.environ['WORK']+'/tiling/scov.fits',scov)
+                # sys.exit()
 
             else:
                 scov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
@@ -431,10 +438,11 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
                 assert nsplits1==nsplits2
                 nsplits = nsplits1
                 dncov,_,_ = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
-                                                   radial_fit=do_radial_fit[aindex1],lmax=max(rfit_lmaxes[aindex1],rfit_lmaxes[aindex2]),
-                                                   wnoise_annulus=rfit_wnoise_width,
-                                                   lmin = rfit_lmin,
-                                                   bin_annulus=rfit_bin_width,fill_lmax=max(lmaxs[aindex1],lmaxs[aindex2]))
+                                                         radial_fit=do_radial_fit[aindex1],lmax=max(rfit_lmaxes[aindex1],rfit_lmaxes[aindex2]),
+                                                         wnoise_annulus=rfit_wnoise_width,
+                                                         lmin = rfit_lmin,
+                                                         bin_annulus=rfit_bin_width,fill_lmax=max(lmaxs[aindex1],lmaxs[aindex2]),
+                                                         log=(aindex1==aindex2))
             else:
                 dncov = np.zeros(dscov.shape)
 
@@ -452,3 +460,5 @@ def build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
             save_fn(tcov,aindex1,aindex2)
             if debug_plots_loc: save_debug_plots(scov,dscov,ncov,dncov,tcov,modlmap,aindex1,aindex2,save_loc=debug_plots_loc)
     return maxval
+
+

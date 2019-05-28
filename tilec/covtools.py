@@ -192,7 +192,7 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     n2d noise power
     """
     assert np.all(np.isfinite(n2d))
-    if log: assert n2d>0, "You can't log smooth a PS with negative power. Use log=False for these."
+    if log: assert np.all(n2d>0), "You can't log smooth a PS with negative power. Use log=False for these."
     shape,wcs = n2d.shape,n2d.wcs
     modlmap = n2d.modlmap()
     minell = maps.minimum_ell(shape,wcs)
@@ -236,6 +236,11 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     """
     assert np.all(np.isfinite(cov))
     modlmap = cov.modlmap()
+
+    # cov[modlmap<550] = 0
+    # print(cov.min(),cov.max())
+    # print(modlmap[np.isclose(cov,cov.min())])
+
     dcov = cov*modlmap**2. if dlspace else cov.copy()
     minell = maps.minimum_ell(dcov.shape,dcov.wcs) if lmin is None else lmin
     if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
@@ -245,6 +250,13 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     outcov = outcov / modlmap**2. if dlspace else outcov
     outcov[modlmap<minell] = 0
     assert np.all(np.isfinite(outcov))
+
+    # print(outcov.min(),outcov.max())
+    # print(modlmap[np.isclose(outcov,outcov.min())])
+    # print(np.any(outcov[modlmap>5000]<0))
+    # print(outcov[modlmap>5000].min(),outcov[modlmap>5000].max())
+    # sys.exit()
+
     return outcov
 
 

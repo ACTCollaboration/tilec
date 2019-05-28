@@ -30,7 +30,9 @@ beams = ['2.0','2.0']
 
 # args
 ivar_apod_pix = 120
-qids = ['p06','p07','d56_05','d56_06','s16_01','s16_02','s16_03']
+#qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
+qids = ['s16_02','s16_03']
+#qids = ['d56_04','d56_05','d56_06']#,'s16_01','s16_02','s16_03']
         # 'd56_02',
         # 'd56_03',
         # 'd56_04',
@@ -60,7 +62,7 @@ import argparse
 parser = argparse.ArgumentParser(description='Do a thing.')
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
-parser.add_argument("--dfact",     type=int,  default=pdefaults['dfact'],help="A description.")
+parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
 parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfit_wnoise_width'],help="A description.")
 parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin'],help="A description.")
@@ -172,14 +174,14 @@ down = lambda x,n=2: enmap.downgrade(x,n)
 
 for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an MPI loop
     # What is the shape and wcs of the tile? is this needed?
-    aids = [] ; ksplits = [] ; kcoadds = [] ; wins = [] ; masks = []
+    aids = [] ; kdiffs = [] ; ksplits = [] ; kcoadds = [] ; wins = [] ; masks = []
     lmins = [] ; lmaxs = [] ; do_radial_fit = [] ; hybrids = [] ; friends = {}
     bps = [] ; kbeams = []
     modlmap = enmap.modlmap(eshape,ewcs)
 
     
-    #if i not in [18,19,44,69]: continue
-    if i!=69: continue
+    if i not in [18,19,44,69]: continue
+    # if i!=69: continue
 
     for qid in qids:
         # Check if this array is useful
@@ -201,9 +203,10 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         #     io.hplot(esplits * apod,os.environ['WORK']+"/tiling/esplits_%s_%d" % (qid,i))
         #     io.hplot(eivars * apod,os.environ['WORK']+"/tiling/eivars_%s_%d" % (qid,i))
         
-        ksplit,kcoadd = kspace.process_splits(esplits,eivars,apod,skip_splits=False)
+        kdiff,kcoadd = kspace.process_splits(esplits,eivars,apod,skip_splits=False,do_fft_splits=False)
         wins.append(eivars.copy())
-        ksplits.append(ksplit.copy())
+        kdiffs.append(kdiff.copy())
+        # ksplits.append(ksplit.copy())
         lmin,lmax,hybrid,radial,friend,cfreq = get_specs(qid)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy())
@@ -233,18 +236,18 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
 
     kcoadds = stack(kcoadds)
     masks = stack(masks)
-    maxval = ilc.build_empirical_cov(ksplits,kcoadds,wins,masks,lmins,lmaxs,
+    maxval = ilc.build_empirical_cov(kdiffs,kcoadds,wins,masks,lmins,lmaxs,
                                      anisotropic_pairs,do_radial_fit,save_fn,
                                      signal_bin_width=args.signal_bin_width,
                                      signal_interp_order=args.signal_interp_order,
-                                     dfact=(args.dfact,args.dfact),
+                                     delta_ell=args.delta_ell,
                                      rfit_lmaxes=None,
                                      rfit_wnoise_width=args.rfit_wnoise_width,
                                      rfit_lmin=args.rfit_lmin,
                                      rfit_bin_width=None,
                                      verbose=True,
                                      debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
-                                     separate_masks=True)#)
+                                     separate_masks=True,ksplits=None)#)
 
     cov.data = enmap.enmap(cov.data,ewcs,copy=False)
     covfunc = lambda sel: cov.to_array(sel,flatten=True)
@@ -340,9 +343,9 @@ print("Rank %d done" % comm.rank)
 for solution in solutions:
     pmap = ta.get_final_output(solution)
     if comm.rank==0:
-        io.hplot(pmap,os.environ['WORK']+"/tiling/ymap_%s" % solution)
+        io.hplot(pmap,os.environ['WORK']+"/tiling/map_%s" % solution)
         mask = sints.get_act_mr3_crosslinked_mask("deep56")
-        io.hplot(enmap.extract(pmap,mask.shape,mask.wcs)*mask,os.environ['WORK']+"/tiling/mymap_%s" % solution)
+        io.hplot(enmap.extract(pmap,mask.shape,mask.wcs)*mask,os.environ['WORK']+"/tiling/mmap_%s" % solution)
     
 
 
