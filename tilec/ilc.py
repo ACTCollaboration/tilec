@@ -395,6 +395,23 @@ def build_empirical_cov(kdiffs,kcoadds,wins,mask,lmins,lmaxs,
     # Loop over unique covmat elements
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
+
+
+            # !!!!!
+            # from orphics import cosmology
+            # theory = cosmology.default_theory()
+            # #['p01','p02','p03','p04','p05','p06','p07','p08']
+            # freqs = [30,44,70,100,143,217,353,545]
+            # fwhms = [7*143/freq for freq in freqs]
+            # rmss = [195,226,199,77,33,47,153,1000]
+            # fwhm1 = fwhms[aindex1]
+            # fwhm2 = fwhms[aindex2]
+            # rms = 0 if aindex1!=aindex2 else rmss[aindex1]
+            # tcov = theory.lCl('TT',modlmap)*maps.gauss_beam(modlmap,fwhm1)*maps.gauss_beam(modlmap,fwhm2) + rms # !!!!
+            # save_fn(tcov,aindex1,aindex2)
+            # continue
+            # !!!
+
             if verbose: print("Calculating covariance for array ", aindex1, " x ",aindex2, " ...")
 
             hybrid = ((aindex1,aindex2) in anisotropic_pairs) or ((aindex2,aindex1) in anisotropic_pairs)
@@ -420,12 +437,13 @@ def build_empirical_cov(kdiffs,kcoadds,wins,mask,lmins,lmaxs,
                 ncov = simnoise.noise_power(kd1,m1,
                                                  kmaps2=kd2,weights2=m2,
                                                  coadd_estimator=True)
-                scov = np.real(kc1*kc2.conj())/np.mean(m1*m2) - ncov
+                ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
+                scov = ccov - ncov
 
                 # import os
                 # # newcov = np.real(kd1[aindex1][0]*ksplits[aindex2][1].conj())/np.mean(w1*w2*m1*m2)
-                # # enmap.write_map(os.environ['WORK']+'/tiling/newcov.fits',newcov)
-                # #enmap.write_map(os.environ['WORK']+'/tiling/acov.fits',np.real(kc1*kc2.conj())/np.mean(m1*m2))
+                # enmap.write_map(os.environ['WORK']+'/tiling/ncov.fits',ncov)
+                # enmap.write_map(os.environ['WORK']+'/tiling/ccov.fits',ccov)
                 # enmap.write_map(os.environ['WORK']+'/tiling/scov.fits',scov)
                 # sys.exit()
 
@@ -447,11 +465,29 @@ def build_empirical_cov(kdiffs,kcoadds,wins,mask,lmins,lmaxs,
                 dncov = np.zeros(dscov.shape)
 
             tcov = dscov + dncov
+
+
+
+
+
+
             assert np.all(np.isfinite(tcov))
             # print(modlmap[np.isinf(tcov)])
             if aindex1==aindex2:
                 tcov[modlmap<=lmins[aindex1]] = 1e90
                 tcov[modlmap>=lmaxs[aindex1]] = 1e90
+
+
+            try:
+                print("scov : ",scov[4,959],scov[5,959])
+            except: pass
+            try:
+                print("ncov : ",ncov[4,959],ncov[5,959])
+            except:
+                pass
+            print("dscov : ",dscov[4,959],dscov[5,959])
+            print("dncov : ",dncov[4,959],dncov[5,959])
+
 
             maxcov = tcov.max()
             if maxcov>maxval: maxval = maxcov

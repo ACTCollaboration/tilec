@@ -1,0 +1,19 @@
+#############
+# TILED COV-DEFAULT-SETTINGS
+#############
+
+cov:
+  signal_bin_width: 160
+  signal_interp_order: 3
+  delta_ell: 400
+  rfit_bin_width: 160
+  rfit_wnoise_width: 600
+  rfit_lmin: 300
+
+  # signal_bin_width: 300
+  # signal_interp_order: 3
+  # delta_ell: 400
+  # rfit_bin_width: 300
+  # rfit_wnoise_width: 600
+  # rfit_lmin: 300
+  

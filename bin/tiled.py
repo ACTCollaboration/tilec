@@ -24,14 +24,18 @@ comm = mpi.MPI.COMM_WORLD
 
 chunk_size = 1000000
 bandpasses = False
-solutions = ['CMB','tSZ']
-beams = ['2.0','2.0']
-#beams = ['7.0','7.0']
+solutions = ['CMB']#,'tSZ']
+#beams = ['2.0','2.0']
+beams = ['7.0','7.0']
 
 # args
 ivar_apod_pix = 120
+#qids = ['p01','p02','p03','p04','p07','p08']
+qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
+#qids = ['p04','p07','p08']
 #qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
-qids = ['s16_02','s16_03']
+#qids = ['p01','p07']#,'p08']
+#qids = ['s16_04','s16_03']
 #qids = ['d56_04','d56_05','d56_06']#,'s16_01','s16_02','s16_03']
         # 'd56_02',
         # 'd56_03',
@@ -180,8 +184,10 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
     modlmap = enmap.modlmap(eshape,ewcs)
 
     
-    if i not in [18,19,44,69]: continue
-    # if i!=69: continue
+    if i not in [10]: continue
+
+
+    #if i not in [1,10,16]: continue
 
     for qid in qids:
         # Check if this array is useful
@@ -228,11 +234,6 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
     anisotropic_pairs = pipeline.get_aniso_pairs(aids,hybrids,friends)
     def stack(x): return enmap.enmap(np.stack(x),ewcs)
 
-    for qind,qid in enumerate(aids):
-        lmin = lmins[qind]
-        lmax = lmaxs[qind]
-        kmask = maps.mask_kspace(eshape,ewcs,lmin=lmin,lmax=lmax)
-        kcoadds[qind] = kcoadds[qind] * kmask
 
     kcoadds = stack(kcoadds)
     masks = stack(masks)
@@ -246,7 +247,8 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
                                      rfit_lmin=args.rfit_lmin,
                                      rfit_bin_width=None,
                                      verbose=True,
-                                     debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
+                                     # debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [10] else False,
+                                     debug_plots_loc=False,#os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
                                      separate_masks=True,ksplits=None)#)
 
     cov.data = enmap.enmap(cov.data,ewcs,copy=False)
@@ -268,6 +270,13 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
 
     # Initialize containers
     data = {}
+
+    for qind,qid in enumerate(aids):
+        lmin = lmins[qind]
+        lmax = lmaxs[qind]
+        kmask = maps.mask_kspace(eshape,ewcs,lmin=lmin,lmax=lmax)
+        kcoadds[qind] = kcoadds[qind] * kmask
+
 
     kcoadds = kcoadds.reshape((narrays,Ny*Nx))
     for solution in solutions:
@@ -332,8 +341,32 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
             # kbeam = bfunc(modlmap)
             # lbeam = bfunc(ells)
 
-        smap = enmap.ifft(kbeam*enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),ewcs),normalize='phys').real
-        #if solution=='CMB': io.hplot(smap,os.environ['WORK']+"/tiling/tile_%d_smap" % i)
+        ksol = data[solution]['kmap'].reshape((Ny,Nx))
+        assert np.all(np.isfinite(ksol))
+        ksol[modlmap<min(lmins)] = 0
+        # print(ksol[0,4])
+        # print(ksol[0,5])
+        # sys.exit()
+        if solution=='CMB': 
+            ptile = np.real(ksol*ksol.conj())
+            ptile[modlmap>500] = 0
+            px = enmap.argmax(ptile,unit='pix')
+            print(px)
+            print(ksol[px[0],px[1]])
+            print(ksol[px[0]+1,px[1]])
+            print(ptile[px[0],px[1]])
+            print(ptile[px[0]+1,px[1]])
+            print(modlmap[px[0],px[1]])
+            print(modlmap[px[0]+1,px[1]])
+            # sys.exit()
+            # pftile = ptile
+            # pftile[modlmap>300] = 0
+            # print(np.sort(pftile[pftile>0]))
+            # print(modlmap[np.isclose(ptile,1.52256073e+02)])
+            # io.plot_img(np.log10(np.fft.fftshift(ptile)),os.environ['WORK']+"/tiling/ptile_%d_smap" % i)
+            # io.hplot(enmap.enmap(np.log10(np.fft.fftshift(ptile)),ewcs),os.environ['WORK']+"/tiling/phtile_%d_smap" % i)
+        smap = enmap.ifft(kbeam*enmap.enmap(ksol,ewcs),normalize='phys').real
+        if solution=='CMB': io.hplot(smap,os.environ['WORK']+"/tiling/tile_%d_smap" % i)
         ta.update_output(solution,smap,inserter)
     #ta.update_output("processed",c*civar,inserter)
     #ta.update_output("processed_ivar",civar,inserter)
