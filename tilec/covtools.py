@@ -183,7 +183,7 @@ def smooth_ps_grid(ps, res, alpha=4, log=False, ndof=2):
 
 
 def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
-                  lknee_guess=3000,alpha_guess=-4,nparams=None,
+                        lknee_guess=3000,alpha_guess=-4,nparams=None,
                         verbose=False,radial_fit=True,fill_lmax=None,fill_lmax_width=100,log=True):
     """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
     Most arguments are for the radial fitting part.
@@ -192,7 +192,7 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     n2d noise power
     """
     assert np.all(np.isfinite(n2d))
-    if log: assert np.all(n2d>0), "You can't log smooth a PS with negative power. Use log=False for these."
+    if log: assert np.all(n2d>0), "You can't log smooth a PS with negative or zero power. Use log=False for these."
     shape,wcs = n2d.shape,n2d.wcs
     modlmap = n2d.modlmap()
     minell = maps.minimum_ell(shape,wcs)
@@ -234,8 +234,10 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     cov = dcov / ellfact
     where ellfact = ell**2 if dlspace else 1
     """
-    assert np.all(np.isfinite(cov))
     modlmap = cov.modlmap()
+    # print(modlmap[~np.isfinite(cov)])
+    # print(cov[~np.isfinite(cov)])
+    assert np.all(np.isfinite(cov))
 
     # cov[modlmap<550] = 0
     # print(cov.min(),cov.max())
@@ -245,7 +247,7 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     minell = maps.minimum_ell(dcov.shape,dcov.wcs) if lmin is None else lmin
     if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
     binner = stats.bin2D(modlmap,bin_edges)
-    cents,c1d = binner.bin(dcov)
+    cents,c1d,count = binner.bin(dcov,get_count=True)
     outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),dcov.wcs)
     outcov = outcov / modlmap**2. if dlspace else outcov
     outcov[modlmap<minell] = 0

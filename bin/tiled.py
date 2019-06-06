@@ -12,6 +12,9 @@ Tiled logic
 
 We still need to apodize-mask the sharp edges of arrays that enter outside the central region of the tile.
 
+
+Check filter_div
+
 """
 import os,sys
 import numpy as np
@@ -19,19 +22,23 @@ from soapack import interfaces as sints
 from pixell import enmap
 from tilec import tiling,kspace,ilc,pipeline,fg as tfg
 from orphics import mpi, io,maps
+from enlib import bench
+from tilec.utils import coadd,is_planck,apodize_zero,get_splits,get_splits_ivar,robust_ref,filter_div,get_kbeam,load_geometries,get_specs
 comm = mpi.MPI.COMM_WORLD
 
 
 chunk_size = 1000000
 bandpasses = False
-solutions = ['CMB']#,'tSZ']
-#beams = ['2.0','2.0']
-beams = ['7.0','7.0']
+solutions = ['CMB','tSZ']
+#solutions = ['CMB']#,'tSZ']
+beams = ['2.0','2.0']
+#beams = ['7.0','7.0']
 
 # args
 ivar_apod_pix = 120
+#ivar_apod_pix = 60
 #qids = ['p01','p02','p03','p04','p07','p08']
-qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
+# qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
 #qids = ['p04','p07','p08']
 #qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
 #qids = ['p01','p07']#,'p08']
@@ -42,6 +49,17 @@ qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
         # 'd56_04',
         # 'd56_05',
         # 'd56_06'] # list of quick IDs
+#qids = ['p05','s16_01','s16_02','s16_03'] # list of quick IDs
+# qids = ['p05','d5',
+#         'd6',
+#         'd56_01',
+#         'd56_02',
+#         'd56_03',
+#         'd56_04',
+#         'd56_05',
+#         'd56_06'] # list of quick IDs
+# qids = ['s16_01','s16_02','s16_03'] # list of quick IDs
+#qids = ['p01','p02','p03','p04','p05','p06','p07','p08','s16_01','s16_02','s16_03']
 # qids = ['d5',
 #         'd6',
 #         'd56_01',
@@ -50,13 +68,17 @@ qids = ['p01','p02','p03','p04','p05','p06','p07','p08']
 #         'd56_04',
 #         'd56_05',
 #         'd56_06','s16_01','s16_02','s16_03','p01','p02','p03','p04','p05','p06','p07','p08'] # list of quick IDs
+qids = ['d5',
+        'd6',
+        'd56_01',
+        'd56_02',
+        'd56_03',
+        'd56_04',
+        'd56_05',
+        'd56_06','s16_01','s16_02','s16_03','p04','p05'] # list of quick IDs
 parent_qid = 'd56_01' # qid of array whose geometry will be used for the full map
 
 
-import pandas
-cfile = "input/array_specs.csv"
-adf = pandas.read_csv(cfile)
-aspecs = lambda qid,att : adf[adf['#qid']==qid][att].item()
 
 
 pdefaults = io.config_from_yaml("input/cov_defaults_tiled.yml")['cov']
@@ -64,6 +86,9 @@ pdefaults = io.config_from_yaml("input/cov_defaults_tiled.yml")['cov']
 import argparse
 # Parse command line
 parser = argparse.ArgumentParser(description='Do a thing.')
+parser.add_argument("--dtiles",     type=str,  default=None,help="A description.")
+parser.add_argument("--onlyd", action='store_true',help='A flag.')
+parser.add_argument("--ivars", action='store_true',help='A flag.')
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
 parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
@@ -74,120 +99,39 @@ parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin']
 args = parser.parse_args()
 
 
-def bool_from_str(string):
-    s = string.strip().lower()
-    if s=='true':
-        return True
-    elif s=='false':
-        return False
-    else:
-        raise ValueError
 
-def get_specs(aid):
-    lmin = int(aspecs(aid,'lmin'))
-    lmax = int(aspecs(aid,'lmax'))
-    assert 0 <= lmin < 50000
-    assert 0 <= lmax < 50000
-    hybrid = aspecs(aid,'hybrid')
-    assert type(hybrid)==bool
-    radial = aspecs(aid,'radial')
-    assert type(radial)==bool
-    friend = aspecs(aid,'friends')
-    try: friend = friend.split(',')
-    except: friend = None
-    cfreq = float(aspecs(aid,'cfreq'))
-    return lmin,lmax,hybrid,radial,friend,cfreq
-
-def load_geometries(qids):
-    geoms = {}
-    for qid in qids:
-        dmodel = sints.arrays(qid,'data_model')
-        season = sints.arrays(qid,'season')
-        region = sints.arrays(qid,'region')
-        array = sints.arrays(qid,'array')
-        freq = sints.arrays(qid,'freq')
-        dm = sints.models[dmodel]()
-        shape,wcs = enmap.read_map_geometry(dm.get_split_fname(season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq,splitnum=0,srcfree=True))
-        geoms[qid] = shape[-2:],wcs 
-    return geoms
-
-def get_kbeam(qid,modlmap):
-    dmodel = sints.arrays(qid,'data_model')
-    season = sints.arrays(qid,'season')
-    region = sints.arrays(qid,'region')
-    array = sints.arrays(qid,'array')
-    freq = sints.arrays(qid,'freq')
-    dm = sints.models[dmodel]()
-    return dm.get_beam(modlmap, season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq, kind='normalized')
-
-
-def get_splits_ivar(qid,extracter):
-    dmodel = sints.arrays(qid,'data_model')
-    season = sints.arrays(qid,'season')
-    region = sints.arrays(qid,'region')
-    array = sints.arrays(qid,'array')
-    freq = sints.arrays(qid,'freq')
-    dm = sints.models[dmodel]()
-    ivars = []
-    for i in range(dm.get_nsplits(season=season,patch=region,array=array)):
-        omap = extracter(dm.get_split_ivar_fname(season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq,splitnum=i))
-        if omap.ndim>2: omap = omap[0]
-        eshape,ewcs = omap.shape,omap.wcs
-        ivars.append(omap.copy())
-    return enmap.enmap(np.stack(ivars),ewcs)
-
-def get_splits(qid,extracter):
-    dmodel = sints.arrays(qid,'data_model')
-    season = sints.arrays(qid,'season')
-    region = sints.arrays(qid,'region')
-    array = sints.arrays(qid,'array')
-    freq = sints.arrays(qid,'freq')
-    dm = sints.models[dmodel]()
-    splits = []
-    for i in range(dm.get_nsplits(season=season,patch=region,array=array)):
-        omap = extracter(dm.get_split_fname(season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq,splitnum=i,srcfree=True),sel=np.s_[0,...]) # sel
-        eshape,ewcs = omap.shape,omap.wcs
-        splits.append(omap.copy())
-    return enmap.enmap(np.stack(splits),ewcs)
-
-def apodize_zero(imap,width):
-    ivar = imap.copy()
-    ivar[...,:1,:] = 0; ivar[...,-1:] = 0; ivar[...,:,:1] = 0; ivar[...,:,-1:] = 0
-    from scipy import ndimage
-    dist = ndimage.distance_transform_edt(ivar>0)
-    apod = 0.5*(1-np.cos(np.pi*np.minimum(1,dist/width)))
-    return apod
-
-def is_planck(qid):
-    dmodel = sints.arrays(qid,'data_model')
-    return True if dmodel=='planck_hybrid' else False
-    
-def coadd(imap,ivar):
-    isum = np.sum(ivar,axis=0)
-    c = np.sum(imap*ivar,axis=0)/isum
-    c[~np.isfinite(c)] = 0
-    return c,isum
-    
 
 geoms = load_geometries(qids)
 pshape,pwcs = load_geometries([parent_qid])[parent_qid]
+# mask = sints.get_act_mr3_crosslinked_mask("deep56")
+# pshape,pwcs = mask.shape,mask.wcs
+
+
+
 ta = tiling.TiledAnalysis(pshape,pwcs,comm=comm,width_deg=4.,pix_arcmin=0.5)
 for solution in solutions:
     ta.initialize_output(name=solution)
 down = lambda x,n=2: enmap.downgrade(x,n)
 
+
+if args.dtiles is not None:
+    dtiles = [int(x) for x in args.dtiles.split(',')]
+else:
+    dtiles = []
+
+
+
 for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an MPI loop
     # What is the shape and wcs of the tile? is this needed?
-    aids = [] ; kdiffs = [] ; ksplits = [] ; kcoadds = [] ; wins = [] ; masks = []
+    aids = [] ; kdiffs = [] ; ksplits = [] ; kcoadds = [] ; masks = []
     lmins = [] ; lmaxs = [] ; do_radial_fit = [] ; hybrids = [] ; friends = {}
-    bps = [] ; kbeams = []
+    bps = [] ; kbeams = [] ; freqs = [] ; fbeams = []
     modlmap = enmap.modlmap(eshape,ewcs)
 
     
-    if i not in [10]: continue
+    if args.onlyd:
+        if i not in dtiles: continue
 
-
-    #if i not in [1,10,16]: continue
 
     for qid in qids:
         # Check if this array is useful
@@ -200,20 +144,28 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         # Ok so the center of the tile is inside this array, but are there any missing pixels?
         eivars = get_splits_ivar(qid,extracter)
         # Only check for missing pixels if array is not a Planck array
-        if not(is_planck(qid)) and np.any(ta.crop_main(eivars)<=0): continue
+        if eivars is None: continue
+        if not(is_planck(qid)) and ("s16" not in qid) and np.any(ta.crop_main(eivars)<=0): 
+            print("Skipping %s as it seems to have some zeros in the tile center..." % qid)
+            continue
         aids.append(qid)
         apod = ta.apod * apodize_zero(np.sum(eivars,axis=0),ivar_apod_pix)
         esplits = get_splits(qid,extracter)
 
-        # if i in [18,19,44,69]:
-        #     io.hplot(esplits * apod,os.environ['WORK']+"/tiling/esplits_%s_%d" % (qid,i))
-        #     io.hplot(eivars * apod,os.environ['WORK']+"/tiling/eivars_%s_%d" % (qid,i))
+        if args.ivars:
+            if i in dtiles:
+                #io.hplot(esplits * apod,os.environ['WORK']+"/tiling/esplits_%s_%d" % (qid,i))
+                #io.hplot(eivars * apod,os.environ['WORK']+"/tiling/eivars_%s_%d" % (qid,i))
+                io.plot_img(esplits * apod,os.environ['WORK']+"/tiling/esplits_%s_%d" % (qid,i))
+                div = eivars.copy()
+                div[div<=0] = np.nan
+                io.plot_img(div * apod,os.environ['WORK']+"/tiling/eivars_%s_%d" % (qid,i))
         
         kdiff,kcoadd = kspace.process_splits(esplits,eivars,apod,skip_splits=False,do_fft_splits=False)
-        wins.append(eivars.copy())
         kdiffs.append(kdiff.copy())
         # ksplits.append(ksplit.copy())
-        lmin,lmax,hybrid,radial,friend,cfreq = get_specs(qid)
+        lmin,lmax,hybrid,radial,friend,cfreq,fgroup = get_specs(qid)
+        freqs.append(fgroup)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy())
         masks.append(apod.copy())
@@ -224,6 +176,7 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         friends[qid] = friend
         bps.append(cfreq) # change to bandpass file
         kbeams.append(get_kbeam(qid,modlmap))
+        fbeams.append(lambda x: get_kbeam(qid,x))
         
     if len(aids)==0: continue # this tile is empty
     # Then build the covmat placeholder
@@ -237,19 +190,38 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
 
     kcoadds = stack(kcoadds)
     masks = stack(masks)
-    maxval = ilc.build_empirical_cov(kdiffs,kcoadds,wins,masks,lmins,lmaxs,
-                                     anisotropic_pairs,do_radial_fit,save_fn,
-                                     signal_bin_width=args.signal_bin_width,
-                                     signal_interp_order=args.signal_interp_order,
-                                     delta_ell=args.delta_ell,
-                                     rfit_lmaxes=None,
-                                     rfit_wnoise_width=args.rfit_wnoise_width,
-                                     rfit_lmin=args.rfit_lmin,
-                                     rfit_bin_width=None,
-                                     verbose=True,
-                                     # debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [10] else False,
-                                     debug_plots_loc=False,#os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
-                                     separate_masks=True,ksplits=None)#)
+
+    with bench.show("cov"):
+        ilc.build_cov(kdiffs,kcoadds,fbeams,masks,lmins,lmaxs,freqs,anisotropic_pairs,
+                      args.delta_ell,
+                      do_radial_fit,save_fn,
+                      signal_bin_width=args.signal_bin_width,
+                      signal_interp_order=args.signal_interp_order,
+                      rfit_lmaxes=lmaxs,
+                      rfit_wnoise_width=args.rfit_wnoise_width,
+                      rfit_lmin=args.rfit_lmin,
+                      rfit_bin_width=None,
+                      verbose=True,
+                      debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in dtiles else False,
+                      # debug_plots_loc=False,#os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
+                      separate_masks=True)
+
+    # maxval = ilc.build_empirical_cov(kdiffs,kcoadds,wins,masks,lmins,lmaxs,
+    #                                  anisotropic_pairs,do_radial_fit,save_fn,
+    #                                  signal_bin_width=args.signal_bin_width,
+    #                                  signal_interp_order=args.signal_interp_order,
+    #                                  delta_ell=args.delta_ell,
+    #                                  rfit_lmaxes=None,
+    #                                  rfit_wnoise_width=args.rfit_wnoise_width,
+    #                                  rfit_lmin=args.rfit_lmin,
+    #                                  rfit_bin_width=None,
+    #                                  verbose=True,
+    #                                  debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in dtiles else False,
+    #                                  # debug_plots_loc=False,#os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
+    #                                  separate_masks=True,ksplits=None)#)
+
+
+
 
     cov.data = enmap.enmap(cov.data,ewcs,copy=False)
     covfunc = lambda sel: cov.to_array(sel,flatten=True)
@@ -276,6 +248,27 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         lmax = lmaxs[qind]
         kmask = maps.mask_kspace(eshape,ewcs,lmin=lmin,lmax=lmax)
         kcoadds[qind] = kcoadds[qind] * kmask
+
+
+
+    # !!!!
+    # dy = 45
+    # dx = 19
+    # c1 = cov.to_array(flatten=False)[:,:,dy,dx]
+    # c2 = cov.to_array(flatten=False)[:,:,dy-1,dx]
+    # v1 = kcoadds[:,dy,dx]
+    # v2 = kcoadds[:,dy-1,dx]
+    # print(np.abs(v1))
+    # print(np.abs(v2))
+    # # np.save("cov_bad_pixel.npy",c1)
+    # # np.save("cov_good_pixel.npy",c2)
+    # # np.save("vec_bad_pixel.npy",v1)
+    # # np.save("vec_good_pixel.npy",v2)
+    # print(np.linalg.eig(c1)[0])
+    # print(np.linalg.eig(c2)[0])
+    # sys.exit()
+    # !!!!
+
 
 
     kcoadds = kcoadds.reshape((narrays,Ny*Nx))
@@ -344,29 +337,33 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         ksol = data[solution]['kmap'].reshape((Ny,Nx))
         assert np.all(np.isfinite(ksol))
         ksol[modlmap<min(lmins)] = 0
+        # ksol[modlmap<2200] = 0  #!!!
+        # ksol[modlmap>2250] = 0  #!!!
         # print(ksol[0,4])
         # print(ksol[0,5])
         # sys.exit()
-        if solution=='CMB': 
-            ptile = np.real(ksol*ksol.conj())
-            ptile[modlmap>500] = 0
-            px = enmap.argmax(ptile,unit='pix')
-            print(px)
-            print(ksol[px[0],px[1]])
-            print(ksol[px[0]+1,px[1]])
-            print(ptile[px[0],px[1]])
-            print(ptile[px[0]+1,px[1]])
-            print(modlmap[px[0],px[1]])
-            print(modlmap[px[0]+1,px[1]])
-            # sys.exit()
-            # pftile = ptile
-            # pftile[modlmap>300] = 0
-            # print(np.sort(pftile[pftile>0]))
-            # print(modlmap[np.isclose(ptile,1.52256073e+02)])
-            # io.plot_img(np.log10(np.fft.fftshift(ptile)),os.environ['WORK']+"/tiling/ptile_%d_smap" % i)
-            # io.hplot(enmap.enmap(np.log10(np.fft.fftshift(ptile)),ewcs),os.environ['WORK']+"/tiling/phtile_%d_smap" % i)
+        # if solution=='CMB' and i in dtiles: 
+        #     optile = np.real(ksol*ksol.conj())
+        #     ptile = np.real(ksol*ksol.conj())
+        #     ptile[modlmap>2250] = 0
+        #     ptile[modlmap<2200] = 0
+        #     px = enmap.argmax(ptile,unit='pix')
+        #     print(px)
+        #     print(ksol[px[0],px[1]])
+        #     print(ksol[px[0]-11,px[1]])
+        #     print(optile[px[0],px[1]])
+        #     print(optile[px[0]-1,px[1]])
+        #     print(modlmap[px[0],px[1]])
+        #     print(modlmap[px[0]-1,px[1]])
+        #     # pftile = ptile
+        #     # pftile[modlmap>300] = 0
+        #     # print(np.sort(pftile[pftile>0]))
+        #     # print(modlmap[np.isclose(ptile,1.52256073e+02)])
+        #     # io.plot_img(np.log10(np.fft.fftshift(ptile)),os.environ['WORK']+"/tiling/ptile_%d_smap" % i)
+        #     # io.hplot(enmap.enmap(np.log10(np.fft.fftshift(ptile)),ewcs),os.environ['WORK']+"/tiling/phtile_%d_smap" % i)
         smap = enmap.ifft(kbeam*enmap.enmap(ksol,ewcs),normalize='phys').real
         if solution=='CMB': io.hplot(smap,os.environ['WORK']+"/tiling/tile_%d_smap" % i)
+        # sys.exit()
         ta.update_output(solution,smap,inserter)
     #ta.update_output("processed",c*civar,inserter)
     #ta.update_output("processed_ivar",civar,inserter)
