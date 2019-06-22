@@ -4,7 +4,7 @@ from pixell import enmap
 from enlib import bench
 import numpy as np
 import os,sys
-from tilec import fg as tfg,ilc,kspace
+from tilec import fg as tfg,ilc,kspace,utils as tutils
 from soapack import interfaces as sints
 
 """
@@ -51,15 +51,15 @@ def build_and_save_cov(arrays,region,version,mask_version,
     if save_scratch:     
         try: os.makedirs(scratch)
         except: pass
-    gconfig = io.config_from_yaml("input/data.yml")
     mask = sints.get_act_mr3_crosslinked_mask(region,
                                               version=mask_version,
                                               kind='binary_apod')
     shape,wcs = mask.shape,mask.wcs
+    aspecs = tutils.ASpecs().get_specs
 
     with bench.show("ffts"):
         kcoadds = []
-        ksplits = []
+        kdiffs = []
         wins = []
         lmins = []
         lmaxs = []
@@ -68,45 +68,42 @@ def build_and_save_cov(arrays,region,version,mask_version,
         save_names = [] # to make sure nothing is overwritten
         friends = {} # what arrays are each correlated with?
         names = []
-        for i,array in enumerate(arrays.split(',')):
-            ainfo = gconfig[array]
-            dm = sints.models[ainfo['data_model']](region=mask,calibrated=not(uncalibrated))
-            name = ainfo['id']
-            names.append(name)
-            rfit = ainfo['radial_fit']
-            assert isinstance(rfit,bool)
-            do_radial_fit.append(rfit)
-            try: friends[name] = ainfo['correlated']
-            except: friends[name] = None
-            hybrids.append(ainfo['hybrid_average'])
-            ksplit,kcoadd,win = kspace.process(dm,region,name,mask,
-                                               ncomp=1,skip_splits=False,
-                                               splits=sim_splits[i] if sim_splits is not None else None)
+        for i,qid in enumerate(arrays.split(',')):
+            dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
+            lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+            assert isinstance(radial,bool)
+            do_radial_fit.append(radial)
+            friends[qid] = friend
+            hybrids.append(hybrid)
+            kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
+                                              skip_splits=False,
+                                              splits=sim_splits[i] if sim_splits is not None else None,
+                                              inpaint=True,fn_beam = lambda x: tutils.get_kbeam(qid,x))
             if save_scratch: 
-                kcoadd_name = savedir + "kcoadd_%s.hdf" % array
-                ksplit_name = scratch + "ksplit_%s.hdf" % array
-                win_name = scratch + "win_%s.hdf" % array
+                kcoadd_name = savedir + "kcoadd_%s.hdf" % qid
+                kdiff_name = scratch + "kdiff_%s.hdf" % qid
+                win_name = scratch + "win_%s.hdf" % qid
                 assert win_name not in save_names
                 assert kcoadd_name not in save_names
-                assert ksplit_name not in save_names
+                assert kdiff_name not in save_names
                 enmap.write_map(win_name,win)
                 enmap.write_map(kcoadd_name,kcoadd)
-                enmap.write_map(ksplit_name,ksplit)
+                enmap.write_map(kdiff_name,kdiff)
                 wins.append(win_name)
                 kcoadds.append(kcoadd_name)
-                ksplits.append(ksplit_name)
+                kdiffs.append(kdiff_name)
                 save_names.append(win_name)
                 save_names.append(kcoadd_name)
-                save_names.append(ksplit_name)
+                save_names.append(kdiff_name)
             else:
                 wins.append(win.copy())
                 kcoadds.append(kcoadd.copy())
-                ksplits.append(ksplit.copy())
-            lmins.append(ainfo['lmin'])
-            lmaxs.append(ainfo['lmax'])
+                kdiffs.append(kdiff.copy())
+            lmins.append(lmin)
+            lmaxs.append(lmax)
 
     # Decide what pairs to do hybrid smoothing for
-    anisotropic_pairs  = get_aniso_pairs(names,hybrids,friends)
+    anisotropic_pairs = get_aniso_pairs(arrays,hybrids,friends)
     print("Anisotropic pairs: ",anisotropic_pairs)
 
     enmap.write_map(savedir+"tilec_mask.fits",mask)
@@ -123,6 +120,20 @@ def build_and_save_cov(arrays,region,version,mask_version,
                             rfit_bin_width=None,
                             verbose=True,
                             debug_plots_loc=savedir)
+
+
+
+    ilc.build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
+                  do_radial_fit,save_fn,
+                  signal_bin_width=None,
+                  signal_interp_order=0,
+                  rfit_lmaxes=None,
+                  rfit_wnoise_width=250,
+                  rfit_lmin=300,
+                  rfit_bin_width=None,
+                  verbose=True,
+                  debug_plots_loc=None,separate_masks=False)
+
 
     np.savetxt(savedir + "maximum_value_of_covariances.txt",np.array([[maxval]]))
 

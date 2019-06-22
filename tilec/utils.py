@@ -7,28 +7,33 @@ from scipy import ndimage
 import os,sys
 import pandas
 
-"""
-saf = season_array_freq
-"""
+class ASpecs(object):
+    def __init__(self):
+        cfile = "input/array_specs.csv"
+        self.adf = pandas.read_csv(cfile)
+        self.aspecs = lambda qid,att : self.adf[self.adf['#qid']==qid][att].item()
+
+    def get_specs(self,aid):
+        aspecs = self.aspecs
+        lmin = int(aspecs(aid,'lmin'))
+        lmax = int(aspecs(aid,'lmax'))
+        assert 0 <= lmin < 50000
+        assert 0 <= lmax < 50000
+        hybrid = aspecs(aid,'hybrid')
+        assert type(hybrid)==bool
+        radial = aspecs(aid,'radial')
+        assert type(radial)==bool
+        friend = aspecs(aid,'friends')
+        try: friend = friend.split(',')
+        except: friend = None
+        cfreq = float(aspecs(aid,'cfreq'))
+        fgroup = int(aspecs(aid,'fgroup'))
+        return lmin,lmax,hybrid,radial,friend,cfreq,fgroup
+
 
 def get_specs(aid):
-    cfile = "input/array_specs.csv"
-    adf = pandas.read_csv(cfile)
-    aspecs = lambda qid,att : adf[adf['#qid']==qid][att].item()
-    lmin = int(aspecs(aid,'lmin'))
-    lmax = int(aspecs(aid,'lmax'))
-    assert 0 <= lmin < 50000
-    assert 0 <= lmax < 50000
-    hybrid = aspecs(aid,'hybrid')
-    assert type(hybrid)==bool
-    radial = aspecs(aid,'radial')
-    assert type(radial)==bool
-    friend = aspecs(aid,'friends')
-    try: friend = friend.split(',')
-    except: friend = None
-    cfreq = float(aspecs(aid,'cfreq'))
-    fgroup = int(aspecs(aid,'fgroup'))
-    return lmin,lmax,hybrid,radial,friend,cfreq,fgroup
+    aspecs = ASpecs()
+    return aspecs.get_specs(aid)
 
 def load_geometries(qids):
     geoms = {}

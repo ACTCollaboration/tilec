@@ -5,12 +5,8 @@
 
 example_array: # short name of array
   data_model: act_mr3
-  id: 'identifying_name'
   bandpass_approx_freq: 150. 
   bandpass_file: file.txt
-  hybrid_average: True # whether to treat the noise PS anisotropically
-  lmin: act_lmin
-  correlated: # List of arrays that this one has noise correlations with
 
 
 a0:

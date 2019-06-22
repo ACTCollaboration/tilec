@@ -5,6 +5,7 @@ import numpy as np
 import os,sys
 import warnings
 from enlib import bench
+from scipy.optimize import curve_fit
 
 # For debugging
 def pshow(cov,fname=None): io.hplot(np.log10(enmap.downgrade(enmap.enmap(np.fft.fftshift(cov),cov.wcs),2)),fname)
@@ -53,29 +54,30 @@ def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
     return (atm_factor+1.)*wnoise
 
 
-def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lknee_guess=3000,alpha_guess=-4):
+def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lknee_guess=3000,alpha_guess=-4,
+                 lknee_min=0,lknee_max=9000,alpha_min=-5,alpha_max=1):
     """Obtain a white noise + lknee + alpha fit to a 2D noise power spectrum
     The white noise part is inferred from the mean of lmax-wnoise_annulus < ells < lmax
     
     npower is 2d noise power
     """
-    from scipy.optimize import curve_fit
     fbin_edges = np.arange(lmin,lmax,bin_annulus)
     modlmap = npower.modlmap()
     fbinner = stats.bin2D(modlmap,fbin_edges)
     cents,dn1d = fbinner.bin(npower)
     wnoise = np.sqrt(dn1d[np.logical_and(cents>=(lmax-wnoise_annulus),cents<lmax)].mean())*180.*60./np.pi
-    #ntemplatefunc = lambda x,lknee,alpha: fbinner.bin(rednoise(modlmap,wnoise,lknee=lknee,alpha=alpha))[1]
-    ntemplatefunc = lambda x,lknee,alpha: rednoise(x,wnoise,lknee=lknee,alpha=alpha) # FIXME: This switch needs testing !!!!
-    res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess])
+    ntemplatefunc = lambda x,lknee,alpha: fbinner.bin(rednoise(modlmap,wnoise,lknee=lknee,alpha=alpha))[1]
+    #ntemplatefunc = lambda x,lknee,alpha: rednoise(x,wnoise,lknee=lknee,alpha=alpha) # FIXME: This switch needs testing !!!!
+    res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess],bounds=([lknee_min,alpha_min],[lknee_max,alpha_max]))
     lknee_fit,alpha_fit = res
 
     # from orphics import io
+    # print(lknee_fit,alpha_fit,wnoise)
     # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
     # pl.add(cents,dn1d)
     # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
     # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_guess,alpha=alpha_guess),ls="-.")
-    # pl.done("fitnoise.png")
+    # pl.done(os.environ['WORK']+"/fitnoise_pre.png")
     # sys.exit()
 
     return wnoise,lknee_fit,alpha_fit
@@ -124,6 +126,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     outcov = ndown*nfitted
     outcov[modlmap<minell] = 0 #np.inf
     if fill_lmax is not None: outcov[modlmap>fill_lmax] = 0
+    # res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess],bounds=([lknee_min,alpha_min],[lknee_max,alpha_max]))
 
 
 
@@ -184,7 +187,7 @@ def smooth_ps_grid(ps, res, alpha=4, log=False, ndof=2):
 
 def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
                         lknee_guess=3000,alpha_guess=-4,nparams=None,
-                        verbose=False,radial_fit=True,fill_lmax=None,fill_lmax_width=100,log=True):
+                        verbose=False,radial_fit=True,fill_lmax=None,fill_lmax_width=100,log=True,isotropic_low_ell=True):
     """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
     Most arguments are for the radial fitting part.
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
@@ -206,7 +209,7 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
         nfitted = rednoise(modlmap,wfit,lfit,afit)
     else:
         nparams = None
-        nfitted = 1.
+        nfitted = n2d*0 + 1
     nfitted = np.maximum(nfitted,np.max(n2d)*1e-14)
     nflat = enmap.enmap(n2d/nfitted,wcs) # flattened 2d noise power
     fval = nflat[np.logical_and(modlmap>2,modlmap<2*minell)].mean()
@@ -223,6 +226,50 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     outcov[modlmap<minell] = 0
     if fill_lmax is not None: outcov[modlmap>fill_lmax] = 0
     assert np.all(np.isfinite(outcov))
+
+    if isotropic_low_ell:
+        ifunc = lambda ells,ell0,A,shell: A*np.exp(-ell0/ells) + shell
+        sel = np.logical_and(modlmap<=lmin,modlmap>=2)
+        ys = nflat[sel]
+        xs = modlmap[sel]
+        res,_ = curve_fit(ifunc,xs,ys,p0=[20,1,0],bounds=([-np.inf,0.,-np.inf],[np.inf,np.inf,np.inf]))
+        outcov[sel] = ifunc(modlmap[sel],res[0],res[1],res[2])*nfitted[sel]
+        outcov[modlmap<2] = 0
+
+        # fbin_edges = np.arange(minell,lmax,bin_annulus)
+        # fbinner = stats.bin2D(modlmap,fbin_edges)
+        # cents, n1d = fbinner.bin(nflat)
+        # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
+        # ells = np.arange(2,lmin,1)
+        # pl.add(ells,ifunc(ells,res[0],res[1],res[2]))
+        # pl.add(cents,n1d)
+        # pl.vline(x=100)
+        # pl.vline(x=200)
+        # pl.vline(x=300)
+        # pl.vline(x=500)
+        # t = "000"
+        # pl.done(os.environ['WORK']+"/iso_fitnoise2_%s.png" % t)
+
+
+
+    # fbin_edges = np.arange(minell,lmax,bin_annulus)
+    # fbinner = stats.bin2D(modlmap,fbin_edges)
+    # cents, n1d = fbinner.bin(n2d)
+    # cents,dn1d = fbinner.bin(outcov)
+    # # cents,dn1d2 = fbinner.bin(nfitted)
+    # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
+    # pl.add(cents,n1d)
+    # pl.add(cents,dn1d,ls="--")
+    # pl.vline(x=100)
+    # pl.vline(x=200)
+    # pl.vline(x=300)
+    # pl.vline(x=500)
+    # # pl.add(cents,dn1d2,ls="-.")
+    # t = "000"
+    # pl.done(os.environ['WORK']+"/fitnoise2_%s.png" % t)
+    # sys.exit()
+
+
     return outcov,nfitted,nparams
 
 
