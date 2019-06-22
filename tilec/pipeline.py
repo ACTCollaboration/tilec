@@ -103,7 +103,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
             lmaxs.append(lmax)
 
     # Decide what pairs to do hybrid smoothing for
-    anisotropic_pairs = get_aniso_pairs(arrays,hybrids,friends)
+    anisotropic_pairs = get_aniso_pairs(arrays.split(','),hybrids,friends)
     print("Anisotropic pairs: ",anisotropic_pairs)
 
     enmap.write_map(savedir+"tilec_mask.fits",mask)
