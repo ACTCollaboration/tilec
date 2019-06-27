@@ -49,14 +49,15 @@ def load_geometries(qids):
         geoms[qid] = shape[-2:],wcs 
     return geoms
 
-def get_kbeam(qid,modlmap):
+def get_kbeam(qid,modlmap,**kwargs):
     dmodel = sints.arrays(qid,'data_model')
     season = sints.arrays(qid,'season')
     region = sints.arrays(qid,'region')
     array = sints.arrays(qid,'array')
     freq = sints.arrays(qid,'freq')
     dm = sints.models[dmodel]()
-    return dm.get_beam(modlmap, season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq, kind='normalized')
+    gfreq = array+"_"+freq if not(is_planck(qid)) else freq
+    return dm.get_beam(modlmap, season=season,patch=region,array=gfreq, kind='normalized',**kwargs)
 
 
 def filter_div(div):

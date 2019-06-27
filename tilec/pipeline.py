@@ -31,10 +31,10 @@ def get_aniso_pairs(aids,hybrids,friends):
     return anisotropic_pairs
 
 def build_and_save_cov(arrays,region,version,mask_version,
-                       signal_bin_width,signal_interp_order,dfact,
+                       signal_bin_width,signal_interp_order,delta_ell,
                        rfit_wnoise_width,rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
-                       sim_splits=None):
+                       sim_splits=None,skip_inpainting=False,theory_signal=False):
 
     save_scratch = not(memory_intensive)
     save_path = sints.dconfig['tilec']['save_path']
@@ -65,9 +65,11 @@ def build_and_save_cov(arrays,region,version,mask_version,
         lmaxs = []
         hybrids = []
         do_radial_fit = []
+        freqs = []
         save_names = [] # to make sure nothing is overwritten
         friends = {} # what arrays are each correlated with?
-        names = []
+        names = arrays.split(',')
+        print(arrays)
         for i,qid in enumerate(arrays.split(',')):
             dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
             lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
@@ -75,10 +77,12 @@ def build_and_save_cov(arrays,region,version,mask_version,
             do_radial_fit.append(radial)
             friends[qid] = friend
             hybrids.append(hybrid)
+            freqs.append(fgroup)
+            fbeam = lambda qname,x: tutils.get_kbeam(qname,x)
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
                                               splits=sim_splits[i] if sim_splits is not None else None,
-                                              inpaint=True,fn_beam = lambda x: tutils.get_kbeam(qid,x))
+                                              inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x))
             if save_scratch: 
                 kcoadd_name = savedir + "kcoadd_%s.hdf" % qid
                 kdiff_name = scratch + "kdiff_%s.hdf" % qid
@@ -109,33 +113,23 @@ def build_and_save_cov(arrays,region,version,mask_version,
     enmap.write_map(savedir+"tilec_mask.fits",mask)
     save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[a1],names[a2]),enmap.enmap(x,wcs))
 
-    maxval = ilc.build_empirical_cov(ksplits,kcoadds,wins,mask,lmins,lmaxs,
-                            anisotropic_pairs,do_radial_fit,save_fn,
-                            signal_bin_width=signal_bin_width,
-                            signal_interp_order=signal_interp_order,
-                            dfact=(dfact,dfact),
-                            rfit_lmaxes=None,
-                            rfit_wnoise_width=rfit_wnoise_width,
-                            rfit_lmin=rfit_lmin,
-                            rfit_bin_width=None,
-                            verbose=True,
-                            debug_plots_loc=savedir)
 
 
-
-    ilc.build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
+    ilc.build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,
+                  delta_ell,
                   do_radial_fit,save_fn,
-                  signal_bin_width=None,
-                  signal_interp_order=0,
-                  rfit_lmaxes=None,
-                  rfit_wnoise_width=250,
-                  rfit_lmin=300,
+                  signal_bin_width=signal_bin_width,
+                  signal_interp_order=signal_interp_order,
+                  rfit_lmaxes=lmaxs,
+                  rfit_wnoise_width=rfit_wnoise_width,
+                  rfit_lmin=rfit_lmin,
                   rfit_bin_width=None,
                   verbose=True,
-                  debug_plots_loc=None,separate_masks=False)
+                  debug_plots_loc=False,
+                  separate_masks=False,theory_signal=theory_signal)
 
 
-    np.savetxt(savedir + "maximum_value_of_covariances.txt",np.array([[maxval]]))
+
 
 
 
@@ -145,9 +139,8 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
-
+    aspecs = tutils.ASpecs().get_specs
     bandpasses = not(effective_freq)
-    gconfig = io.config_from_yaml("input/data.yml")
     save_path = sints.dconfig['tilec']['save_path']
     savedir = save_path + version + "/" + region +"/"
     covdir = save_path + cov_version + "/" + region +"/"
@@ -172,49 +165,53 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     kbeams = []
     bps = []
     names = []
-    for i,array in enumerate(arrays):
-        ainfo = gconfig[array]
-        dm = sints.models[ainfo['data_model']](region=mask)
-        array_id = ainfo['id']
-        names.append(array_id)
+    for i,qid in enumerate(arrays):
+        dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
+        lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+        names.append(qid)
         if dm.name=='act_mr3':
-            season,array1,array2 = array_id.split('_')
-            narray = array1 + "_" + array2
-            patch = region
+            season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
+            array = '_'.join([array1,array2])
         elif dm.name=='planck_hybrid':
-            season,patch,narray = None,None,array_id
-        kcoadd_name = covdir + "kcoadd_%s.hdf" % array
-        ainfo = gconfig[array]
-        lmax = ainfo['lmax']
-        lmin = ainfo['lmin']
+            season,patch,array = None,None,sints.arrays(qid,'freq')
+        kcoadd_name = covdir + "kcoadd_%s.hdf" % qid
         kmask = maps.mask_kspace(shape,wcs,lmin=lmin,lmax=lmax)
         kcoadd = enmap.read_map(kcoadd_name)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy()*kmask)
-        kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=patch,array=narray,version=beam_version))
+        kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=region,array=array,version=beam_version))
         if bandpasses:
-            try: bps.append("data/"+ainfo['bandpass_file'] )
+            try: bps.append("data/"+dm.get_bandpass_file_name(array) )
             except:
                 warn()
                 bps.append(None)
         else:
-            try: bps.append(ainfo['bandpass_approx_freq'])
+            try: bps.append(cfreq)
             except:
                 warn()
                 bps.append(None)
 
     kcoadds = enmap.enmap(np.stack(kcoadds),wcs)
 
+
+
     # Read Covmat
-    maxval = np.loadtxt(covdir + "maximum_value_of_covariances.txt")
-    assert maxval.size==1
-    maxval = maxval.reshape(-1)[0]
     cov = maps.SymMat(narrays,shape[-2:])
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
             icov = enmap.read_map(covdir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[aindex1],names[aindex2]))
+            # if aindex1!=aindex2:
+            #     theory = cosmology.default_theory()
+            #     icov = theory.lCl('TT',modlmap)
+            # if aindex1==aindex2: 
+            #     icov[icov>1e89] = np.inf # !!!!
+                # print(icov[modlmap<80].reshape(-1).tolist())
+                # icov[modlmap<501] = np.inf # !!!!
+                # icov[modlmap>3000] = np.inf # !!!!
+            # io.plot_img(np.log10(np.fft.fftshift(icov)),
+            #             "/scratch/r/rbond/msyriac/data/depot/tilec/plots/fcov_%s_%s.png" % (arrays[aindex1],arrays[aindex2]),
+            #             aspect='auto',lim=[-5,1])
             cov[aindex1,aindex2] = icov
-
     cov.data = enmap.enmap(cov.data,wcs,copy=False)
     covfunc = lambda sel: cov.to_array(sel,flatten=True)
 
@@ -265,7 +262,6 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     name_map = {'CMB':'cmb','tSZ':'comptony','CIB':'cib'}
     beams = beams.split(',')
     for solution,beam in zip(solutions,beams):
-        #comps = '_'.join(data[solution]['comps'])
         comps = "tilec_single_tile_"+region+"_"
         comps = comps + name_map[data[solution]['comps'][0]]+"_"
         if len(data[solution]['comps'])>1: comps = comps + "deprojects_"+ '_'.join([name_map[x] for x in data[solution]['comps'][1:]]) + "_"
@@ -285,21 +281,13 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             kbeam = maps.gauss_beam(modlmap,fbeam)
             lbeam = maps.gauss_beam(ells,fbeam)
         except:
-            array = beam
-            ainfo = gconfig[array]
-            array_id = ainfo['id']
-            dm = sints.models[ainfo['data_model']](region=mask)
-            if dm.name=='act_mr3':
-                season,array1,array2 = array_id.split('_')
-                narray = array1 + "_" + array2
-                patch = region
-            elif dm.name=='planck_hybrid':
-                season,patch,narray = None,None,array_id
-            bfunc = lambda x: dm.get_beam(x,season=season,patch=patch,array=narray,version=beam_version)
+            qid = beam
+            bfunc = lambda x: tutils.get_kbeam(qid,x,version=beam_version)
             kbeam = bfunc(modlmap)
             lbeam = bfunc(ells)
 
-        smap = enmap.ifft(kbeam*enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs),normalize='phys').real
+        kmap = enmap.enmap(data[solution]['kmap'].reshape((Ny,Nx)),wcs)
+        smap = enmap.ifft(kbeam*kmap,normalize='phys').real
         enmap.write_map("%s/%s.fits" % (savedir,comps),smap)
         io.save_cols("%s/%s_beam.txt" % (savedir,comps),(ells,lbeam),header="ell beam")
 

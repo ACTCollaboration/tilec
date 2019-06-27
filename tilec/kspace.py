@@ -10,7 +10,7 @@ def get_pixwin(shape):
     wind   = wy[:,None] * wx[None,:]
     return wind
 
-def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn_beam=None):
+def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn_beam=None,cache_inpainted=False):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
@@ -26,19 +26,25 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn
         season,patch,array = None,None,sints.arrays(qid,'freq')
         pixwin = False
     wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None)[0,:,0,:,:]
-    if splits is None: splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
+
+
+
+    if splits is None: 
+        splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
+
+
+
     nsplits = splits.shape[0]
     assert nsplits==2 or nsplits==4
     # Inpaint
-    if inpaint:
-        if dm.name=='act_mr3':
-            rsplits = []
-            for i in range(nsplits): 
-                result = inpainting.inpaint_map_white(splits[i],wins[i],fn_beam,union_sources_version=None,noise_pix = 20,hole_radius = 3.,plots=False)
-                rsplits.append(result[0,:,:].copy())
-            rsplits = enmap.enmap(np.stack(rsplits),splits.wcs)
-        else:
-            rsplits = splits[:,0,:,:]
+    if inpaint and dm.name=='act_mr3':
+        rsplits = []
+        for i in range(nsplits): 
+            result = inpainting.inpaint_map_white(splits[i],wins[i],fn_beam,union_sources_version=None,noise_pix = 20,hole_radius = 3.,plots=False)
+            rsplits.append(result[0,:,:].copy())
+        rsplits = enmap.enmap(np.stack(rsplits),splits.wcs)
+    else:
+        rsplits = splits[:,0,:,:]
     kdiffs,kcoadd = process_splits(rsplits,wins,mask,skip_splits=skip_splits,do_fft_splits=False,pixwin=pixwin)
     return kdiffs,kcoadd,wins
 

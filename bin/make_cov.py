@@ -28,10 +28,12 @@ parser.add_argument("arrays", type=str,help='Comma separated list of array names
 parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
 parser.add_argument("-m", "--memory-intensive", action='store_true',help='Do not save FFTs to scratch disk. Can be faster, but very memory intensive.')
+parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
 parser.add_argument("--uncalibrated", action='store_true',help='Do not use calibration factors.')
+parser.add_argument("--theory-signal", action='store_true',help='Use CMB+fg theory for signal.')
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
-parser.add_argument("--dfact",     type=int,  default=pdefaults['dfact'],help="A description.")
+parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
 parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfit_wnoise_width'],help="A description.")
 parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin'],help="A description.")
@@ -39,7 +41,7 @@ parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin']
 args = parser.parse_args()
 
 pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_version,
-                       args.signal_bin_width,args.signal_interp_order,args.dfact,
+                       args.signal_bin_width,args.signal_interp_order,args.delta_ell,
                        args.rfit_wnoise_width,args.rfit_lmin,
                        args.overwrite,args.memory_intensive,args.uncalibrated,
-                       sim_splits=None)
+                            sim_splits=None,skip_inpainting=args.skip_inpainting,theory_signal=args.theory_signal)

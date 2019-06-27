@@ -548,7 +548,7 @@ class CTheory(object):
     
     
 
-def build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
+def build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
               do_radial_fit,save_fn,
               signal_bin_width=None,
               signal_interp_order=0,
@@ -557,7 +557,7 @@ def build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,del
               rfit_lmin=300,
               rfit_bin_width=None,
               verbose=True,
-              debug_plots_loc=None,separate_masks=False):
+              debug_plots_loc=None,separate_masks=False,theory_signal=False):
 
     """
     We construct an (narray,narray,Ny,Nx) covariance matrix.
@@ -617,7 +617,7 @@ def build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,del
             scovs[(f1,f2)] = 0
             weights_tot[(f1,f2)] = 0
             # Skip off-diagonals that are not correlated
-            if a1 != a2 and not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs): 
+            if (a1 != a2) and (not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs)): 
                 fcovs[(a1,a2)] = 0
                 continue
             kd1 = _load_map(kdiffs[a1])
@@ -678,48 +678,51 @@ def build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,del
             kc1 = _load_map(kcoadds[a1])
             kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
             ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
-            if a1 != a2 and not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs): 
+            if (a1 != a2) and (not (((a1,a2) in anisotropic_pairs) or ((a2,a1) in anisotropic_pairs))): 
                 assert (a1,a2) not in ncovs.keys() and (a2,a1) not in ncovs.keys()
                 scov = ccov
             else:
                 scov = ccov - ncovs[(a1,a2)]
-            c11 = ctheory.get_theory_cls(f1,f1)*fbeams[a1](ells)**2.
-            c22 = ctheory.get_theory_cls(f2,f2)*fbeams[a2](ells)**2.
-            c12 = ctheory.get_theory_cls(f1,f2)*fbeams[a1](ells)*fbeams[a2](ells)
+            c11 = ctheory.get_theory_cls(f1,f1)
+            c22 = ctheory.get_theory_cls(f2,f2)
+            c12 = ctheory.get_theory_cls(f1,f2)
+            cl_11 = c11 + n1ds[(a1,a1)]/fbeam(names[a1],ells)**2.
+            cl_22 = c22 + n1ds[(a2,a2)]/fbeam(names[a2],ells)**2.
+            cl_12 = c12
             c11[~np.isfinite(c11)] = 0
             c22[~np.isfinite(c22)] = 0
             c12[~np.isfinite(c12)] = 0
-            cl_11 = c11 + n1ds[(a1,a1)]
-            cl_22 = c22 + n1ds[(a2,a2)]
-            cl_12 = c12
-            assert np.all(np.isfinite(cl_11))
-            assert np.all(np.isfinite(cl_22))
-            assert np.all(np.isfinite(cl_12))
             w = 1./((cl_11 * cl_22)+cl_12**2)
             weight = maps.interp(ells,w)(modlmap)
             weight[modlmap<max(lmins[a1],lmins[a2])] = 0
             weight[modlmap>min(lmaxs[a1],lmaxs[a2])] = 0
+            scov = scov / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
+            scov[~np.isfinite(scov)] = 0
             scovs[(f1,f2)] = scovs[(f1,f2)] + scov*weight
             weights_tot[(f1,f2)] = weights_tot[(f1,f2)] + weight
 
-            oscovs[(f1,f2)].append(binner.bin(scov)[1])
+            oscovs[(f1,f2)].append(  (a1,a2,binner.bin(scov)[1])  )
 
 
     
-    for key in oscovs.keys():
-        f1,f2 = key
-        pl = io.Plotter(xyscale='linlin',scalefn = lambda x: x**2.,xlabel='l',ylabel='D')
-        for ocov in oscovs[key]:
-            pl.add(binner.centers,ocov,alpha=0.2,ls='--',color='k')
-        pl.add(binner.centers,np.mean(oscovs[key],axis=0),alpha=0.8,ls='-',color='red')
-        cth = ctheory.get_theory_cls(f1,f2)*fbeams[a1](ells)*fbeams[a2](ells)
-        pl.add(binner.centers,binner.bin(maps.interp(ells,cth)(modlmap))[1],alpha=1.0,color='green')
-        norm = (1/ weights_tot[(f1,f2)])
-        norm[~np.isfinite(norm)] = 0
-        smsig = scovs[(f1,f2)] * norm
-        pl.add(binner.centers,binner.bin(smsig)[1],alpha=0.8,ls='-',color='blue')
-        import os
-        pl.done(os.environ['WORK']+"/tiling/oscovs_%d_%d.png" % (f1,f2))
+    # for key in oscovs.keys():
+    #     f1,f2 = key
+    #     pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='C')
+    #     for (a1,a2,ocov) in oscovs[key]:
+    #         pl.add(binner.centers,ocov,alpha=0.2,ls='--',label='_'.join([names[a1],names[a2]]))
+    #     pl.add(binner.centers,np.mean([x[2] for x in oscovs[key]],axis=0),alpha=0.8,ls='-',color='red')
+    #     cth = ctheory.get_theory_cls(f1,f2)
+    #     pl.add(binner.centers,binner.bin(maps.interp(ells,cth)(modlmap))[1],alpha=1.0,color='green')
+    #     # if f1==150 and f2==150:
+    #     #     io.save_cols("theory_150.txt", (binner.centers,binner.bin(maps.interp(ells,cth)(modlmap))[1]))
+    #     #     sys.exit()
+    #     norm = (1/ weights_tot[(f1,f2)])
+    #     norm[~np.isfinite(norm)] = 0
+    #     smsig = scovs[(f1,f2)] * norm
+    #     pl.add(binner.centers,binner.bin(smsig)[1],alpha=0.8,ls='-',color='blue')
+    #     import os
+    #     pl._ax.set_ylim(1e-7,1e1)
+    #     pl.done(os.environ['WORK']+"/tiling/oscovs_%d_%d.png" % (f1,f2))
 
         
 
@@ -740,23 +743,24 @@ def build_cov(kdiffs,kcoadds,fbeams,mask,lmins,lmaxs,freqs,anisotropic_pairs,del
 
             norm = (1/ weights_tot[(f1,f2)])
             norm[~np.isfinite(norm)] = 0
-            smsig = savg(scovs[(f1,f2)] * norm)
+            smsig = savg(scovs[(f1,f2)] * norm * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap))
             smsig[modlmap<2] = 0
-            try:
-                io.plot_img(maps.ftrans(fcovs[(a1,a2)]),os.environ['WORK']+"/tiling/dncov_%d_%d.png" % (a1,a2))
-            except:
-                pass
-            io.plot_img(maps.ftrans(smsig),os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2))
+            # try:
+            #     io.plot_img(maps.ftrans(fcovs[(a1,a2)]),os.environ['WORK']+"/tiling/dncov_%d_%d.png" % (a1,a2))
+            # except:
+            #     pass
+            # io.plot_img(maps.ftrans(smsig),os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2))
 
-            smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeams[a1](ells)*fbeams[a2](ells))(modlmap) # !!!
-            smsig[~np.isfinite(smsig)] = 0 # !!!!
+            if theory_signal:
+                smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
+                smsig[~np.isfinite(smsig)] = 0 # !!!!
 
             fcovs[(a1,a2)] = fcovs[(a1,a2)] + smsig
             if a1==a2:
-                fcovs[(a1,a2)][modlmap<lmins[a1]] = 1e90
-                fcovs[(a1,a2)][modlmap>lmaxs[a1]] = 1e90
-                pcov = fcovs[(a1,a2)].copy()
-                pcov[pcov>1e89] = np.nan
-                io.plot_img(maps.ftrans(pcov),os.environ['WORK']+"/tiling/dfcov_%d_%d.png" % (a1,a2))
+                fcovs[(a1,a2)][modlmap<=lmins[a1]] = 1e90
+                fcovs[(a1,a2)][modlmap>=lmaxs[a1]] = 1e90
+                # pcov = fcovs[(a1,a2)].copy()
+                # pcov[pcov>1e89] = np.nan
+                # io.plot_img(maps.ftrans(pcov),os.environ['WORK']+"/tiling/dfcov_%d_%d.png" % (a1,a2))
 
             save_fn(fcovs[(a1,a2)],a1,a2)

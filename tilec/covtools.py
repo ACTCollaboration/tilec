@@ -292,7 +292,7 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
 
     dcov = cov*modlmap**2. if dlspace else cov.copy()
     minell = maps.minimum_ell(dcov.shape,dcov.wcs) if lmin is None else lmin
-    if bin_edges is None: bin_edges = np.arange(0,modlmap.max(),bin_width)
+    if bin_edges is None: bin_edges = np.arange(minell,modlmap.max(),bin_width)
     binner = stats.bin2D(modlmap,bin_edges)
     cents,c1d,count = binner.bin(dcov,get_count=True)
     outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),dcov.wcs)

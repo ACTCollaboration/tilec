@@ -125,14 +125,14 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
     # What is the shape and wcs of the tile? is this needed?
     aids = [] ; kdiffs = [] ; ksplits = [] ; kcoadds = [] ; masks = []
     lmins = [] ; lmaxs = [] ; do_radial_fit = [] ; hybrids = [] ; friends = {}
-    bps = [] ; kbeams = [] ; freqs = [] ; fbeams = []
+    bps = [] ; kbeams = [] ; freqs = [] 
     modlmap = enmap.modlmap(eshape,ewcs)
 
     
     if args.onlyd:
         if i not in dtiles: continue
 
-
+        
     for qid in qids:
         # Check if this array is useful
         ashape,awcs = geoms[qid]
@@ -176,7 +176,7 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         friends[qid] = friend
         bps.append(cfreq) # change to bandpass file
         kbeams.append(get_kbeam(qid,modlmap))
-        fbeams.append(lambda x: get_kbeam(qid,x))
+    fbeam = lambda qname,x: get_kbeam(qname,x)
         
     if len(aids)==0: continue # this tile is empty
     # Then build the covmat placeholder
@@ -192,7 +192,7 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
     masks = stack(masks)
 
     with bench.show("cov"):
-        ilc.build_cov(kdiffs,kcoadds,fbeams,masks,lmins,lmaxs,freqs,anisotropic_pairs,
+        ilc.build_cov(qids,kdiffs,kcoadds,fbeam,masks,lmins,lmaxs,freqs,anisotropic_pairs,
                       args.delta_ell,
                       do_radial_fit,save_fn,
                       signal_bin_width=args.signal_bin_width,

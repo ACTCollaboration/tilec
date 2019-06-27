@@ -7,7 +7,7 @@ from pixell import enmap
 Planck Hybrid spec
 
 f1: Temperature/LFI : 2015, ringhalf, 1024
-f2: Temperature/HFI : 2015, ringhalf, 2048
+f2: Temperature/HFI : 2015, halfmission, 2048
 f3: Polarization/LFI : 2018, ringhalf, 1024, BPass
 f4: Polarization/HFI : 2018, odd/even, 2048
 
@@ -31,7 +31,7 @@ hfis = ['100','143','217','353','545','857']
 
 # Input file name convention
 f1 = lambda array,splitnum,mtype: "%s/LFI_SkyMap_%s_1024_R2.01_full-ringhalf-%d_%s.fits" % (pr2_loc,array,splitnum+1,mtype)
-f2 = lambda array,splitnum,mtype: "%s/HFI_SkyMap_%s_2048_R2.02_full-ringhalf-%d_%s.fits" % (pr2_loc,array,splitnum+1,mtype)
+f2 = lambda array,splitnum,mtype: "%s/HFI_SkyMap_%s_2048_R2.02_halfmission-%d_%s.fits" % (pr2_loc,array,splitnum+1,mtype)
 f3 = lambda array,splitnum,mtype: "%s/LFI_SkyMap_%s-BPassCorrected_1024_R3.00_full-ringhalf-%d_%s.fits" % (pr3_loc,array,splitnum+1,mtype)
 def f4(array,splitnum,mtype): 
     farray = array if array!='353' else '353-psb'
