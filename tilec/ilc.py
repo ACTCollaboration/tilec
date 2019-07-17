@@ -665,6 +665,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
 
                 # signal power from coadd and unsmoothed noise power
                 scov = ccov - ncov
+
+            # !!!!!!
+            # scov =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
             scovs[(a1,a2)] = scov.copy()
 
                 
@@ -674,6 +677,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
 
+            if verbose: print("Calculating weights for %d,%d" % (a1,a2))
             # Initialize signal cov and weights if needed
             f1 = freqs[a1]
             f2 = freqs[a2]
@@ -695,7 +699,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
             c11[~np.isfinite(c11)] = 0
             c22[~np.isfinite(c22)] = 0
             c12[~np.isfinite(c12)] = 0
-            w = 1./((cl_11 * cl_22)+cl_12**2)
+            w = 1./((cl_11 * cl_22)+cl_12**2) 
             weight = maps.interp(ells,w)(modlmap)
             weight[modlmap<max(lmins[a1],lmins[a2])] = 0
             weight[modlmap>min(lmaxs[a1],lmaxs[a2])] = 0
@@ -703,38 +707,55 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
             scov = scovs[(a1,a2)] * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
             scov[~np.isfinite(scov)] = 0
             fscovs[(f1,f2)] = fscovs[(f1,f2)] + scov
+
+    # print(fscovs.keys())
+    # for key in fscovs:
+    #     f1,f2 = key
+    #     assert (f2,f1) not in fscovs.keys()
             
     slmin = min(lmins)
-    for key in fscovs.keys():
-        nscov = fscovs[key]/fws[key]
-        nscov[~np.isfinite(nscov)] = 0
-        savg = covtools.signal_average(nscov,bin_width=signal_bin_width,
-                                       kind=signal_interp_order,
-                                       lmin=slmin,
-                                       dlspace=True)
-        fscovs[key] = savg.copy()
-        
 
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
             if verbose: print("Populating final smoothed powers for %d,%d" % (a1,a2))
-            smsig = fscovs[(f1,f2)] * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap)
+            f1 = freqs[a1]
+            f2 = freqs[a2]
+
+            key1 = (f1,f2)
+            numer = fscovs[key1]
+            denom = fws[key1]
+            if f1!=f2:
+                key2 = (f2,f1)
+                try:
+                    numer = numer + fscovs[key2]
+                    denom = denom + fws[key2]
+                except:
+                    continue
+            nscov = numer/denom
+            nscov[~np.isfinite(nscov)] = 0
+            smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
+                                            kind=signal_interp_order,
+                                            lmin=slmin,
+                                            dlspace=True)
+
             smsig[modlmap<2] = 0
 
             # Diagnostic plot
-            pmap = maps.ftrans(smsig)
-            N = 200
-            Ny,Nx = modlmap.shape
-            pimg = maps.crop_center(pmap,N,int(N*Nx/Ny))
-            io.plot_img(pimg,os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2),aspect='auto')
+            power_crop(smsig,200,os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2))
 
-            if theory_signal:
-                smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
-                smsig[~np.isfinite(smsig)] = 0
+            # if a1!=a2: # !!!!
+            #     smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
+            #     smsig[~np.isfinite(smsig)] = 0
 
             # Save S + N
             save_fn(dncovs[(a1,a2)] + smsig,a1,a2)
 
+
+def power_crop(p2d,N,fname):
+    pmap = maps.ftrans(p2d)
+    Ny,Nx = p2d.shape
+    pimg = maps.crop_center(pmap,N,int(N*Nx/Ny))
+    io.plot_img(pimg,fname,aspect='auto')
 
 def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
               do_radial_fit,save_fn,
