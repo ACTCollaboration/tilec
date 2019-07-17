@@ -115,7 +115,8 @@ def build_and_save_cov(arrays,region,version,mask_version,
 
 
 
-    ilc.build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,
+    with bench.show("build cov"):
+        ilc.build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,
                   delta_ell,
                   do_radial_fit,save_fn,
                   signal_bin_width=signal_bin_width,
@@ -135,7 +136,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
 
 def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                        solutions,beams,chunk_size,
-                       effective_freq,overwrite):
+                       effective_freq,overwrite,maxval):
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
@@ -165,9 +166,13 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     kbeams = []
     bps = []
     names = []
+    lmins = []
+    lmaxs = []
     for i,qid in enumerate(arrays):
         dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
         lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+        lmins.append(lmin)
+        lmaxs.append(lmax)
         names.append(qid)
         if dm.name=='act_mr3':
             season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
@@ -200,23 +205,15 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
             icov = enmap.read_map(covdir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[aindex1],names[aindex2]))
-            # if aindex1!=aindex2:
-            #     theory = cosmology.default_theory()
-            #     icov = theory.lCl('TT',modlmap)
-            # if aindex1==aindex2: 
-            #     icov[icov>1e89] = np.inf # !!!!
-                # print(icov[modlmap<80].reshape(-1).tolist())
-                # icov[modlmap<501] = np.inf # !!!!
-                # icov[modlmap>3000] = np.inf # !!!!
-            # io.plot_img(np.log10(np.fft.fftshift(icov)),
-            #             "/scratch/r/rbond/msyriac/data/depot/tilec/plots/fcov_%s_%s.png" % (arrays[aindex1],arrays[aindex2]),
-            #             aspect='auto',lim=[-5,1])
+            if aindex1==aindex2: 
+                icov[modlmap<lmins[aindex1]] = maxval
+                icov[modlmap>lmaxs[aindex1]] = maxval
             cov[aindex1,aindex2] = icov
     cov.data = enmap.enmap(cov.data,wcs,copy=False)
     covfunc = lambda sel: cov.to_array(sel,flatten=True)
 
     assert cov.data.shape[0]==((narrays*(narrays+1))/2) # FIXME: generalize
-    if np.any(np.isnan(cov.data)): raise ValueError 
+    assert np.all(np.isfinite(cov.data))
 
     # Make responses
     responses = {}

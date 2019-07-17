@@ -261,7 +261,9 @@ def standard_noise(response,cov=None,cinv=None):
     Auto-noise <standard standard>
     """
     mcomb = map_comb(response,response,cov,cinv)
-    return (1./mcomb)
+    ret = 1./mcomb
+    ret[~np.isfinite(ret)] = 0
+    return ret
 
 def constrained_noise(response_a,response_b,cov=None,cinv=None,return_cross=True):
     """ Derived from Eq 18 of arXiv:1006.5599
@@ -545,10 +547,9 @@ class CTheory(object):
         return self.cltt + clfg
 
         
-    
-    
 
-def build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
+
+def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
               do_radial_fit,save_fn,
               signal_bin_width=None,
               signal_interp_order=0,
@@ -560,6 +561,11 @@ def build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pair
               debug_plots_loc=None,separate_masks=False,theory_signal=False):
 
     """
+
+    A more sophisticated covariance model. In comparison to build_cov_hybrid, it doesn't simply
+    use a different S+N model for each array, but rather coadds the signal S part across arrays
+    that have similar frequencies and reuses the result for those arrays.
+
     We construct an (narray,narray,Ny,Nx) covariance matrix.
     We group each array by their rough frequency into nfreq groups.
 
@@ -602,11 +608,183 @@ def build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pair
 
 
     # Let's build the instrument noise model
+    dncovs = {}
     scovs = {}
-    weights_tot = {} # sum of weights in 2D
-    ncovs = {}
-    fcovs = {}
     n1ds = {}
+    gellmax = max(lmaxs)
+    ells = np.arange(0,gellmax,1)
+    ctheory = CTheory(ells)
+    for a1 in range(narrays):
+        for a2 in range(a1,narrays):
+
+            # Load coadds and calculate power
+            m1 = get_mask(a1)
+            m2 = get_mask(a2)
+            kc1 = _load_map(kcoadds[a1])
+            kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
+            ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
+
+
+            # If off-diagonals that are not correlated, only calculate coadd cross for signal
+            if (a1 != a2) and (not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs)): 
+                scov = ccov
+                dncovs[(a1,a2)] = 0.
+            else:
+                # Calculate noise power
+                kd1 = _load_map(kdiffs[a1])
+                kd2 = _load_map(kdiffs[a2])
+                nsplits = kd1.shape[0]
+                nsplits2 = kd2.shape[0]
+                assert nsplits==nsplits2
+                assert nsplits in [2,4], "Only two or four splits supported."
+                ncov = simnoise.noise_power(kd1,m1,
+                                            kmaps2=kd2,weights2=m2,
+                                            coadd_estimator=True)
+
+                # Smoothed noise power
+                dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
+                                                                        radial_fit=do_radial_fit[a1],lmax=min(rfit_lmaxes[a1],rfit_lmaxes[a2]),
+                                                                        wnoise_annulus=rfit_wnoise_width,
+                                                                        lmin = rfit_lmin,
+                                                                        bin_annulus=rfit_bin_width,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
+                                                                        log=(a1==a2))
+                dncovs[(a1,a2)] = dncov.copy()
+                if a1==a2:
+                    # 1d approx of noise power for weights
+                    if nparams is not None:
+                        wfit,lfit,afit = nparams
+                    else:
+                        lmax = min(rfit_lmaxes[a1],rfit_lmaxes[a2])
+                        wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
+                        lfit = 0
+                        afit = 1
+                    n1d = covtools.rednoise(ells,wfit,lfit,afit)
+                    n1d[ells<2] = 0
+                    n1ds[a1] = n1d.copy()
+                    if verbose: print("Populating noise for %d,%d  (wnoise estimate of %.2f)" % (a1,a2,wfit))
+
+                # signal power from coadd and unsmoothed noise power
+                scov = ccov - ncov
+            scovs[(a1,a2)] = scov.copy()
+
+                
+
+    fscovs = {}
+    fws = {} # sum of weights in 2D
+    for a1 in range(narrays):
+        for a2 in range(a1,narrays):
+
+            # Initialize signal cov and weights if needed
+            f1 = freqs[a1]
+            f2 = freqs[a2]
+            try:
+                fscovs[(f1,f2)]
+            except:
+                fscovs[(f1,f2)] = 0.
+            try:
+                fws[(f1,f2)]
+            except:
+                fws[(f1,f2)] = 0.
+
+            c11 = ctheory.get_theory_cls(f1,f1)
+            c22 = ctheory.get_theory_cls(f2,f2)
+            c12 = ctheory.get_theory_cls(f1,f2)
+            cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
+            cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
+            cl_12 = c12
+            c11[~np.isfinite(c11)] = 0
+            c22[~np.isfinite(c22)] = 0
+            c12[~np.isfinite(c12)] = 0
+            w = 1./((cl_11 * cl_22)+cl_12**2)
+            weight = maps.interp(ells,w)(modlmap)
+            weight[modlmap<max(lmins[a1],lmins[a2])] = 0
+            weight[modlmap>min(lmaxs[a1],lmaxs[a2])] = 0
+            fws[(f1,f2)] = fws[(f1,f2)] + weight
+            scov = scovs[(a1,a2)] * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
+            scov[~np.isfinite(scov)] = 0
+            fscovs[(f1,f2)] = fscovs[(f1,f2)] + scov
+            
+    slmin = min(lmins)
+    for key in fscovs.keys():
+        nscov = fscovs[key]/fws[key]
+        nscov[~np.isfinite(nscov)] = 0
+        savg = covtools.signal_average(nscov,bin_width=signal_bin_width,
+                                       kind=signal_interp_order,
+                                       lmin=slmin,
+                                       dlspace=True)
+        fscovs[key] = savg.copy()
+        
+
+    for a1 in range(narrays):
+        for a2 in range(a1,narrays):
+            if verbose: print("Populating final smoothed powers for %d,%d" % (a1,a2))
+            smsig = fscovs[(f1,f2)] * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap)
+            smsig[modlmap<2] = 0
+
+            # Diagnostic plot
+            pmap = maps.ftrans(smsig)
+            N = 200
+            Ny,Nx = modlmap.shape
+            pimg = maps.crop_center(pmap,N,int(N*Nx/Ny))
+            io.plot_img(pimg,os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2),aspect='auto')
+
+            if theory_signal:
+                smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
+                smsig[~np.isfinite(smsig)] = 0
+
+            # Save S + N
+            save_fn(dncovs[(a1,a2)] + smsig,a1,a2)
+
+
+def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
+              do_radial_fit,save_fn,
+              signal_bin_width=None,
+              signal_interp_order=0,
+              rfit_lmaxes=None,
+              rfit_wnoise_width=250,
+              rfit_lmin=300,
+              rfit_bin_width=None,
+              verbose=True,
+              debug_plots_loc=None,separate_masks=False,theory_signal=False):
+
+    """
+
+    A hybrid covariance model: it calculate noise spectra from difference maps and signal spectra
+    from the coadd power minus noise estimate. It then smooths the noise spectra with block averaging
+    and the signal spectra with annular binning.
+
+    """
+
+    narrays = len(kdiffs)
+    assert len(kcoadds)==len(lmins)==len(lmaxs)==len(freqs)
+
+    on_disk = False
+    try:
+        shape,wcs = kdiffs[0].shape[-2:],kdiffs[0].wcs
+    except:
+        assert isinstance(kdiffs[0],basestring), "List contents are neither enmaps nor filenames."
+        shape,wcs = enmap.read_map_geometry(kdiffs[0])
+        shape = shape[-2:]
+        on_disk = True
+    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
+    minell = maps.minimum_ell(shape,wcs)
+    modlmap = enmap.modlmap(shape,wcs)
+    def get_mask(aind):
+        if separate_masks: 
+            return _load_map(mask[aind])
+        else: 
+            assert mask.ndim==2
+            return mask
+
+    # Defaults
+    if rfit_lmaxes is None:
+        px_arcmin = np.rad2deg(maps.resolution(shape,wcs))*60.
+        rfit_lmaxes = [8000*0.5/px_arcmin]*narrays
+    if rfit_bin_width is None: rfit_bin_width = minell*4.
+    if signal_bin_width is None: signal_bin_width = minell*8.
+
+
+    # Let's build the instrument noise model
     gellmax = max(lmaxs)
     ells = np.arange(0,gellmax,1)
     ctheory = CTheory(ells)
@@ -614,11 +792,8 @@ def build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pair
         for a2 in range(a1,narrays):
             f1 = freqs[a1]
             f2 = freqs[a2]
-            scovs[(f1,f2)] = 0
-            weights_tot[(f1,f2)] = 0
             # Skip off-diagonals that are not correlated
             if (a1 != a2) and (not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs)): 
-                fcovs[(a1,a2)] = 0
                 continue
             kd1 = _load_map(kdiffs[a1])
             kd2 = _load_map(kdiffs[a2])
@@ -628,139 +803,110 @@ def build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pair
             assert nsplits in [2,4], "Only two or four splits supported."
             m1 = get_mask(a1)
             m2 = get_mask(a2)
-            ncovs[(a1,a2)] = simnoise.noise_power(kd1,m1,
+            ncov = simnoise.noise_power(kd1,m1,
                                         kmaps2=kd2,weights2=m2,
                                         coadd_estimator=True)
 
-            fcovs[(a1,a2)],_,nparams = covtools.noise_block_average(ncovs[(a1,a2)],nsplits=nsplits,delta_ell=delta_ell,
+            dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
                                                                     radial_fit=do_radial_fit[a1],lmax=min(rfit_lmaxes[a1],rfit_lmaxes[a2]),
                                                                     wnoise_annulus=rfit_wnoise_width,
                                                                     lmin = rfit_lmin,
                                                                     bin_annulus=rfit_bin_width,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
                                                                     log=(a1==a2))
-            if nparams is not None:
-                wfit,lfit,afit = nparams
-            else:
-                lmax = min(rfit_lmaxes[a1],rfit_lmaxes[a2])
-                print(lmax,rfit_wnoise_width)
-                wfit = np.sqrt(fcovs[(a1,a2)][np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
-                lfit = 0
-                afit = 1
-            n1ds[(a1,a2)] = covtools.rednoise(ells,wfit,lfit,afit)
-            n1ds[(a1,a2)][ells<2] = 0
-            if verbose: print("Populating noise for %d,%d belonging to freqs %d,%d (wnoise estimate of %.2f)" % (a1,a2,f1,f2,wfit))
-                
-
-    # if debug: _plot_n1ds(aids,n1ds)
 
 
-    # We next build 1d weights for coadding each signal combination
-    # For a m90 x m150 spectrum for example, the weights should be
-    # ((C_90_90 + N_90)(C_150_150 + N_150))^-1
-
-    bin_edges = np.arange(100,8000,160)
-    binner = stats.bin2D(modlmap,bin_edges)
-    oscovs = {}
-    for a1 in range(narrays):
-        for a2 in range(a1,narrays):
-            f1 = freqs[a1]
-            f2 = freqs[a2]
-            oscovs[(f1,f2)] = []
-
-           
-    for a1 in range(narrays):
-        for a2 in range(a1,narrays):
-            if verbose: print("Populating weighted noise for %d,%d" % (a1,a2))
-            f1 = freqs[a1]
-            f2 = freqs[a2]
-            m1 = get_mask(a1)
-            m2 = get_mask(a2)
-            kc1 = _load_map(kcoadds[a1])
-            kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
-            ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
-            if (a1 != a2) and (not (((a1,a2) in anisotropic_pairs) or ((a2,a1) in anisotropic_pairs))): 
-                assert (a1,a2) not in ncovs.keys() and (a2,a1) not in ncovs.keys()
-                scov = ccov
-            else:
-                scov = ccov - ncovs[(a1,a2)]
-            c11 = ctheory.get_theory_cls(f1,f1)
-            c22 = ctheory.get_theory_cls(f2,f2)
-            c12 = ctheory.get_theory_cls(f1,f2)
-            cl_11 = c11 + n1ds[(a1,a1)]/fbeam(names[a1],ells)**2.
-            cl_22 = c22 + n1ds[(a2,a2)]/fbeam(names[a2],ells)**2.
-            cl_12 = c12
-            c11[~np.isfinite(c11)] = 0
-            c22[~np.isfinite(c22)] = 0
-            c12[~np.isfinite(c12)] = 0
-            w = 1./((cl_11 * cl_22)+cl_12**2)
-            weight = maps.interp(ells,w)(modlmap)
-            weight[modlmap<max(lmins[a1],lmins[a2])] = 0
-            weight[modlmap>min(lmaxs[a1],lmaxs[a2])] = 0
-            scov = scov / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
-            scov[~np.isfinite(scov)] = 0
-            scovs[(f1,f2)] = scovs[(f1,f2)] + scov*weight
-            weights_tot[(f1,f2)] = weights_tot[(f1,f2)] + weight
-
-            oscovs[(f1,f2)].append(  (a1,a2,binner.bin(scov)[1])  )
-
-
-    
-    # for key in oscovs.keys():
-    #     f1,f2 = key
-    #     pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='C')
-    #     for (a1,a2,ocov) in oscovs[key]:
-    #         pl.add(binner.centers,ocov,alpha=0.2,ls='--',label='_'.join([names[a1],names[a2]]))
-    #     pl.add(binner.centers,np.mean([x[2] for x in oscovs[key]],axis=0),alpha=0.8,ls='-',color='red')
-    #     cth = ctheory.get_theory_cls(f1,f2)
-    #     pl.add(binner.centers,binner.bin(maps.interp(ells,cth)(modlmap))[1],alpha=1.0,color='green')
-    #     # if f1==150 and f2==150:
-    #     #     io.save_cols("theory_150.txt", (binner.centers,binner.bin(maps.interp(ells,cth)(modlmap))[1]))
-    #     #     sys.exit()
-    #     norm = (1/ weights_tot[(f1,f2)])
-    #     norm[~np.isfinite(norm)] = 0
-    #     smsig = scovs[(f1,f2)] * norm
-    #     pl.add(binner.centers,binner.bin(smsig)[1],alpha=0.8,ls='-',color='blue')
-    #     import os
-    #     pl._ax.set_ylim(1e-7,1e1)
-    #     pl.done(os.environ['WORK']+"/tiling/oscovs_%d_%d.png" % (f1,f2))
-
-        
-
-
-    for a1 in range(narrays):
-        for a2 in range(a1,narrays):
-            if verbose: print("Populating final smoothed powers for %d,%d" % (a1,a2))
-            f1 = freqs[a1]
-            f2 = freqs[a2]
             savg = lambda x: covtools.signal_average(x,bin_width=signal_bin_width,
                                                      kind=signal_interp_order,
                                                      lmin=max(lmins[a1],lmins[a2]),
                                                      dlspace=True)
 
-            # savg = lambda x: covtools.noise_block_average(x*modlmap**2.,nsplits=0,delta_ell=delta_ell,
-            #                                                         radial_fit=False,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
-            #                                                         log=False)[0]/modlmap**2.
+            kc1 = _load_map(kcoadds[a1])
+            kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
+            ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
+            if (a1 != a2) and (not (((a1,a2) in anisotropic_pairs) or ((a2,a1) in anisotropic_pairs))): 
+                scov = ccov
+            else:
+                scov = ccov - ncov
+            smsig = savg(scov)
 
-            norm = (1/ weights_tot[(f1,f2)])
-            norm[~np.isfinite(norm)] = 0
-            smsig = savg(scovs[(f1,f2)] * norm * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap))
-            smsig[modlmap<2] = 0
-            # try:
-            #     io.plot_img(maps.ftrans(fcovs[(a1,a2)]),os.environ['WORK']+"/tiling/dncov_%d_%d.png" % (a1,a2))
-            # except:
-            #     pass
-            # io.plot_img(maps.ftrans(smsig),os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2))
 
-            if theory_signal:
+            if theory_signal and (a1==a2):
                 smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
-                smsig[~np.isfinite(smsig)] = 0 # !!!!
+                smsig[~np.isfinite(smsig)] = 0
 
-            fcovs[(a1,a2)] = fcovs[(a1,a2)] + smsig
-            if a1==a2:
-                fcovs[(a1,a2)][modlmap<=lmins[a1]] = 1e90
-                fcovs[(a1,a2)][modlmap>=lmaxs[a1]] = 1e90
-                # pcov = fcovs[(a1,a2)].copy()
-                # pcov[pcov>1e89] = np.nan
-                # io.plot_img(maps.ftrans(pcov),os.environ['WORK']+"/tiling/dfcov_%d_%d.png" % (a1,a2))
 
-            save_fn(fcovs[(a1,a2)],a1,a2)
+            fcov = smsig + dncov
+            save_fn(fcov,a1,a2)
+
+            if verbose: print("Populating noise for %d,%d belonging to freqs %d,%d" % (a1,a2,f1,f2))
+                
+
+def build_cov_isotropic(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
+              do_radial_fit,save_fn,
+              signal_bin_width=None,
+              signal_interp_order=0,
+              rfit_lmaxes=None,
+              rfit_wnoise_width=250,
+              rfit_lmin=300,
+              rfit_bin_width=None,
+              verbose=True,
+              debug_plots_loc=None,separate_masks=False,theory_signal=False):
+
+    """
+    The simplest covariance model: it just bins all spectra in annuli.
+    """
+
+    narrays = len(kdiffs)
+    assert len(kcoadds)==len(lmins)==len(lmaxs)==len(freqs)
+
+    on_disk = False
+    try:
+        shape,wcs = kdiffs[0].shape[-2:],kdiffs[0].wcs
+    except:
+        assert isinstance(kdiffs[0],basestring), "List contents are neither enmaps nor filenames."
+        shape,wcs = enmap.read_map_geometry(kdiffs[0])
+        shape = shape[-2:]
+        on_disk = True
+    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
+    minell = maps.minimum_ell(shape,wcs)
+    modlmap = enmap.modlmap(shape,wcs)
+    def get_mask(aind):
+        if separate_masks: 
+            return _load_map(mask[aind])
+        else: 
+            assert mask.ndim==2
+            return mask
+
+    # Defaults
+    if rfit_lmaxes is None:
+        px_arcmin = np.rad2deg(maps.resolution(shape,wcs))*60.
+        rfit_lmaxes = [8000*0.5/px_arcmin]*narrays
+    if rfit_bin_width is None: rfit_bin_width = minell*4.
+    if signal_bin_width is None: signal_bin_width = minell*8.
+
+
+    # Let's build the instrument noise model
+    gellmax = max(lmaxs)
+    ells = np.arange(0,gellmax,1)
+    ctheory = CTheory(ells)
+    for a1 in range(narrays):
+        for a2 in range(a1,narrays):
+            f1 = freqs[a1]
+            f2 = freqs[a2]
+            m1 = get_mask(a1)
+            m2 = get_mask(a2)
+            savg = lambda x: covtools.signal_average(x,bin_width=signal_bin_width,
+                                                     kind=signal_interp_order,
+                                                     lmin=max(lmins[a1],lmins[a2]),
+                                                     dlspace=True)
+            kc1 = _load_map(kcoadds[a1])
+            kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
+            ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
+            smsig = savg(ccov)
+            fcov = smsig
+            save_fn(fcov,a1,a2)
+            if verbose: print("Populating noise for %d,%d belonging to freqs %d,%d" % (a1,a2,f1,f2))
+                
+
+
+build_cov = build_cov_hybrid_coadd

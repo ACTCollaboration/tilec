@@ -282,29 +282,21 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     where ellfact = ell**2 if dlspace else 1
     """
     modlmap = cov.modlmap()
-    # print(modlmap[~np.isfinite(cov)])
-    # print(cov[~np.isfinite(cov)])
     assert np.all(np.isfinite(cov))
 
-    # cov[modlmap<550] = 0
-    # print(cov.min(),cov.max())
-    # print(modlmap[np.isclose(cov,cov.min())])
-
     dcov = cov*modlmap**2. if dlspace else cov.copy()
-    minell = maps.minimum_ell(dcov.shape,dcov.wcs) if lmin is None else lmin
-    if bin_edges is None: bin_edges = np.arange(minell,modlmap.max(),bin_width)
+    if lmin is None:
+        minell = maps.minimum_ell(dcov.shape,dcov.wcs)
+    else:
+        minell = modlmap[modlmap<=lmin].max()
+
+    if bin_edges is None: bin_edges = np.append([2],np.arange(minell,modlmap.max(),bin_width))
     binner = stats.bin2D(modlmap,bin_edges)
-    cents,c1d,count = binner.bin(dcov,get_count=True)
+    cents,c1d = binner.bin(dcov)
     outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),dcov.wcs)
     outcov = outcov / modlmap**2. if dlspace else outcov
-    outcov[modlmap<minell] = 0
+    outcov[modlmap<2] = 0
     assert np.all(np.isfinite(outcov))
-
-    # print(outcov.min(),outcov.max())
-    # print(modlmap[np.isclose(outcov,outcov.min())])
-    # print(np.any(outcov[modlmap>5000]<0))
-    # print(outcov[modlmap>5000].min(),outcov[modlmap>5000].max())
-    # sys.exit()
 
     return outcov
 
