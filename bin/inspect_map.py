@@ -31,18 +31,33 @@ comps = "tilec_single_tile_"+args.region+"_" + name_map[args.solution]+"_"+args.
 lmin = args.lmin
 lmax = args.lmax
 
+mask = enmap.read_map("%s/tilec_mask.fits" % savedir)
+w2 = np.mean(mask**2.)
 imap = enmap.read_map("%s/%s.fits" % (savedir,comps))
+nmap = enmap.read_map("%s/%s_noise.fits" % (savedir,comps))
+ls,bells = np.loadtxt("%s/%s_beam.txt" % (savedir,comps),unpack=True)
 modlmap = imap.modlmap()
 kmap = enmap.fft(imap,normalize="phys")
 p2d = np.real(kmap*kmap.conj())
-N = 200
-Ny,Nx = modlmap.shape
-pimg = maps.crop_center(np.log10(np.fft.fftshift(p2d)),N,int(N*Nx/Ny))
+
 if args.solution=='tSZ':
     lim = [-19,-15]
 else:
     lim = [-5,1]
-io.plot_img(pimg,"pimg.png",aspect='auto',lim=lim)
+
+    omap = enmap.read_map('/scratch/r/rbond/msyriac/data/tilec/omar/dataCoadd_combined_I_s14&15_deep56.fits')
+    omar_mask = enmap.read_map('/scratch/r/rbond/msyriac/data/tilec/omar/mask_s14&15_deep56.fits')
+    omar_w2 = np.mean(omar_mask**2.)
+    # io.hplot(enmap.downgrade(omap,4),"omap")
+    # io.hplot(enmap.downgrade(omask,4),"omask")
+    # sys.exit()
+    okmap = enmap.fft(omap,normalize='phys')
+    op2d = np.real(okmap*okmap.conj())
+    
+
+io.power_crop(p2d,200,"pimg.png",lim=lim)
+io.power_crop(nmap,200,"nimg.png",lim=lim)
+
 sel = np.logical_and(modlmap>lmin,modlmap<lmax)
 xs = modlmap[sel].reshape(-1)
 ys = p2d[sel].reshape(-1)
@@ -51,4 +66,34 @@ pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='C')
 pl._ax.scatter(xs,ys)
 #pl._ax.set_ylim(lim[0],lim[1])
 pl.done("pscatter.png")
+
+bin_edges = np.arange(80,10000,80)
+binner = stats.bin2D(modlmap,bin_edges)
+cents,p1d = binner.bin(p2d/w2)
+cents,n1d = binner.bin(nmap*maps.interp(ls,bells)(modlmap)**2)
+if args.solution=='CMB':
+    cents,omar_p1d = binner.bin(op2d/omar_w2)
+    
+
+
+omask = enmap.read_map('/scratch/r/rbond/msyriac/tiling/tilec_deep56_apodized_mask.fits')
+ow2 = np.mean(omask**2.)
+if args.solution=='tSZ':
+    imap = enmap.read_map('/scratch/r/rbond/msyriac/tiling/tilec_deep56_comptony_map_deprojects_nothing_v0.2.3_act_planck.fits')
+else:
+    imap = enmap.read_map('/scratch/r/rbond/msyriac/tiling/tilec_deep56_cmb_map_deprojects_nothing_v0.2.3_act_planck.fits')
+kmap = enmap.fft(imap,normalize='phys')
+modlmap = imap.modlmap()
+binner = stats.bin2D(modlmap,bin_edges)
+p2d = np.real(kmap*kmap.conj())
+cents,op1d = binner.bin(p2d*maps.interp(ls,bells)(modlmap)**2/ow2)
+
+pl = io.Plotter(xyscale='loglog',xlabel='l',ylabel='D',scalefn = lambda x: x**2./2./np.pi)
+pl.add(cents,p1d)
+pl.add(cents,op1d,ls=':')
+# if args.solution=='CMB':
+#     pl.add(cents,omar_p1d,ls='-.')
+pl.add(cents,n1d,ls='--')
+pl.done("p1d.png")
+
 

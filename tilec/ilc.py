@@ -549,16 +549,18 @@ class CTheory(object):
         
 
 
-def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
-              do_radial_fit,save_fn,
-              signal_bin_width=None,
-              signal_interp_order=0,
-              rfit_lmaxes=None,
-              rfit_wnoise_width=250,
-              rfit_lmin=300,
-              rfit_bin_width=None,
-              verbose=True,
-              debug_plots_loc=None,separate_masks=False,theory_signal=False):
+def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
+                           lmins,lmaxs,freqs,anisotropic_pairs,
+                           delta_ell,
+                           do_radial_fit,save_fn,
+                           signal_bin_width=None,
+                           signal_interp_order=0,
+                           rfit_lmaxes=None,
+                           rfit_wnoise_width=250,
+                           rfit_lmin=300,
+                           rfit_bin_width=None,
+                           verbose=True,
+                           debug_plots_loc=None,separate_masks=False,theory_signal=False,maxval=None):
 
     """
 
@@ -579,7 +581,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
     """
 
     narrays = len(kdiffs)
-    assert len(kcoadds)==len(lmins)==len(lmaxs)==len(freqs)
+    assert len(kcoadds)==len(lmins)==len(lmaxs)==len(freqs)==narrays
 
     on_disk = False
     try:
@@ -667,7 +669,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
                 scov = ccov - ncov
 
             # !!!!!!
-            # scov =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
+            if theory_signal:
+                f1 = freqs[a1]
+                f2 = freqs[a2]
+                scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap),wcs)
             scovs[(a1,a2)] = scov.copy()
 
                 
@@ -717,7 +722,6 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
 
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
-            if verbose: print("Populating final smoothed powers for %d,%d" % (a1,a2))
             f1 = freqs[a1]
             f2 = freqs[a2]
 
@@ -730,7 +734,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
                     numer = numer + fscovs[key2]
                     denom = denom + fws[key2]
                 except:
-                    continue
+                    pass
             nscov = numer/denom
             nscov[~np.isfinite(nscov)] = 0
             smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
@@ -741,21 +745,23 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,ani
             smsig[modlmap<2] = 0
 
             # Diagnostic plot
-            power_crop(smsig,200,os.environ['WORK']+"/tiling/dscov_%d_%d.png" % (a1,a2))
+            if debug_plots_loc: io.power_crop(smsig,200,debug_plots_loc+"dscov_%d_%d.png" % (a1,a2))
+
+            ocov = dncovs[(a1,a2)] + smsig
+            if (maxval is not None) and a1==a2: 
+                ocov[modlmap<lmins[a1]] = maxval
+                ocov[modlmap>lmaxs[a2]] = maxval
+
 
             # if a1!=a2: # !!!!
             #     smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
             #     smsig[~np.isfinite(smsig)] = 0
 
             # Save S + N
-            save_fn(dncovs[(a1,a2)] + smsig,a1,a2)
+            save_fn(ocov,a1,a2)
+            if verbose: print("Populated final smoothed powers for %d,%d" % (a1,a2))
 
 
-def power_crop(p2d,N,fname):
-    pmap = maps.ftrans(p2d)
-    Ny,Nx = p2d.shape
-    pimg = maps.crop_center(pmap,N,int(N*Nx/Ny))
-    io.plot_img(pimg,fname,aspect='auto')
 
 def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,delta_ell,
               do_radial_fit,save_fn,

@@ -26,7 +26,7 @@ from enlib import bench
 from tilec.utils import coadd,is_planck,apodize_zero,get_splits,get_splits_ivar,robust_ref,filter_div,get_kbeam,load_geometries,get_specs
 comm = mpi.MPI.COMM_WORLD
 
-
+maxval = 700000
 chunk_size = 1000000
 bandpasses = False
 solutions = ['CMB','tSZ']
@@ -75,7 +75,15 @@ qids = ['d5',
         'd56_03',
         'd56_04',
         'd56_05',
-        'd56_06','s16_01','s16_02','s16_03','p04','p05'] # list of quick IDs
+        'd56_06','s16_01','s16_02','s16_03','p04','p05','p06','p07','p08'] # list of quick IDs
+# qids = ['d5',
+#         'd6',
+#         'd56_01',
+#         'd56_02',
+#         'd56_03',
+#         'd56_04',
+#         'd56_05',
+#         'd56_06','s16_01','s16_02','s16_03','p04','p05'] # list of quick IDs
 parent_qid = 'd56_01' # qid of array whose geometry will be used for the full map
 
 
@@ -87,6 +95,7 @@ import argparse
 # Parse command line
 parser = argparse.ArgumentParser(description='Do a thing.')
 parser.add_argument("--dtiles",     type=str,  default=None,help="A description.")
+parser.add_argument("--theory", action='store_true',help='A flag.')
 parser.add_argument("--onlyd", action='store_true',help='A flag.')
 parser.add_argument("--ivars", action='store_true',help='A flag.')
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
@@ -191,10 +200,13 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
     kcoadds = stack(kcoadds)
     masks = stack(masks)
 
+
     with bench.show("cov"):
-        ilc.build_cov(qids,kdiffs,kcoadds,fbeam,masks,lmins,lmaxs,freqs,anisotropic_pairs,
-                      args.delta_ell,
-                      do_radial_fit,save_fn,
+        ilc.build_cov(names=qids,kdiffs=kdiffs,kcoadds=kcoadds,fbeam=fbeam,
+                      mask=masks,lmins=lmins,lmaxs=lmaxs,freqs=freqs,
+                      anisotropic_pairs=anisotropic_pairs,
+                      delta_ell=args.delta_ell,
+                      do_radial_fit=do_radial_fit,save_fn=save_fn,
                       signal_bin_width=args.signal_bin_width,
                       signal_interp_order=args.signal_interp_order,
                       rfit_lmaxes=lmaxs,
@@ -204,29 +216,14 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
                       verbose=True,
                       debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in dtiles else False,
                       # debug_plots_loc=False,#os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
-                      separate_masks=True)
-
-    # maxval = ilc.build_empirical_cov(kdiffs,kcoadds,wins,masks,lmins,lmaxs,
-    #                                  anisotropic_pairs,do_radial_fit,save_fn,
-    #                                  signal_bin_width=args.signal_bin_width,
-    #                                  signal_interp_order=args.signal_interp_order,
-    #                                  delta_ell=args.delta_ell,
-    #                                  rfit_lmaxes=None,
-    #                                  rfit_wnoise_width=args.rfit_wnoise_width,
-    #                                  rfit_lmin=args.rfit_lmin,
-    #                                  rfit_bin_width=None,
-    #                                  verbose=True,
-    #                                  debug_plots_loc=os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in dtiles else False,
-    #                                  # debug_plots_loc=False,#os.environ['WORK'] + '/tiling/dplots_tile_%d_' % i if i in [18,19,44,69] else False,
-    #                                  separate_masks=True,ksplits=None)#)
-
+                      separate_masks=True,maxval=maxval,theory_signal=args.theory)
 
 
 
     cov.data = enmap.enmap(cov.data,ewcs,copy=False)
     covfunc = lambda sel: cov.to_array(sel,flatten=True)
     assert cov.data.shape[0]==((narrays*(narrays+1))/2) # FIXME: generalize
-    if np.any(np.isnan(cov.data)): raise ValueError 
+    assert np.all(np.isfinite(cov.data))
 
     # bps, kbeams, 
 
@@ -362,7 +359,9 @@ for i,extracter,inserter,eshape,ewcs in ta.tiles(from_file=True): # this is an M
         #     # io.plot_img(np.log10(np.fft.fftshift(ptile)),os.environ['WORK']+"/tiling/ptile_%d_smap" % i)
         #     # io.hplot(enmap.enmap(np.log10(np.fft.fftshift(ptile)),ewcs),os.environ['WORK']+"/tiling/phtile_%d_smap" % i)
         smap = enmap.ifft(kbeam*enmap.enmap(ksol,ewcs),normalize='phys').real
-        if solution=='CMB': io.hplot(smap,os.environ['WORK']+"/tiling/tile_%d_smap" % i)
+        if solution=='CMB': 
+            io.hplot(smap,os.environ['WORK']+"/tiling/tile_%d_smap" % i)
+            io.power_crop(np.real(ksol*ksol.conj()),100,os.environ['WORK']+"/tiling/ptile_%d.png" % i)
         # sys.exit()
         ta.update_output(solution,smap,inserter)
     #ta.update_output("processed",c*civar,inserter)
