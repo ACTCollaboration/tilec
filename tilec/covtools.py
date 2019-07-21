@@ -150,7 +150,7 @@ def noise_average(n2d,dfact=(16,16),lmin=300,lmax=8000,wnoise_annulus=500,bin_an
     # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
     # pl.add(cents,n1d)
     # pl.add(cents,dn1d,ls="--")
-    # pl.done("fitnoise2_%s.png" % t)
+    # pl.done(os.environ['WORK']+"/fitnoise2_%s.png" % t)
     # sys.exit()
 
     assert not(np.any(np.isnan(outcov)))
