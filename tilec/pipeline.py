@@ -1,11 +1,139 @@
 from __future__ import print_function
 from orphics import maps,io,cosmology,stats
-from pixell import enmap
+from pixell import enmap,curvedsky
 from enlib import bench
 import numpy as np
 import os,sys
 from tilec import fg as tfg,ilc,kspace,utils as tutils
 from soapack import interfaces as sints
+from szar import foregrounds as fgs
+import healpy as hp
+from actsims.util import seed_tracker
+
+"""
+
+We will build a class specially suited for joint simulations
+of ACT and Planck that cache in a way such that it is efficient
+for a pipeline that runs on the same patch of sky for many sims.
+
+
+We require the following inputs:
+1. lensed alms of the CMB
+2. a beam model for each ACT and Planck array
+3. a model for the tSZ compton y as (nells,) PS
+4. an (narray,narray,nells) PS covmat for the empirically fit residuals in each array 
+where residual = power - noise - CMB model - tSZ model
+
+Sim generation has three stages
+Class initialization:
+- load PS files
+- load residual PS based on specified arrays
+Index initialization:
+- load lensed alm
+- generate alm from compton y PS
+- generate alm from residual PS
+Compute map
+- convolve with beam
+- apply pixel window
+
+"""
+
+
+class JointTemperatureSim(object):
+    def __init__(self,qids,fg_res_version,ellmax=5101,bandpassed=True):
+        self.qids = qids
+        self.alms = {}
+        ells = np.arange(ellmax)
+        self.cyy = fgs.power_y(ells)[None,None]
+        self.cyy[0,0][ells<2] = 0
+        #self.cfgres #
+
+
+        self.missing_pixels = missing_pixels
+
+        # get tSZ response, and also zero out parts of map that are not observed
+        aspecs = tutils.ASpecs().get_specs
+        bps = []
+        for qid in qids:
+            dm = sints.models[sints.arrays(qid,'data_model')]()
+            if dm.name=='act_mr3':
+                season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
+                array = '_'.join([array1,array2])
+            elif dm.name=='planck_hybrid':
+                season,patch,array = None,None,sints.arrays(qid,'freq')
+            lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+            if bandpassed:
+                bps.append("data/"+dm.get_bandpass_file_name(array))
+            else:
+                bps.append(cfreq)
+
+
+        self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ')
+
+
+
+
+    def update_signal_index(self,sim_idx,set_idx=0,cmb_type='LensedCMB'):
+        signal_path = sints.dconfig['actsims']['signal_path']
+        cmb_file   = os.path.join(signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(cmb_type, set_idx, sim_idx))
+        self.alms['cmb'] = hp.fitsfunc.read_alm(cmb_file, hdu = 1)
+        comptony_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'comptony')
+        fgres_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'srcfree')
+        self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)[0]
+        #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
+
+        # 1. convert to maximum ellmax
+        lmax = max([hp.Alm.getlmax(self.alms[comp].size) for comp in self.alms.keys()])
+        for comp in self.alms.keys():
+            if hp.Alm.getlmax(self.alms[comp].size)!=lmax: self.alms[comp] = maps.change_alm_lmax(alms[comp], lmax)
+        self.lmax = lmax
+
+
+    def compute_map(self,oshape,owcs,qid,pixwin_taper_deg=0.3,pixwin_pad_deg=0.3,
+                    bandpassed=True,include_cmb=True,include_tsz=True,include_fgres=True):
+
+        """
+        1. get total alm
+        2. apply beam, and pixel window if Planck
+        3. ISHT
+        4. if ACT, apply a small taper and apply pixel window in Fourier space
+        """
+
+        # pad to a slightly larger geometry
+        tot_pad_deg = pixwin_taper_deg + pixwin_pad_deg
+        res = maps.resolution(oshape,owcs)
+        pix = np.deg2rad(tot_pad_deg)/res
+        omap = enmap.pad(enmap.zeros(oshape,owcs),pix)
+        ishape,iwcs = omap.shape,omap.wcs
+
+        # get data model
+        dm = sints.models[sints.arrays(qid,'data_model')](region_shape=ishape,region_wcs=iwcs,calibrated=True)
+
+        # 1. get total alm
+        array_index = self.qids.index(qid)
+        tot_alm = int(include_cmb)*self.alms['cmb'] + int(include_tsz)*self.tsz_fnu[array_index]*self.alms['comptony'] #+ int(include_fgres)*self.alms['fgres'][array_index]
+        assert tot_alm.ndim==1
+        ells = np.arange(self.lmax+1)
+        
+        # 2. get beam, and pixel window for Planck
+        beam = tutils.get_kbeam(qid,ells)   
+        if dm.name=='planck_hybrid':
+            pixwin = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax)
+            beam = beam * pixwin
+        tot_alm = hp.almxfl(tot_alm,beam)
+        
+        # 3. ISHT
+        omap = curvedsky.alm2map(np.complex128(tot_alm[None]),omap,spin=0)
+        assert omap.ndim==2
+
+        # 4. if ACT, apply a small taper and apply pixel window in Fourier space
+        if dm.name=='act_mr3':
+            taper,_ = maps.get_taper_deg(ishape,iwcs,taper_width_degrees=pixwin_taper_deg,pad_width_degrees=pixwin_pad_deg)
+            pwin = tutils.get_pixwin(ishape[-2:])
+            omap = maps.filter_map(omap*taper,pwin)
+
+        return enmap.extract(omap,oshape,owcs)
+
 
 """
 Functions that produce outputs to disk as part of the pipeline.
@@ -34,7 +162,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,delta_ell,
                        rfit_wnoise_width,rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
-                       sim_splits=None,skip_inpainting=False,theory_signal=False):
+                       sim_splits=None,skip_inpainting=False,theory_signal="none"):
 
     save_scratch = not(memory_intensive)
     save_path = sints.dconfig['tilec']['save_path']

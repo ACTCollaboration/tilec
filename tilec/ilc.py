@@ -560,7 +560,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                            rfit_lmin=300,
                            rfit_bin_width=None,
                            verbose=True,
-                           debug_plots_loc=None,separate_masks=False,theory_signal=False,maxval=None):
+                           debug_plots_loc=None,separate_masks=False,theory_signal="none",maxval=None):
 
     """
 
@@ -668,11 +668,16 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 # signal power from coadd and unsmoothed noise power
                 scov = ccov - ncov
 
-            # !!!!!!
-            if theory_signal:
-                f1 = freqs[a1]
-                f2 = freqs[a2]
-                scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap),wcs)
+            if theory_signal=="none":
+                pass
+            else:
+                if (theory_signal=="diagonal" and a1==a2) or (theory_signal=="offdiagonal" and a1!=a2) or (theory_signal=="all") :
+                    f1 = freqs[a1]
+                    f2 = freqs[a2]
+                    scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap),wcs)
+                    print("WARNING: using theory signal for %d,%d" % (a1,a2))
+                else:
+                    if theory_signal not in ['none','diagonal','offdiagonal','all']: raise ValueError
             scovs[(a1,a2)] = scov.copy()
 
                 

@@ -60,14 +60,6 @@ ivar_apod_pix = 120
 #         'd56_06'] # list of quick IDs
 # qids = ['s16_01','s16_02','s16_03'] # list of quick IDs
 #qids = ['p01','p02','p03','p04','p05','p06','p07','p08','s16_01','s16_02','s16_03']
-# qids = ['d5',
-#         'd6',
-#         'd56_01',
-#         'd56_02',
-#         'd56_03',
-#         'd56_04',
-#         'd56_05',
-#         'd56_06','s16_01','s16_02','s16_03','p01','p02','p03','p04','p05','p06','p07','p08'] # list of quick IDs
 qids = ['d5',
         'd6',
         'd56_01',
@@ -75,7 +67,15 @@ qids = ['d5',
         'd56_03',
         'd56_04',
         'd56_05',
-        'd56_06','s16_01','s16_02','s16_03','p04','p05','p06','p07','p08'] # list of quick IDs
+        'd56_06','s16_01','s16_02','s16_03','p01','p02','p03','p04','p05','p06','p07','p08'] # list of quick IDs
+# qids = ['d5',
+#         'd6',
+#         'd56_01',
+#         'd56_02',
+#         'd56_03',
+#         'd56_04',
+#         'd56_05',
+#         'd56_06','s16_01','s16_02','s16_03','p04','p05','p06','p07','p08'] # list of quick IDs
 # qids = ['d5',
 #         'd6',
 #         'd56_01',
@@ -95,7 +95,7 @@ import argparse
 # Parse command line
 parser = argparse.ArgumentParser(description='Do a thing.')
 parser.add_argument("--dtiles",     type=str,  default=None,help="A description.")
-parser.add_argument("--theory", action='store_true',help='A flag.')
+parser.add_argument("--theory",     type=str,  default="none",help="A description.")
 parser.add_argument("--onlyd", action='store_true',help='A flag.')
 parser.add_argument("--ivars", action='store_true',help='A flag.')
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")

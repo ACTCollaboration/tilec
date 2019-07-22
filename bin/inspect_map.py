@@ -8,10 +8,6 @@ from tilec import pipeline,utils as tutils
 from soapack import interfaces as sints
 
 """
-This script will work with a saved covariance matrix to obtain component separated
-maps.
-
-The datamodel is only used for beams here.
 """
 
 import argparse
@@ -23,6 +19,9 @@ parser.add_argument("solution", type=str,help='Solution.')
 parser.add_argument("--lmin",     type=int,  default=80,help="lmin.")
 parser.add_argument("--lmax",     type=int,  default=6000,help="lmin.")
 args = parser.parse_args()
+
+dm = sints.ACTmr3()
+fbeam = lambda x: dm.get_beam(x, "s15","deep56","pa3_f090", kind='normalized')
 
 save_path = sints.dconfig['tilec']['save_path']
 savedir = save_path + args.version + "/" + args.region
@@ -45,7 +44,8 @@ if args.solution=='tSZ':
 else:
     lim = [-5,1]
 
-    omap = enmap.read_map('/scratch/r/rbond/msyriac/data/tilec/omar/dataCoadd_combined_I_s14&15_deep56.fits')
+    #omap = enmap.read_map('/scratch/r/rbond/msyriac/data/tilec/omar/dataCoadd_combined_I_s14&15_deep56.fits')
+    omap = enmap.read_map('/scratch/r/rbond/msyriac/data/tilec/omar/preparedMap_T_s14&15_deep56.fits')*2.726e6
     omar_mask = enmap.read_map('/scratch/r/rbond/msyriac/data/tilec/omar/mask_s14&15_deep56.fits')
     omar_w2 = np.mean(omar_mask**2.)
     # io.hplot(enmap.downgrade(omap,4),"omap")
@@ -72,7 +72,8 @@ binner = stats.bin2D(modlmap,bin_edges)
 cents,p1d = binner.bin(p2d/w2)
 cents,n1d = binner.bin(nmap*maps.interp(ls,bells)(modlmap)**2)
 if args.solution=='CMB':
-    cents,omar_p1d = binner.bin(op2d/omar_w2)
+    #cents,omar_p1d = binner.bin(op2d*(maps.interp(ls,bells)(modlmap)**2)/omar_w2/(fbeam(modlmap)**2.))
+    cents,omar_p1d = binner.bin(op2d*(maps.interp(ls,bells)(modlmap)**2)/omar_w2)
     
 
 
@@ -89,11 +90,12 @@ p2d = np.real(kmap*kmap.conj())
 cents,op1d = binner.bin(p2d*maps.interp(ls,bells)(modlmap)**2/ow2)
 
 pl = io.Plotter(xyscale='loglog',xlabel='l',ylabel='D',scalefn = lambda x: x**2./2./np.pi)
-pl.add(cents,p1d)
-pl.add(cents,op1d,ls=':')
-# if args.solution=='CMB':
-#     pl.add(cents,omar_p1d,ls='-.')
-pl.add(cents,n1d,ls='--')
+pl.add(cents,p1d,label='ILC v1 auto')
+#pl.add(cents,op1d,ls=':',label='ILC v0.2.3 auto')
+if args.solution=='CMB':
+    pl.add(cents,omar_p1d,ls='-.',label='k-space auto')
+pl.add(cents,n1d,ls='--',label='ILC v1 noise cov')
+pl._ax.set_ylim(2e1,1e4)
 pl.done("p1d.png")
 
 

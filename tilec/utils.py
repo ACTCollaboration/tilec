@@ -49,6 +49,13 @@ def load_geometries(qids):
         geoms[qid] = shape[-2:],wcs 
     return geoms
 
+
+def get_nside(qid):
+    if qid in ['p01','p02','p03']: return 1024
+    elif qid in ['p04','p05','p06','p07','p08']: return 2048
+    else: raise ValueError
+    
+
 def get_kbeam(qid,modlmap,**kwargs):
     dmodel = sints.arrays(qid,'data_model')
     season = sints.arrays(qid,'season')
@@ -173,3 +180,7 @@ def estimate_separable_pixwin_from_normalized_ps(ps2d):
     return res
 
 
+def get_pixwin(shape):
+    wy, wx = enmap.calc_window(shape)
+    wind   = wy[:,None] * wx[None,:]
+    return wind

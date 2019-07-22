@@ -1,14 +1,11 @@
 from orphics import maps,io,cosmology,stats
-from pixell import enmap,wcsutils,fft as pfft
+from pixell import enmap
 from actsims import inpaint as inpainting
 import numpy as np
 import os,sys
 from soapack import interfaces as sints
+from tilec import utils as tutils
 
-def get_pixwin(shape):
-    wy, wx = enmap.calc_window(shape)
-    wind   = wy[:,None] * wx[None,:]
-    return wind
 
 def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn_beam=None,cache_inpainted=False):
     """
@@ -26,14 +23,7 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn
         season,patch,array = None,None,sints.arrays(qid,'freq')
         pixwin = False
     wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None)[0,:,0,:,:]
-
-
-
-    if splits is None: 
-        splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
-
-
-
+    if splits is None: splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
     nsplits = splits.shape[0]
     assert nsplits==2 or nsplits==4
     # Inpaint
@@ -56,7 +46,7 @@ def process_splits(splits,wins,mask,skip_splits=False,do_fft_splits=False,pixwin
     Ny,Nx = splits.shape[-2:]
     assert coadd.shape == (Ny,Nx)
     kcoadd = enmap.enmap(enmap.fft(coadd*mask,normalize='phys'),wins.wcs)
-    if pixwin: pwin = get_pixwin(coadd.shape[-2:])
+    if pixwin: pwin = tutils.get_pixwin(coadd.shape[-2:])
     else: pwin = 1
     kcoadd = kcoadd / pwin
     if not(skip_splits):
