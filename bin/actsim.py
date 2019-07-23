@@ -3,12 +3,14 @@ from orphics import maps,io,cosmology
 from pixell import enmap
 import numpy as np
 import os,sys
-from actsims import noise
+from actsims import noise as actnoise
+from actsims.util import seed_tracker
 from soapack import interfaces as sints
 from enlib import bench
 from tilec import pipeline,utils as tutils
 
-max_caches = {'deep56':1,'boss':1,'deep6':1}
+
+
 pdefaults = io.config_from_yaml("input/cov_defaults.yml")['cov']
 
 import argparse
@@ -31,6 +33,7 @@ parser.add_argument("--uncalibrated", action='store_true',help='Do not use calib
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
 parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
+parser.add_argument("--set-id",     type=int,  default=0,help="Sim set id.")
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
 parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfit_wnoise_width'],help="A description.")
 parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin'],help="A description.")
@@ -43,7 +46,7 @@ args = parser.parse_args()
 
 # Generate each ACT and Planck sim and store kdiffs,kcoadd in memory
 
-
+set_id = args.set_id
 bandpasses = not(args.effective_freq)
 gconfig = io.config_from_yaml("input/data.yml")
 save_path = sints.dconfig['tilec']['save_path']
@@ -54,9 +57,9 @@ shape,wcs = mask.shape,mask.wcs
 Ny,Nx = shape
 modlmap = enmap.modlmap(shape,wcs)
 
-
-angen = noise.NoiseGen(args.sim_version,model="act_mr3",extract_region=mask,ncache=1,verbose=True)
-pngen = noise.NoiseGen(args.sim_version,model="planck_hybrid",extract_region=mask,ncache=1,verbose=True)
+ngen = {}
+ngen['act_mr3'] = actnoise.NoiseGen(args.sim_version,model="act_mr3",extract_region=mask,ncache=1,verbose=True)
+ngen['planck_hybrid'] = actnoise.NoiseGen(args.sim_version,model="planck_hybrid",extract_region=mask,ncache=1,verbose=True)
 
 
 arrays = args.arrays.split(',')
@@ -64,63 +67,73 @@ narrays = len(arrays)
 nsims = args.nsims
 aspecs = tutils.ASpecs().get_specs
 
-jsim = pipeline.JointTemperatureSim(arrays,args.fg_res_version,bandpassed=bandpasses)
+jsim = pipeline.JointSim(arrays,args.fg_res_version,bandpassed=bandpasses)
 
 for sim_index in range(nsims):
 
 
-    jsim.update_signal_index(sim_index)
-
-
     """
-    LOAD DATA
+    MAKE SIMS
     """
+    jsim.update_signal_index(sim_index,set_idx=set_id)
+
     pa3_cache = {} # This assumes there are at most 2 pa3 arrays in the input
     sim_splits = []
     for aindex in range(narrays):
         qid = arrays[aindex]
-        dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(args.uncalibrated))
+        dmname = sints.arrays(qid,'data_model')
+        dm = sints.models[dmname](region=mask,calibrated=not(args.uncalibrated))
         patch = args.region
+
         if dm.name=='act_mr3':
             season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
             arrayname = array1 + "_" + array2
-            simgen = asimgen
         elif dm.name=='planck_hybrid':
             season,arrayname = None,sints.arrays(qid,'freq')
-            simgen = psimgen
+
+
+        with bench.show("signal"):
+            # (npol,Ny,Nx)
+            signal = jsim.compute_map(mask.shape,mask.wcs,qid,
+                                      include_cmb=True,include_tsz=True,include_fgres=True)
+
 
         # Special treatment for pa3
         farray = arrayname.split('_')[0]
         if farray=='pa3':
-            freq = arrayname.split('_')[1]
-            try: 
-                imap = pa3_cache[arrayname]
-                gen_map = False
+            try:
+                noise,ivars = pa3_cache[arrayname]
+                genmap = False
             except:
-                gen_map = True
+                genmap = True
         else:
-            gen_map = True
+            genmap = True
 
-        # Generate sim if necessary
-        if gen_map:
-            with bench.show("sim"):
-                imap = simgen.get_sim(season, patch, farray,sim_num=sim_index) #[:,:,0,...] # only intensity
-               
-        # Decide which map to use for pa3
-        if farray=='pa3':
-            pa3_cache[arrayname] = imap
-            findex = dm.array_freqs[farray].index(arrayname)
-        else:
-            findex = 0
-        
-        splits = imap[findex]
-        print(splits.shape)
-        sim_splits.append(splits.copy())
+        if genmap:
+            # (ncomp,nsplits,npol,Ny,Nx)
+            noise_seed = seed_tracker.get_noise_seed(set_id, sim_index, ngen[dmname].dm, season, patch, farray, None)
+            fnoise,fivars = ngen[dmname].generate_sim(season=season,patch=patch,array=farray,seed=noise_seed,apply_ivar=False)
+            print(fnoise.shape,fivars.shape)
+            if farray=='pa3': 
+                ind150 = dm.array_freqs['pa3'].index('pa3_f150')
+                ind090 = dm.array_freqs['pa3'].index('pa3_f090')
+                pa3_cache['pa3_f150'] = (fnoise[ind150].copy(),fivars[ind150].copy())
+                pa3_cache['pa3_f090'] = (fnoise[ind090].copy(),fivars[ind090].copy())
+                ind = dm.array_freqs['pa3'].index(arrayname)
+            else:
+                ind = 0
+            noise = fnoise[ind]
+            ivars = fivars[ind]
+
+        splits = actnoise.apply_ivar_window(signal[None,None]+noise[None],ivars[None])
+        assert splits.shape[0]==1
+        sim_splits.append(splits[0].copy())
 
     
     """
     SAVE COV
     """
+    print("Beginning covariance calculation...")
     ind_str = str(sim_index).zfill(int(np.log10(nsims))+2)
     sim_version = "%s_%s" % (args.version,ind_str)
     with bench.show("sim cov"):

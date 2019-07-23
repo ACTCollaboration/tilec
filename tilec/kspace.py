@@ -23,7 +23,9 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn
         season,patch,array = None,None,sints.arrays(qid,'freq')
         pixwin = False
     wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None)[0,:,0,:,:]
-    if splits is None: splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
+    if splits is None: 
+        splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
+    assert splits.ndim==4
     nsplits = splits.shape[0]
     assert nsplits==2 or nsplits==4
     # Inpaint

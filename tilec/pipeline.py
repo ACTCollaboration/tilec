@@ -39,7 +39,7 @@ Compute map
 """
 
 
-class JointTemperatureSim(object):
+class JointSim(object):
     def __init__(self,qids,fg_res_version,ellmax=5101,bandpassed=True):
         self.qids = qids
         self.alms = {}
@@ -48,8 +48,6 @@ class JointTemperatureSim(object):
         self.cyy[0,0][ells<2] = 0
         #self.cfgres #
 
-
-        self.missing_pixels = missing_pixels
 
         # get tSZ response, and also zero out parts of map that are not observed
         aspecs = tutils.ASpecs().get_specs
@@ -76,21 +74,21 @@ class JointTemperatureSim(object):
     def update_signal_index(self,sim_idx,set_idx=0,cmb_type='LensedCMB'):
         signal_path = sints.dconfig['actsims']['signal_path']
         cmb_file   = os.path.join(signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(cmb_type, set_idx, sim_idx))
-        self.alms['cmb'] = hp.fitsfunc.read_alm(cmb_file, hdu = 1)
+        self.alms['cmb'] = hp.fitsfunc.read_alm(cmb_file, hdu = (1,2,3))
         comptony_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'comptony')
         fgres_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'srcfree')
-        self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)[0]
+        self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)
         #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
 
         # 1. convert to maximum ellmax
-        lmax = max([hp.Alm.getlmax(self.alms[comp].size) for comp in self.alms.keys()])
+        lmax = max([hp.Alm.getlmax(self.alms[comp].shape[1]) for comp in self.alms.keys()])
         for comp in self.alms.keys():
-            if hp.Alm.getlmax(self.alms[comp].size)!=lmax: self.alms[comp] = maps.change_alm_lmax(alms[comp], lmax)
+            if hp.Alm.getlmax(self.alms[comp].shape[1])!=lmax: self.alms[comp] = maps.change_alm_lmax(alms[comp], lmax)
         self.lmax = lmax
 
 
     def compute_map(self,oshape,owcs,qid,pixwin_taper_deg=0.3,pixwin_pad_deg=0.3,
-                    bandpassed=True,include_cmb=True,include_tsz=True,include_fgres=True):
+                    include_cmb=True,include_tsz=True,include_fgres=True):
 
         """
         1. get total alm
@@ -99,32 +97,38 @@ class JointTemperatureSim(object):
         4. if ACT, apply a small taper and apply pixel window in Fourier space
         """
 
+
         # pad to a slightly larger geometry
         tot_pad_deg = pixwin_taper_deg + pixwin_pad_deg
         res = maps.resolution(oshape,owcs)
         pix = np.deg2rad(tot_pad_deg)/res
-        omap = enmap.pad(enmap.zeros(oshape,owcs),pix)
-        ishape,iwcs = omap.shape,omap.wcs
+        omap = enmap.pad(enmap.zeros((3,)+oshape,owcs),pix)
+        ishape,iwcs = omap.shape[-2:],omap.wcs
 
         # get data model
         dm = sints.models[sints.arrays(qid,'data_model')](region_shape=ishape,region_wcs=iwcs,calibrated=True)
 
         # 1. get total alm
         array_index = self.qids.index(qid)
-        tot_alm = int(include_cmb)*self.alms['cmb'] + int(include_tsz)*self.tsz_fnu[array_index]*self.alms['comptony'] #+ int(include_fgres)*self.alms['fgres'][array_index]
-        assert tot_alm.ndim==1
+        tot_alm = int(include_cmb)*self.alms['cmb']
+        tot_alm[0] = tot_alm[0] + int(include_tsz)*self.tsz_fnu[array_index]*self.alms['comptony'] #+ int(include_fgres)*self.alms['fgres'][array_index]
+        assert tot_alm.ndim==2
+        assert tot_alm.shape[0]==3
         ells = np.arange(self.lmax+1)
         
         # 2. get beam, and pixel window for Planck
         beam = tutils.get_kbeam(qid,ells)   
+        for i in range(3): tot_alm[i] = hp.almxfl(tot_alm[i],beam)
         if dm.name=='planck_hybrid':
-            pixwin = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax)
-            beam = beam * pixwin
-        tot_alm = hp.almxfl(tot_alm,beam)
+            pixwint,pixwinp = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax,pol=True)
+            tot_alm[0] = hp.almxfl(tot_alm[0],pixwint)
+            tot_alm[1] = hp.almxfl(tot_alm[1],pixwinp)
+            tot_alm[2] = hp.almxfl(tot_alm[2],pixwinp)
         
         # 3. ISHT
-        omap = curvedsky.alm2map(np.complex128(tot_alm[None]),omap,spin=0)
-        assert omap.ndim==2
+        omap = curvedsky.alm2map(np.complex128(tot_alm),omap,spin=[0,2])
+        assert omap.ndim==3
+        assert omap.shape[0]==3
 
         # 4. if ACT, apply a small taper and apply pixel window in Fourier space
         if dm.name=='act_mr3':
@@ -132,7 +136,7 @@ class JointTemperatureSim(object):
             pwin = tutils.get_pixwin(ishape[-2:])
             omap = maps.filter_map(omap*taper,pwin)
 
-        return enmap.extract(omap,oshape,owcs)
+        return enmap.extract(omap,(3,)+oshape[-2:],owcs)
 
 
 """
@@ -164,6 +168,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        overwrite,memory_intensive,uncalibrated,
                        sim_splits=None,skip_inpainting=False,theory_signal="none"):
 
+
     save_scratch = not(memory_intensive)
     save_path = sints.dconfig['tilec']['save_path']
     scratch_path = sints.dconfig['tilec']['scratch_path']
@@ -185,6 +190,8 @@ def build_and_save_cov(arrays,region,version,mask_version,
     shape,wcs = mask.shape,mask.wcs
     aspecs = tutils.ASpecs().get_specs
 
+
+
     with bench.show("ffts"):
         kcoadds = []
         kdiffs = []
@@ -197,7 +204,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
         save_names = [] # to make sure nothing is overwritten
         friends = {} # what arrays are each correlated with?
         names = arrays.split(',')
-        print(arrays)
+        print("Calculating FFTs for " , arrays)
         for i,qid in enumerate(arrays.split(',')):
             dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
             lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
@@ -211,6 +218,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                                               skip_splits=False,
                                               splits=sim_splits[i] if sim_splits is not None else None,
                                               inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x))
+            print("Processed ",qid)
             if save_scratch: 
                 kcoadd_name = savedir + "kcoadd_%s.hdf" % qid
                 kdiff_name = scratch + "kdiff_%s.hdf" % qid
@@ -227,13 +235,15 @@ def build_and_save_cov(arrays,region,version,mask_version,
                 save_names.append(win_name)
                 save_names.append(kcoadd_name)
                 save_names.append(kdiff_name)
+                print("Saved ",qid)
             else:
                 wins.append(win.copy())
                 kcoadds.append(kcoadd.copy())
                 kdiffs.append(kdiff.copy())
             lmins.append(lmin)
             lmaxs.append(lmax)
-
+    if sim_splits is not None: del sim_splits
+    print("Done with ffts.")
     # Decide what pairs to do hybrid smoothing for
     anisotropic_pairs = get_aniso_pairs(arrays.split(','),hybrids,friends)
     print("Anisotropic pairs: ",anisotropic_pairs)
@@ -242,7 +252,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
     save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[a1],names[a2]),enmap.enmap(x,wcs))
 
 
-
+    print("Building covariance...")
     with bench.show("build cov"):
         ilc.build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,
                   delta_ell,
