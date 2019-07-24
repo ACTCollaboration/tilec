@@ -201,12 +201,13 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     minell = maps.minimum_ell(shape,wcs)
     Ny,Nx = shape[-2:]
     if radial_fit:
-        if nparams is None:
-            if verbose: print("Radial fitting...")
-            nparams = fit_noise_1d(n2d,lmin=lmin,lmax=lmax,wnoise_annulus=wnoise_annulus,
-                                bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess)
-        wfit,lfit,afit = nparams
-        nfitted = rednoise(modlmap,wfit,lfit,afit)
+        with bench.show("radial fit"):
+            if nparams is None:
+                if verbose: print("Radial fitting...")
+                nparams = fit_noise_1d(n2d,lmin=lmin,lmax=lmax,wnoise_annulus=wnoise_annulus,
+                                    bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess)
+            wfit,lfit,afit = nparams
+            nfitted = rednoise(modlmap,wfit,lfit,afit)
     else:
         nparams = None
         nfitted = n2d*0 + 1
@@ -219,7 +220,8 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
         nflat[modlmap>fill_lmax] = fill_avg
     if verbose: print("Resampling...")
     assert np.all(np.isfinite(nflat))
-    ndown = smooth_ps_grid(nflat, res=delta_ell, alpha=4, log=log, ndof=2*(nsplits-1))
+    with bench.show("smooth ps grid"):
+        ndown = smooth_ps_grid(nflat, res=delta_ell, alpha=4, log=log, ndof=2*(nsplits-1))
     # pshow(nflat)
     # pshow(ndown)
     outcov = ndown*nfitted
@@ -228,13 +230,14 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     assert np.all(np.isfinite(outcov))
 
     if isotropic_low_ell:
-        ifunc = lambda ells,ell0,A,shell: A*np.exp(-ell0/ells) + shell
-        sel = np.logical_and(modlmap<=lmin,modlmap>=2)
-        ys = nflat[sel]
-        xs = modlmap[sel]
-        res,_ = curve_fit(ifunc,xs,ys,p0=[20,1,0],bounds=([-np.inf,0.,-np.inf],[np.inf,np.inf,np.inf]))
-        outcov[sel] = ifunc(modlmap[sel],res[0],res[1],res[2])*nfitted[sel]
-        outcov[modlmap<2] = 0
+        with bench.show("isotropic low ell"):
+            ifunc = lambda ells,ell0,A,shell: A*np.exp(-ell0/ells) + shell
+            sel = np.logical_and(modlmap<=lmin,modlmap>=2)
+            ys = nflat[sel]
+            xs = modlmap[sel]
+            res,_ = curve_fit(ifunc,xs,ys,p0=[20,1,0],bounds=([-np.inf,0.,-np.inf],[np.inf,np.inf,np.inf]))
+            outcov[sel] = ifunc(modlmap[sel],res[0],res[1],res[2])*nfitted[sel]
+            outcov[modlmap<2] = 0
 
         # fbin_edges = np.arange(minell,lmax,bin_annulus)
         # fbinner = stats.bin2D(modlmap,fbin_edges)

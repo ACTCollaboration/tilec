@@ -7,7 +7,7 @@ from soapack import interfaces as sints
 from tilec import utils as tutils
 
 
-def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn_beam=None,cache_inpainted=False):
+def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
@@ -32,7 +32,10 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn
     if inpaint and dm.name=='act_mr3':
         rsplits = []
         for i in range(nsplits): 
-            result = inpainting.inpaint_map_white(splits[i],wins[i],fn_beam,union_sources_version=None,noise_pix = 20,hole_radius = 3.,plots=False)
+            result = inpainting.inpaint_map_white(splits[i],wins[i],fn_beam,
+                                                  union_sources_version=None,noise_pix = 20,
+                                                  hole_radius = 3.,plots=False,
+                                                  cache_name="qid_%s_splitnum_%d" % (qid,i) if cache_inpaint_geometries else None)
             rsplits.append(result[0,:,:].copy())
         rsplits = enmap.enmap(np.stack(rsplits),splits.wcs)
     else:

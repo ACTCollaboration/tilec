@@ -5,6 +5,7 @@ from orphics import maps,stats,io,cosmology
 from actsims import noise as simnoise
 from szar import foregrounds as szfg
 import os,sys
+from enlib import bench
 
 try: basestring
 except NameError: basestring = str
@@ -639,17 +640,21 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 nsplits2 = kd2.shape[0]
                 assert nsplits==nsplits2
                 assert nsplits in [2,4], "Only two or four splits supported."
-                ncov = simnoise.noise_power(kd1,m1,
-                                            kmaps2=kd2,weights2=m2,
-                                            coadd_estimator=True)
+                with bench.show("noise power"):
+                    ncov = simnoise.noise_power(kd1,m1,
+                                                kmaps2=kd2,weights2=m2,
+                                                coadd_estimator=True)
 
                 # Smoothed noise power
-                dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
-                                                                        radial_fit=do_radial_fit[a1],lmax=min(rfit_lmaxes[a1],rfit_lmaxes[a2]),
-                                                                        wnoise_annulus=rfit_wnoise_width,
-                                                                        lmin = rfit_lmin,
-                                                                        bin_annulus=rfit_bin_width,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
-                                                                        log=(a1==a2))
+                drfit = do_radial_fit[a1]
+                if a1==a2: drfit = False # !!! only doing radial fit for 90-150
+                with bench.show("noise smoothing"):
+                    dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
+                                                                            radial_fit=drfit,lmax=min(rfit_lmaxes[a1],rfit_lmaxes[a2]),
+                                                                            wnoise_annulus=rfit_wnoise_width,
+                                                                            lmin = rfit_lmin,
+                                                                            bin_annulus=rfit_bin_width,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
+                                                                            log=(a1==a2))
                 dncovs[(a1,a2)] = dncov.copy()
                 if a1==a2:
                     # 1d approx of noise power for weights
@@ -710,7 +715,8 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             c22[~np.isfinite(c22)] = 0
             c12[~np.isfinite(c12)] = 0
             w = 1./((cl_11 * cl_22)+cl_12**2) 
-            weight = maps.interp(ells,w)(modlmap)
+            with bench.show("interp"):
+                weight = maps.interp(ells,w)(modlmap)
             weight[modlmap<max(lmins[a1],lmins[a2])] = 0
             weight[modlmap>min(lmaxs[a1],lmaxs[a2])] = 0
             fws[(f1,f2)] = fws[(f1,f2)] + weight
