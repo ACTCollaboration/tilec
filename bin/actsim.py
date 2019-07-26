@@ -41,6 +41,7 @@ parser.add_argument("--chunk-size",     type=int,  default=5000000,help="Chunk s
 parser.add_argument("--maxval",     type=float,  default=700000,help="Maxval for covmat.")
 parser.add_argument("--beam-version", type=str,  default=None,help='Mask version')
 parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore bandpass files and use effective frequency.')
+parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 args = parser.parse_args()
 
 
@@ -126,22 +127,32 @@ for sim_index in range(nsims):
             ivars = fivars[ind]
 
         splits = actnoise.apply_ivar_window(signal[None,None]+noise[None],ivars[None])
+        fname = get_temp_split_fname(qid,set_id,sim_index)
+        enmap.write_map(fname,splits)
         assert splits.shape[0]==1
-        sim_splits.append(splits[0].copy())
+        sim_splits.append(fname)
 
     
     """
     SAVE COV
     """
     print("Beginning covariance calculation...")
-    ind_str = str(sim_index).zfill(int(np.log10(nsims))+2)
+    ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
     sim_version = "%s_%s" % (args.version,ind_str)
     with bench.show("sim cov"):
         pipeline.build_and_save_cov(args.arrays,args.region,sim_version,args.mask_version,
                                     args.signal_bin_width,args.signal_interp_order,args.delta_ell,
                                     args.rfit_wnoise_width,args.rfit_lmin,
                                     args.overwrite,args.memory_intensive,args.uncalibrated,
-                                    sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,theory_signal=args.theory)
+                                    sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
+                                    theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam)
+
+    # delete split files
+    for aindex in range(narrays):
+        qid = arrays[aindex]
+        fname = get_temp_split_fname(qid,set_id,sim_index)
+        os.remove(fname)
+
 
 
     """
@@ -153,4 +164,5 @@ for sim_index in range(nsims):
         print("starting")
         pipeline.build_and_save_ilc(args.arrays,args.region,ilc_version,sim_version,args.beam_version,
                                     args.solutions,args.beams,args.chunk_size,
-                                    args.effective_freq,args.overwrite,args.maxval)
+                                    args.effective_freq,args.overwrite,args.maxval,
+                                    unsanitized_beam=args.unsanitized_beam)

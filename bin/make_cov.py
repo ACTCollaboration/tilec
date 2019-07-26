@@ -28,6 +28,7 @@ parser.add_argument("arrays", type=str,help='Comma separated list of array names
 parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
 parser.add_argument("-m", "--memory-intensive", action='store_true',help='Do not save FFTs to scratch disk. Can be faster, but very memory intensive.')
+parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
 parser.add_argument("--uncalibrated", action='store_true',help='Do not use calibration factors.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
@@ -44,4 +45,5 @@ pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_versi
                             args.signal_bin_width,args.signal_interp_order,args.delta_ell,
                             args.rfit_wnoise_width,args.rfit_lmin,
                             args.overwrite,args.memory_intensive,args.uncalibrated,
-                            sim_splits=None,skip_inpainting=args.skip_inpainting,theory_signal=args.theory)
+                            sim_splits=None,skip_inpainting=args.skip_inpainting,
+                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam)

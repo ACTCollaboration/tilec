@@ -7,6 +7,8 @@ from scipy import ndimage
 import os,sys
 import pandas
 
+
+
 class ASpecs(object):
     def __init__(self):
         cfile = "input/array_specs.csv"
@@ -56,7 +58,7 @@ def get_nside(qid):
     else: raise ValueError
     
 
-def get_kbeam(qid,modlmap,**kwargs):
+def get_kbeam(qid,modlmap,sanitize=False,**kwargs):
     dmodel = sints.arrays(qid,'data_model')
     season = sints.arrays(qid,'season')
     region = sints.arrays(qid,'region')
@@ -64,7 +66,7 @@ def get_kbeam(qid,modlmap,**kwargs):
     freq = sints.arrays(qid,'freq')
     dm = sints.models[dmodel]()
     gfreq = array+"_"+freq if not(is_planck(qid)) else freq
-    return dm.get_beam(modlmap, season=season,patch=region,array=gfreq, kind='normalized',**kwargs)
+    return dm.get_beam(modlmap, season=season,patch=region,array=gfreq, kind='normalized',sanitize=sanitize,**kwargs)
 
 
 def filter_div(div):

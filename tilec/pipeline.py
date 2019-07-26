@@ -117,7 +117,7 @@ class JointSim(object):
         ells = np.arange(self.lmax+1)
         
         # 2. get beam, and pixel window for Planck
-        beam = tutils.get_kbeam(qid,ells)   
+        beam = tutils.get_kbeam(qid,ells,sanitize=False)    # NEVER SANITIZE THE BEAM IN A SIMULATION!!!
         for i in range(3): tot_alm[i] = hp.almxfl(tot_alm[i],beam)
         if dm.name=='planck_hybrid':
             pixwint,pixwinp = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax,pol=True)
@@ -166,7 +166,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,delta_ell,
                        rfit_wnoise_width,rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
-                       sim_splits=None,skip_inpainting=False,theory_signal="none"):
+                       sim_splits=None,skip_inpainting=False,theory_signal="none",unsanitized_beam=False):
 
 
     save_scratch = not(memory_intensive)
@@ -213,10 +213,10 @@ def build_and_save_cov(arrays,region,version,mask_version,
             friends[qid] = friend
             hybrids.append(hybrid)
             freqs.append(fgroup)
-            fbeam = lambda qname,x: tutils.get_kbeam(qname,x)
+            fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(unsanitized_beam))
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
-                                              splits=sim_splits[i] if sim_splits is not None else None,
+                                              splits_fname=sim_splits[i] if sim_splits is not None else None,
                                               inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x))
             print("Processed ",qid)
             if save_scratch: 
@@ -274,7 +274,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
 
 def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                        solutions,beams,chunk_size,
-                       effective_freq,overwrite,maxval):
+                       effective_freq,overwrite,maxval,unsanitized_beam=False):
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
@@ -322,7 +322,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
         kcoadd = enmap.read_map(kcoadd_name)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy()*kmask)
-        kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=region,array=array,version=beam_version))
+        kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=region,array=array,version=beam_version,sanitize=not(unsanitized_beam)))
         if bandpasses:
             try: bps.append("data/"+dm.get_bandpass_file_name(array) )
             except:
@@ -417,7 +417,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             lbeam = maps.gauss_beam(ells,fbeam)
         except:
             qid = beam
-            bfunc = lambda x: tutils.get_kbeam(qid,x,version=beam_version)
+            bfunc = lambda x: tutils.get_kbeam(qid,x,version=beam_version,sanitize=not(unsanitized_beam))
             kbeam = bfunc(modlmap)
             lbeam = bfunc(ells)
 

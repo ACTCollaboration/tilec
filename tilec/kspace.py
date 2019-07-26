@@ -7,7 +7,7 @@ from soapack import interfaces as sints
 from tilec import utils as tutils
 
 
-def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True):
+def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
@@ -23,8 +23,10 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits=None,inpaint=True,fn
         season,patch,array = None,None,sints.arrays(qid,'freq')
         pixwin = False
     wins = dm.get_splits_ivar(season=season,patch=patch,arrays=[array],ncomp=None)[0,:,0,:,:]
-    if splits is None: 
+    if splits_fname is None: 
         splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
+    else:
+        splits = enmap.read_map(splits_fname)
     assert splits.ndim==4
     nsplits = splits.shape[0]
     assert nsplits==2 or nsplits==4

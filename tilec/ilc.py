@@ -614,7 +614,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
     dncovs = {}
     scovs = {}
     n1ds = {}
-    gellmax = max(lmaxs)
+    gellmax = modlmap.max()
     ells = np.arange(0,gellmax,1)
     ctheory = CTheory(ells)
     for a1 in range(narrays):
@@ -650,10 +650,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 if a1==a2: drfit = False # !!! only doing radial fit for 90-150
                 with bench.show("noise smoothing"):
                     dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
-                                                                            radial_fit=drfit,lmax=min(rfit_lmaxes[a1],rfit_lmaxes[a2]),
+                                                                            radial_fit=drfit,lmax=min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max()),
                                                                             wnoise_annulus=rfit_wnoise_width,
                                                                             lmin = rfit_lmin,
-                                                                            bin_annulus=rfit_bin_width,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
+                                                                            bin_annulus=rfit_bin_width,fill_lmax=min(min(lmaxs[a1],lmaxs[a2]),modlmap.max()),
                                                                             log=(a1==a2))
                 dncovs[(a1,a2)] = dncov.copy()
                 if a1==a2:
@@ -661,8 +661,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                     if nparams is not None:
                         wfit,lfit,afit = nparams
                     else:
-                        lmax = min(rfit_lmaxes[a1],rfit_lmaxes[a2])
+                        lmax = min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max())
                         wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
+                        assert np.isfinite(wfit)
                         lfit = 0
                         afit = 1
                     n1d = covtools.rednoise(ells,wfit,lfit,afit)
@@ -718,7 +719,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             with bench.show("interp"):
                 weight = maps.interp(ells,w)(modlmap)
             weight[modlmap<max(lmins[a1],lmins[a2])] = 0
-            weight[modlmap>min(lmaxs[a1],lmaxs[a2])] = 0
+            weight[modlmap>min(min(lmaxs[a1],lmaxs[a2]),modlmap.max())] = 0
             fws[(f1,f2)] = fws[(f1,f2)] + weight
             scov = scovs[(a1,a2)] * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
             scov[~np.isfinite(scov)] = 0

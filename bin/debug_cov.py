@@ -5,7 +5,7 @@ import numpy as np
 import os,sys
 from tilec import utils as tutils
 
-version = "v1.0.0_sint3"
+version = "rc_v1.0.0"
 qids  = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 #qids  = "p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 #qids = "d56_05,d56_06,p01,p04,p05,p06".split(',')
@@ -25,7 +25,7 @@ for i in range(narrays):
     for j in range(i,narrays):
         qid1 = qids[i]
         qid2 = qids[j]
-        # if i!=j: continue # !!!
+        if i!=j: continue # !!!
 
         p2d = enmap.read_map(cfunc(qid1,qid2))
         modlmap = p2d.modlmap()
