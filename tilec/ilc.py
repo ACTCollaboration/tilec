@@ -639,7 +639,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 if scratch_dir is None:
                     dncovs[(a1,a2)] = 0.
                 else:
-                    enmap.write_map(scratch_fname(scratch_dir,"scov",a1,a2),ccov)
+                    enmap.write_map(scratch_fname(scratch_dir,"dncovs",a1,a2),ccov * 0.)
             else:
                 # Calculate noise power
                 kd1 = _load_map(kdiffs[a1])
