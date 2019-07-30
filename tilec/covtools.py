@@ -65,18 +65,20 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
     modlmap = npower.modlmap()
     fbinner = stats.bin2D(modlmap,fbin_edges)
     cents,dn1d = fbinner.bin(npower)
-    wnoise = np.sqrt(dn1d[np.logical_and(cents>=(lmax-wnoise_annulus),cents<lmax)].mean())*180.*60./np.pi
+    w2 = dn1d[np.logical_and(cents>=(lmax-wnoise_annulus),cents<lmax)].mean()
+    assert w2>0
+    wnoise = np.sqrt(w2)*180.*60./np.pi
     ntemplatefunc = lambda x,lknee,alpha: fbinner.bin(rednoise(modlmap,wnoise,lknee=lknee,alpha=alpha))[1]
     #ntemplatefunc = lambda x,lknee,alpha: rednoise(x,wnoise,lknee=lknee,alpha=alpha) # FIXME: This switch needs testing !!!!
     res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess],bounds=([lknee_min,alpha_min],[lknee_max,alpha_max]))
     lknee_fit,alpha_fit = res
 
     # from orphics import io
-    # print(lknee_fit,alpha_fit,wnoise)
+    # # print(lknee_fit,alpha_fit,wnoise)
     # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
     # pl.add(cents,dn1d)
-    # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
-    # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_guess,alpha=alpha_guess),ls="-.")
+    # # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
+    # # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_guess,alpha=alpha_guess),ls="-.")
     # pl.done(os.environ['WORK']+"/fitnoise_pre.png")
     # sys.exit()
 
@@ -297,7 +299,7 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     binner = stats.bin2D(modlmap,bin_edges)
     cents,c1d = binner.bin(dcov)
     outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),dcov.wcs)
-    outcov = outcov / modlmap**2. if dlspace else outcov
+    with np.errstate(invalid='ignore'): outcov = outcov / modlmap**2. if dlspace else outcov
     outcov[modlmap<2] = 0
     assert np.all(np.isfinite(outcov))
 

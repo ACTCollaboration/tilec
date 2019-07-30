@@ -1,8 +1,8 @@
 from __future__ import print_function
-from orphics import maps,io,cosmology
+from orphics import maps,io,cosmology,mpi
 from pixell import enmap
 import numpy as np
-import os,sys
+import os,sys,shutil
 from actsims import noise as actnoise
 from actsims.util import seed_tracker
 from soapack import interfaces as sints
@@ -66,13 +66,21 @@ ngen['planck_hybrid'] = actnoise.NoiseGen(args.sim_version,model="planck_hybrid"
 arrays = args.arrays.split(',')
 narrays = len(arrays)
 nsims = args.nsims
-aspecs = tutils.ASpecs().get_specs
 
 jsim = pipeline.JointSim(arrays,args.fg_res_version,bandpassed=bandpasses)
 
-for sim_index in range(nsims):
+comm,rank,my_tasks = mpi.distribute(nsims)
 
+for task in my_tasks:
+    sim_index = task
 
+    ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
+    sim_version = "%s_%s" % (args.version,ind_str)
+    scratch = tutils.get_scratch_path(sim_version,args.region)
+    try: 
+        os.makedirs(scratch)
+    except: 
+        pass
     """
     MAKE SIMS
     """
@@ -127,9 +135,9 @@ for sim_index in range(nsims):
             ivars = fivars[ind]
 
         splits = actnoise.apply_ivar_window(signal[None,None]+noise[None],ivars[None])
-        fname = get_temp_split_fname(qid,set_id,sim_index)
-        enmap.write_map(fname,splits)
+        fname = tutils.get_temp_split_fname(qid,args.region,sim_version)
         assert splits.shape[0]==1
+        enmap.write_map(fname,splits[0])
         sim_splits.append(fname)
 
     
@@ -137,8 +145,6 @@ for sim_index in range(nsims):
     SAVE COV
     """
     print("Beginning covariance calculation...")
-    ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
-    sim_version = "%s_%s" % (args.version,ind_str)
     with bench.show("sim cov"):
         pipeline.build_and_save_cov(args.arrays,args.region,sim_version,args.mask_version,
                                     args.signal_bin_width,args.signal_interp_order,args.delta_ell,
@@ -147,11 +153,6 @@ for sim_index in range(nsims):
                                     sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
                                     theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam)
 
-    # delete split files
-    for aindex in range(narrays):
-        qid = arrays[aindex]
-        fname = get_temp_split_fname(qid,set_id,sim_index)
-        os.remove(fname)
 
 
 
@@ -166,3 +167,6 @@ for sim_index in range(nsims):
                                     args.solutions,args.beams,args.chunk_size,
                                     args.effective_freq,args.overwrite,args.maxval,
                                     unsanitized_beam=args.unsanitized_beam)
+
+    savepath = tutils.get_save_path(sim_version,args.region)
+    shutil.rmtree(savepath)

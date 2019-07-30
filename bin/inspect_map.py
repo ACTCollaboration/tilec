@@ -90,12 +90,12 @@ p2d = np.real(kmap*kmap.conj())
 cents,op1d = binner.bin(p2d*maps.interp(ls,bells)(modlmap)**2/ow2)
 
 pl = io.Plotter(xyscale='loglog',xlabel='l',ylabel='D',scalefn = lambda x: x**2./2./np.pi)
-pl.add(cents,p1d,label='ILC v1 auto')
-#pl.add(cents,op1d,ls=':',label='ILC v0.2.3 auto')
+pl.add(cents,p1d,label='ILC v1 release candidate auto')
+pl.add(cents,op1d,ls=':',label='ILC v0.2.3 auto')
 if args.solution=='CMB':
     pl.add(cents,omar_p1d,ls='-.',label='k-space auto')
-pl.add(cents,n1d,ls='--',label='ILC v1 noise cov')
-pl._ax.set_ylim(2e1,1e4)
+#pl.add(cents,n1d,ls='--',label='ILC v1 noise cov')
+#pl._ax.set_ylim(2e1,1e4)
 pl.done("p1d.png")
 
 

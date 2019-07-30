@@ -1,9 +1,9 @@
 from __future__ import print_function
-from orphics import maps,io,cosmology,stats
+from orphics import maps,io,cosmology,stats,mpi
 from pixell import enmap,curvedsky
 from enlib import bench
 import numpy as np
-import os,sys
+import os,sys,shutil
 from tilec import fg as tfg,ilc,kspace,utils as tutils
 from soapack import interfaces as sints
 from szar import foregrounds as fgs
@@ -59,7 +59,7 @@ class JointSim(object):
                 array = '_'.join([array1,array2])
             elif dm.name=='planck_hybrid':
                 season,patch,array = None,None,sints.arrays(qid,'freq')
-            lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+            lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
             if bandpassed:
                 bps.append("data/"+dm.get_bandpass_file_name(array))
             else:
@@ -170,10 +170,12 @@ def build_and_save_cov(arrays,region,version,mask_version,
 
 
     save_scratch = not(memory_intensive)
-    save_path = sints.dconfig['tilec']['save_path']
-    scratch_path = sints.dconfig['tilec']['scratch_path']
-    savedir = save_path + version + "/" + region +"/"
-    if save_scratch: scratch = scratch_path + version + "/" + region +"/"
+    savedir = tutils.get_save_path(version,region)
+    if save_scratch: 
+        scratch = tutils.get_scratch_path(version,region)
+        covscratch = scratch
+    else:
+        covscratch = None
     if not(overwrite):
         assert not(os.path.exists(savedir)), \
        "This version already exists on disk. Please use a different version identifier."
@@ -184,6 +186,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
     if save_scratch:     
         try: os.makedirs(scratch)
         except: pass
+
     mask = sints.get_act_mr3_crosslinked_mask(region,
                                               version=mask_version,
                                               kind='binary_apod')
@@ -201,18 +204,20 @@ def build_and_save_cov(arrays,region,version,mask_version,
         hybrids = []
         do_radial_fit = []
         freqs = []
+        rfit_wnoise_widths = []
         save_names = [] # to make sure nothing is overwritten
         friends = {} # what arrays are each correlated with?
         names = arrays.split(',')
         print("Calculating FFTs for " , arrays)
         for i,qid in enumerate(arrays.split(',')):
             dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
-            lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+            lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
             assert isinstance(radial,bool)
             do_radial_fit.append(radial)
             friends[qid] = friend
             hybrids.append(hybrid)
             freqs.append(fgroup)
+            rfit_wnoise_widths.append(wrfit)
             fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(unsanitized_beam))
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
@@ -255,20 +260,20 @@ def build_and_save_cov(arrays,region,version,mask_version,
     print("Building covariance...")
     with bench.show("build cov"):
         ilc.build_cov(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotropic_pairs,
-                  delta_ell,
-                  do_radial_fit,save_fn,
-                  signal_bin_width=signal_bin_width,
-                  signal_interp_order=signal_interp_order,
-                  rfit_lmaxes=lmaxs,
-                  rfit_wnoise_width=rfit_wnoise_width,
-                  rfit_lmin=rfit_lmin,
-                  rfit_bin_width=None,
-                  verbose=True,
-                  debug_plots_loc=False,
-                  separate_masks=False,theory_signal=theory_signal)
+                      delta_ell,
+                      do_radial_fit,save_fn,
+                      signal_bin_width=signal_bin_width,
+                      signal_interp_order=signal_interp_order,
+                      rfit_lmaxes=lmaxs,
+                      rfit_wnoise_widths=rfit_wnoise_widths,
+                      rfit_lmin=rfit_lmin,
+                      rfit_bin_width=None,
+                      verbose=True,
+                      debug_plots_loc=False,
+                      separate_masks=False,theory_signal=theory_signal,scratch_dir=covscratch)
 
 
-
+    shutil.rmtree(scratch)
 
 
 
@@ -280,9 +285,9 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
     aspecs = tutils.ASpecs().get_specs
     bandpasses = not(effective_freq)
-    save_path = sints.dconfig['tilec']['save_path']
-    savedir = save_path + version + "/" + region +"/"
-    covdir = save_path + cov_version + "/" + region +"/"
+    savedir = tutils.get_save_path(version,region)
+    covdir = tutils.get_save_path(cov_version,region)
+    print(covdir)
     assert os.path.exists(covdir)
     if not(overwrite):
         assert not(os.path.exists(savedir)), \
@@ -308,7 +313,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     lmaxs = []
     for i,qid in enumerate(arrays):
         dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
-        lmin,lmax,hybrid,radial,friend,cfreq,fgroup = aspecs(qid)
+        lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
         lmins.append(lmin)
         lmaxs.append(lmax)
         names.append(qid)

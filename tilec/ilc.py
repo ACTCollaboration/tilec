@@ -262,7 +262,7 @@ def standard_noise(response,cov=None,cinv=None):
     Auto-noise <standard standard>
     """
     mcomb = map_comb(response,response,cov,cinv)
-    ret = 1./mcomb
+    with np.errstate(divide='ignore'): ret = 1./mcomb
     ret[~np.isfinite(ret)] = 0
     return ret
 
@@ -549,6 +549,9 @@ class CTheory(object):
 
         
 
+def scratch_fname(scratch_dir,ftype,a1,a2):
+    return scratch_dir + "/%s_%d_%d.hdf" % (ftype,a1,a2)
+
 
 def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                            lmins,lmaxs,freqs,anisotropic_pairs,
@@ -557,11 +560,12 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                            signal_bin_width=None,
                            signal_interp_order=0,
                            rfit_lmaxes=None,
-                           rfit_wnoise_width=250,
+                           rfit_wnoise_widths=250,
                            rfit_lmin=300,
                            rfit_bin_width=None,
                            verbose=True,
-                           debug_plots_loc=None,separate_masks=False,theory_signal="none",maxval=None):
+                           debug_plots_loc=None,separate_masks=False,theory_signal="none",
+                           maxval=None,scratch_dir=None):
 
     """
 
@@ -608,11 +612,12 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
         rfit_lmaxes = [8000*0.5/px_arcmin]*narrays
     if rfit_bin_width is None: rfit_bin_width = minell*4.
     if signal_bin_width is None: signal_bin_width = minell*8.
+    if rfit_wnoise_widths is None: rfit_wnoise_widths = [250] * narrays
 
 
     # Let's build the instrument noise model
-    dncovs = {}
-    scovs = {}
+    if scratch_dir is None: dncovs = {}
+    if scratch_dir is None: scovs = {}
     n1ds = {}
     gellmax = modlmap.max()
     ells = np.arange(0,gellmax,1)
@@ -631,7 +636,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             # If off-diagonals that are not correlated, only calculate coadd cross for signal
             if (a1 != a2) and (not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs)): 
                 scov = ccov
-                dncovs[(a1,a2)] = 0.
+                if scratch_dir is None:
+                    dncovs[(a1,a2)] = 0.
+                else:
+                    enmap.write_map(scratch_fname(scratch_dir,"scov",a1,a2),ccov)
             else:
                 # Calculate noise power
                 kd1 = _load_map(kdiffs[a1])
@@ -647,21 +655,30 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
                 # Smoothed noise power
                 drfit = do_radial_fit[a1]
-                if a1==a2: drfit = False # !!! only doing radial fit for 90-150
+                if a1==a2: 
+                    drfit = False # !!! only doing radial fit for 90-150
+                    dolog = True
+                else:
+                    dolog = False
+                
                 with bench.show("noise smoothing"):
                     dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
-                                                                            radial_fit=drfit,lmax=min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max()),
-                                                                            wnoise_annulus=rfit_wnoise_width,
-                                                                            lmin = rfit_lmin,
-                                                                            bin_annulus=rfit_bin_width,fill_lmax=min(min(lmaxs[a1],lmaxs[a2]),modlmap.max()),
-                                                                            log=(a1==a2))
-                dncovs[(a1,a2)] = dncov.copy()
+                                                                   radial_fit=drfit,lmax=min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max()),
+                                                                   wnoise_annulus=min(rfit_wnoise_widths[a1],rfit_wnoise_widths[a2]),
+                                                                   lmin = rfit_lmin,
+                                                                   bin_annulus=rfit_bin_width,fill_lmax=min(min(lmaxs[a1],lmaxs[a2]),modlmap.max()),
+                                                                   log=dolog)
+                if scratch_dir is None:
+                    dncovs[(a1,a2)] = dncov.copy()
+                else:
+                    enmap.write_map(scratch_fname(scratch_dir,"dncovs",a1,a2),dncov)
                 if a1==a2:
                     # 1d approx of noise power for weights
                     if nparams is not None:
                         wfit,lfit,afit = nparams
                     else:
                         lmax = min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max())
+                        rfit_wnoise_width = rfit_wnoise_widths[a1]
                         wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
                         assert np.isfinite(wfit)
                         lfit = 0
@@ -684,7 +701,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                     print("WARNING: using theory signal for %d,%d" % (a1,a2))
                 else:
                     if theory_signal not in ['none','diagonal','offdiagonal','all']: raise ValueError
-            scovs[(a1,a2)] = scov.copy()
+            if scratch_dir is None:
+                scovs[(a1,a2)] = scov.copy()
+            else:
+                enmap.write_map(scratch_fname(scratch_dir,"scovs",a1,a2),scov)
 
                 
 
@@ -709,8 +729,8 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             c11 = ctheory.get_theory_cls(f1,f1)
             c22 = ctheory.get_theory_cls(f2,f2)
             c12 = ctheory.get_theory_cls(f1,f2)
-            cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
-            cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
+            with np.errstate(divide='ignore'): cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
+            with np.errstate(divide='ignore'): cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
             cl_12 = c12
             c11[~np.isfinite(c11)] = 0
             c22[~np.isfinite(c22)] = 0
@@ -721,17 +741,16 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             weight[modlmap<max(lmins[a1],lmins[a2])] = 0
             weight[modlmap>min(min(lmaxs[a1],lmaxs[a2]),modlmap.max())] = 0
             fws[(f1,f2)] = fws[(f1,f2)] + weight
-            scov = scovs[(a1,a2)] * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
+            if scratch_dir is None:
+                lscov = scovs[(a1,a2)]
+            else:
+                lscov = enmap.read_map(scratch_fname(scratch_dir,"scovs",a1,a2))
+            with np.errstate(divide='ignore',invalid='ignore'): 
+                scov = lscov * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
             scov[~np.isfinite(scov)] = 0
             fscovs[(f1,f2)] = fscovs[(f1,f2)] + scov
 
-    # print(fscovs.keys())
-    # for key in fscovs:
-    #     f1,f2 = key
-    #     assert (f2,f1) not in fscovs.keys()
-            
     slmin = min(lmins)
-
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
             f1 = freqs[a1]
@@ -747,7 +766,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                     denom = denom + fws[key2]
                 except:
                     pass
-            nscov = numer/denom
+            with np.errstate(invalid='ignore'): nscov = numer/denom
             nscov[~np.isfinite(nscov)] = 0
             smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
                                             kind=signal_interp_order,
@@ -758,16 +777,14 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
             # Diagnostic plot
             if debug_plots_loc: io.power_crop(smsig,200,debug_plots_loc+"dscov_%d_%d.png" % (a1,a2))
-
-            ocov = dncovs[(a1,a2)] + smsig
+            if scratch_dir is None:
+                lncov = dncovs[(a1,a2)]
+            else:
+                lncov = enmap.read_map(scratch_fname(scratch_dir,"dncovs",a1,a2))
+            ocov = lncov + smsig
             if (maxval is not None) and a1==a2: 
                 ocov[modlmap<lmins[a1]] = maxval
                 ocov[modlmap>lmaxs[a2]] = maxval
-
-
-            # if a1!=a2: # !!!!
-            #     smsig =  maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap) # !!!
-            #     smsig[~np.isfinite(smsig)] = 0
 
             # Save S + N
             save_fn(ocov,a1,a2)
@@ -780,7 +797,7 @@ def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotrop
               signal_bin_width=None,
               signal_interp_order=0,
               rfit_lmaxes=None,
-              rfit_wnoise_width=250,
+              rfit_wnoise_widths=None,
               rfit_lmin=300,
               rfit_bin_width=None,
               verbose=True,
@@ -821,6 +838,7 @@ def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotrop
         rfit_lmaxes = [8000*0.5/px_arcmin]*narrays
     if rfit_bin_width is None: rfit_bin_width = minell*4.
     if signal_bin_width is None: signal_bin_width = minell*8.
+    if rfit_wnoise_widths is None: rfit_wnoise_widths = [250] * narrays
 
 
     # Let's build the instrument noise model
@@ -848,7 +866,7 @@ def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotrop
 
             dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
                                                                     radial_fit=do_radial_fit[a1],lmax=min(rfit_lmaxes[a1],rfit_lmaxes[a2]),
-                                                                    wnoise_annulus=rfit_wnoise_width,
+                                                                    wnoise_annulus=min(rfit_wnoise_widths[a1],rfit_wnoise_widths[a2]),
                                                                     lmin = rfit_lmin,
                                                                     bin_annulus=rfit_bin_width,fill_lmax=min(lmaxs[a1],lmaxs[a2]),
                                                                     log=(a1==a2))

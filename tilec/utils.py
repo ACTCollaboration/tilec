@@ -8,6 +8,19 @@ import os,sys
 import pandas
 
 
+def get_save_path(version,region):
+    save_path = sints.dconfig['tilec']['save_path']
+    savedir = os.path.join(save_path , version + "_" + region)
+    return savedir + "/"
+
+def get_scratch_path(version,region):
+    scratch_path = sints.dconfig['tilec']['scratch_path']
+    return os.path.join(scratch_path , version + "_" + region ) + "/"
+
+def get_temp_split_fname(qid,region,version):
+    spath = get_scratch_path(version,region)
+    return spath + "split_%s.fits" % (qid)
+    
 
 class ASpecs(object):
     def __init__(self):
@@ -30,7 +43,8 @@ class ASpecs(object):
         except: friend = None
         cfreq = float(aspecs(aid,'cfreq'))
         fgroup = int(aspecs(aid,'fgroup'))
-        return lmin,lmax,hybrid,radial,friend,cfreq,fgroup
+        wrfit = int(aspecs(aid,'wrfit'))
+        return lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit
 
 
 def get_specs(aid):
