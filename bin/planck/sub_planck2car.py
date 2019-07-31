@@ -3,7 +3,7 @@ ifs = glob.glob("/scratch/r/rbond/msyriac/data/planck/data/pr2/*%s*.fits" % sys.
 
 fs = []
 for f in ifs:
-    if ("_map.fits" in f) or ("_ivar.fits" in f): continue
+    if ("_map.fits" in f) or ("_ivar.fits" in f) or ("Mask_Lensing" in f) : continue
     fs.append(f)
 
 fstr = ' '.join(fs)

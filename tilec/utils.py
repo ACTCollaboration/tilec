@@ -2,18 +2,155 @@ import yaml, numpy, six
 from pixell import enmap
 import numpy as np
 from orphics import maps,io
+from soapack import interfaces as sints
+from scipy import ndimage
+import os,sys
+import pandas
 
-"""
-saf = season_array_freq
-"""
 
-def get_beam(ells,patch,saf,directory='/home/msyriac/data/act/beams/181220/'):
-    fname = "mr3c_%s_nohwp_night_beam_tform_jitter_%s_181220.txt" % (saf,patch)
-    ls,bells = np.loadtxt(directory+fname,unpack=True,usecols=[0,1])
-    assert np.isclose(ls[0],0)
-    bnorm = bells[0]
-    bells = bells/bnorm
-    return maps.interp(ls,bells)(ells)
+def get_save_path(version,region):
+    save_path = sints.dconfig['tilec']['save_path']
+    savedir = os.path.join(save_path , version + "_" + region)
+    return savedir + "/"
+
+def get_scratch_path(version,region):
+    scratch_path = sints.dconfig['tilec']['scratch_path']
+    return os.path.join(scratch_path , version + "_" + region ) + "/"
+
+def get_temp_split_fname(qid,region,version):
+    spath = get_scratch_path(version,region)
+    return spath + "split_%s.fits" % (qid)
+    
+
+class ASpecs(object):
+    def __init__(self):
+        cfile = "input/array_specs.csv"
+        self.adf = pandas.read_csv(cfile)
+        self.aspecs = lambda qid,att : self.adf[self.adf['#qid']==qid][att].item()
+
+    def get_specs(self,aid):
+        aspecs = self.aspecs
+        lmin = int(aspecs(aid,'lmin'))
+        lmax = int(aspecs(aid,'lmax'))
+        assert 0 <= lmin < 50000
+        assert 0 <= lmax < 50000
+        hybrid = aspecs(aid,'hybrid')
+        assert type(hybrid)==bool
+        radial = aspecs(aid,'radial')
+        assert type(radial)==bool
+        friend = aspecs(aid,'friends')
+        try: friend = friend.split(',')
+        except: friend = None
+        cfreq = float(aspecs(aid,'cfreq'))
+        fgroup = int(aspecs(aid,'fgroup'))
+        wrfit = int(aspecs(aid,'wrfit'))
+        return lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit
+
+
+def get_specs(aid):
+    aspecs = ASpecs()
+    return aspecs.get_specs(aid)
+
+def load_geometries(qids):
+    geoms = {}
+    for qid in qids:
+        dmodel = sints.arrays(qid,'data_model')
+        season = sints.arrays(qid,'season')
+        region = sints.arrays(qid,'region')
+        array = sints.arrays(qid,'array')
+        freq = sints.arrays(qid,'freq')
+        dm = sints.models[dmodel]()
+        print(season,region,array,freq)
+        shape,wcs = enmap.read_map_geometry(dm.get_split_fname(season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq,splitnum=0,srcfree=True))
+        geoms[qid] = shape[-2:],wcs 
+    return geoms
+
+
+def get_nside(qid):
+    if qid in ['p01','p02','p03']: return 1024
+    elif qid in ['p04','p05','p06','p07','p08']: return 2048
+    else: raise ValueError
+    
+
+def get_kbeam(qid,modlmap,sanitize=False,**kwargs):
+    dmodel = sints.arrays(qid,'data_model')
+    season = sints.arrays(qid,'season')
+    region = sints.arrays(qid,'region')
+    array = sints.arrays(qid,'array')
+    freq = sints.arrays(qid,'freq')
+    dm = sints.models[dmodel]()
+    gfreq = array+"_"+freq if not(is_planck(qid)) else freq
+    return dm.get_beam(modlmap, season=season,patch=region,array=gfreq, kind='normalized',sanitize=sanitize,**kwargs)
+
+
+def filter_div(div):
+    """Downweight very thin stripes in the div - they tend to be problematic single detectors"""
+    res = div.copy()
+    for comp in res.preflat: comp[:] = ndimage.minimum_filter(comp, size=2)
+    return res
+
+def robust_ref(div,tol=1e-5):
+    ref = np.median(div[div>0])
+    ref = np.median(div[div>ref*tol])
+    return ref
+
+
+def get_splits_ivar(qid,extracter,ivar_unhit=1e-7, ivar_tol=20):
+    dmodel = sints.arrays(qid,'data_model')
+    season = sints.arrays(qid,'season')
+    region = sints.arrays(qid,'region')
+    array = sints.arrays(qid,'array')
+    freq = sints.arrays(qid,'freq')
+    dm = sints.models[dmodel]()
+    ivars = []
+    for i in range(dm.get_nsplits(season=season,patch=region,array=array)):
+        omap = extracter(dm.get_split_ivar_fname(season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq,splitnum=i))
+        if omap.ndim>2: omap = omap[0]
+        if not(np.any(omap>0)): 
+            print("Skipping %s as it seems to have an all zero ivar in this tile" % qid)
+            return None
+        omap[~np.isfinite(omap)] = 0
+        omap[omap<ivar_unhit] = 0
+        ref_div  = robust_ref(omap)
+        omap = np.minimum(omap, ref_div*ivar_tol)
+        omap = filter_div(omap)
+        eshape,ewcs = omap.shape,omap.wcs
+        ivars.append(omap.copy())
+    return enmap.enmap(np.stack(ivars),ewcs)
+
+
+def get_splits(qid,extracter):
+    dmodel = sints.arrays(qid,'data_model')
+    season = sints.arrays(qid,'season')
+    region = sints.arrays(qid,'region')
+    array = sints.arrays(qid,'array')
+    freq = sints.arrays(qid,'freq')
+    dm = sints.models[dmodel]()
+    splits = []
+    for i in range(dm.get_nsplits(season=season,patch=region,array=array)):
+        omap = extracter(dm.get_split_fname(season=season,patch=region,array=array+"_"+freq if not(is_planck(qid)) else freq,splitnum=i,srcfree=True),sel=np.s_[0,...]) # sel
+        assert np.all(np.isfinite(omap))
+        eshape,ewcs = omap.shape,omap.wcs
+        splits.append(omap.copy())
+    return enmap.enmap(np.stack(splits),ewcs)
+
+def apodize_zero(imap,width):
+    ivar = imap.copy()
+    ivar[...,:1,:] = 0; ivar[...,-1:] = 0; ivar[...,:,:1] = 0; ivar[...,:,-1:] = 0
+    from scipy import ndimage
+    dist = ndimage.distance_transform_edt(ivar>0)
+    apod = 0.5*(1-np.cos(np.pi*np.minimum(1,dist/width)))
+    return apod
+
+def is_planck(qid):
+    dmodel = sints.arrays(qid,'data_model')
+    return True if dmodel=='planck_hybrid' else False
+    
+def coadd(imap,ivar):
+    isum = np.sum(ivar,axis=0)
+    c = np.sum(imap*ivar,axis=0)/isum
+    c[~np.isfinite(c)] = 0
+    return c,isum
     
 
 
@@ -59,93 +196,7 @@ def estimate_separable_pixwin_from_normalized_ps(ps2d):
     return res
 
 
-class Config(object):
-    def __init__(self,arrays=None,yaml_file="input/arrays.yml"):
-        with open(yaml_file) as f:
-            self.config = yaml.safe_load(f)
-        self.darrays = {}
-        for d in self.config['arrays']:
-            self.darrays[d['name']] = d.copy()
-        self.arrays = arrays
-        if self.arrays is None: self.arrays = list(self.darrays.keys())
-        self.narrays = len(self.arrays)
-
-        self.mask = enmap.read_map(self.xmaskfname()) # steve's mask
-        self.shape,self.wcs = self.mask.shape,self.mask.wcs
-        Ny,Nx = self.shape[-2:]
-        self.Ny,self.Nx = Ny,Nx
-        self.fc = maps.FourierCalc(self.shape[-2:],self.wcs)
-        self.modlmap = enmap.modlmap(self.shape,self.wcs)
-
-            
-    def get_beam(self,ells,array): 
-        ibeam = self.darrays[array]['beam']
-        if isinstance(ibeam, six.string_types):
-            # return get_beam(ells,"deep56",array,'/home/msyriac/data/act/beams/181220/')
-            ls,bells = np.loadtxt(ibeam,unpack=True,usecols=[0,1])
-            assert np.isclose(ls[0],0)
-            bnorm = bells[0]
-            bells = bells/bnorm
-            return maps.interp(ls,bells)(ells)
-        else:
-            return maps.gauss_beam(ells,ibeam)
-    def isplanck(self,aindex): # is array index ai a planck array?
-        name = self.darrays[self.arrays[aindex]]['name'].lower()
-        return True if ("hfi" in name) or ("lfi" in name) else False
-    def is90150(self,ai,aj): # is array index ai,aj an act 150/90 combination?
-        iname = self.darrays[self.arrays[ai]]['name'].lower()
-        jname = self.darrays[self.arrays[aj]]['name'].lower()
-        return True if (("90" in iname) and ("150" in jname)) or (("90" in jname) and ("150" in iname)) else False
-    # Functions for filenames corresponding to an array index
-    def coaddfname(self,aindex): return self.darrays[self.arrays[aindex]]['froot'] + self.darrays[self.arrays[aindex]]['coadd']
-    def cinvvarfname(self,aindex): return self.darrays[self.arrays[aindex]]['froot'] + self.darrays[self.arrays[aindex]]['cinvvar']
-    def splitfname(self,aindex,split):
-        try:
-            splitstart = self.darrays[self.arrays[aindex]]['splitstart']
-            raise # always have splitstart = 0 hack
-        except: splitstart = 0
-        return self.darrays[self.arrays[aindex]]['froot'] + self.darrays[self.arrays[aindex]]['splits'] % (split + splitstart)
-    def sinvvarfname(self,aindex,split):
-        try: splitstart = self.darrays[self.arrays[aindex]]['splitstart']
-        except: splitstart = 0
-        return self.darrays[self.arrays[aindex]]['froot'] + self.darrays[self.arrays[aindex]]['sinvvars'] % (split + splitstart)
-    def get_nsplits(self,aindex): return self.darrays[self.arrays[aindex]]['nsplits']
-    def xmaskfname(self): return self.config['xmask']
-
-    def _read_map(self,name,**kwargs):
-        if "planck_hybrid" in name:
-            ishape,iwcs = enmap.read_fits_geometry(name)
-            pixbox = enmap.get_pixbox(iwcs,self.shape,self.wcs)
-            omap = enmap.read_map(name,pixbox=pixbox,**kwargs)
-            # if omap.ndim>2: omap = omap[0]
-            return omap
-        else:
-            return enmap.read_map(name,**kwargs)
-        
-    # def load_coadd_real(self,ai): return self._read_map(self.coaddfname(ai),sel=np.s_[0,:,:])
-    def load(self,ai,skip_splits=False):
-        """
-        ai is index of array (in the "arrays" list that you specified as an argument)
-        Return (nsplits,Ny,Nx) fourier transform
-        Return (Ny,Nx) fourier transform of coadd
-        """
-        nsplits = self.get_nsplits(ai)
-        ksplits = []
-        imaps = []
-        wins = []
-        for i in range(nsplits):
-            #print(i,nsplits)
-            iwin = self._read_map(self.sinvvarfname(ai,i)).reshape((self.Ny,self.Nx))
-            wins.append(iwin.copy())
-            imap = self._read_map(self.splitfname(ai,i),sel=np.s_[0,:,:]) * iwin # document sel usage
-            imaps.append(imap.copy())
-            if not(skip_splits):
-                _,_,ksplit = self.fc.power2d(imap*self.mask)
-                ksplits.append(ksplit.copy()/ np.sqrt(np.mean((iwin*self.mask)**2.)))
-        if not(skip_splits): ksplits = enmap.enmap(np.stack(ksplits),self.wcs)
-        wins = enmap.enmap(np.stack(wins),self.wcs)
-        imaps = enmap.enmap(np.stack(imaps),self.wcs)
-        coadd = np.nan_to_num(imaps.sum(axis=0)/wins.sum(axis=0))
-        kcoadd = enmap.enmap(self.fc.fft(coadd*self.mask) / np.sqrt(np.mean(self.mask**2.)),self.wcs)
-        return ksplits,kcoadd
-
+def get_pixwin(shape):
+    wy, wx = enmap.calc_window(shape)
+    wind   = wy[:,None] * wx[None,:]
+    return wind

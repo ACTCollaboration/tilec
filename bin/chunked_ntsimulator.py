@@ -5,15 +5,19 @@ Simulates arrays specified in input/simple_sim.txt (check that first)!
 """
 
 from __future__ import print_function
-import matplotlib
-matplotlib.use('Agg')
+# import matplotlib
+# matplotlib.use('Agg')
 from orphics import maps,io,cosmology,lensing,stats,mpi
 from pixell import enmap,lensing as enlensing,utils
 from enlib import bench
 import numpy as np
 import os,sys
 from szar import foregrounds as fg
-from tilec import utils as tutils,covtools,ilc,fg as tfg
+from tilec import utils as tutils,covtools,ilc,fg as tfg,kspace
+
+nfft = lambda x: enmap.fft(x,normalize="phys")
+nifft = lambda x: enmap.ifft(x,normalize="phys")
+f2power = lambda x,y: np.real(x*y.conj())
 
 """
 Notes:
@@ -44,10 +48,10 @@ ycibcorr = False # whether tSZ/CIB are correlated
 lmax = 2000 # Overall low-pass filter for the analysis; set to large number to not apply one at all
 px = 1.5 # resolution in arcminutes of the sims
 # sims
-nsims = 10 # number of sims
+nsims = 4 # number of sims
 # signal cov
 bin_width = 80 # the width in ell of radial bins for signal averaging
-kind = 0 # order of interpolation for signal binning; higher order interpolation breaks covariance (does it still?)
+kind = 3 # order of interpolation for signal binning; higher order interpolation breaks covariance (does it still?)
 # kind = 0 leads to disagreement between binned downsampled and binned pre-downsampled power though
 # noise cov
 dfact=(16,16) # downsample factor in ly and lx direction for noise
@@ -55,7 +59,6 @@ dfact=(16,16) # downsample factor in ly and lx direction for noise
 # simulated patch dimensions in degrees ; all sims are periodic
 width = 15.
 height = 15.
-
 
 
 
@@ -70,12 +73,12 @@ def compute(ik1,ik2,tag):
     kmap = ik1.reshape((Ny,Nx))
     # imap = enmap.enmap(fc.ifft(kmap).real,wcs)
     # io.hplot(imap,tag)
-    pcross2d = fc.f2power(ik1.reshape((Ny,Nx)),ik2.reshape((Ny,Nx)))
+    pcross2d = f2power(ik1.reshape((Ny,Nx)),ik2.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pcross2d)
     s.add_to_stats(tag,p1d.copy())
 
 def ncompute(ik,nk,tag):
-    pauto2d = fc.f2power(ik.reshape((Ny,Nx)),ik.reshape((Ny,Nx))) - fc.f2power(nk.reshape((Ny,Nx)),nk.reshape((Ny,Nx)))
+    pauto2d = f2power(ik.reshape((Ny,Nx)),ik.reshape((Ny,Nx))) - f2power(nk.reshape((Ny,Nx)),nk.reshape((Ny,Nx)))
     cents,p1d = binner.bin(pauto2d)
     s.add_to_stats(tag,p1d.copy())
     
@@ -129,20 +132,20 @@ iells = modlmap[modlmap<lmax1].reshape(-1) # unraveled disk
 nells = iells.size
 Ny,Nx = shape[-2:]
 tcmb = 2.726e6
-yresponses = tfg.get_mix(tsim.freqs, "tSZ") #fg.ffunc(tsim.freqs)*tcmb
-cresponses = tfg.get_mix(tsim.freqs, "CMB") #yresponses*0.+1.
+yresponses = tfg.get_mix(tsim.freqs, "tSZ")
+cresponses = tfg.get_mix(tsim.freqs, "CMB")
 
 minell = maps.minimum_ell(tsim.shape,tsim.wcs)
 bin_edges = np.arange(np.min(lmins),lmax-50,8*minell)
 binner = stats.bin2D(modlmap,bin_edges)
 cents = binner.centers
 
-# Only do hybrid treatment for arrays with more than 2 splits (ACT)
+# Only do hybrid treatment for arrays with more than 2 splits (ACT) -- now doing for Planck as well
 anisotropic_pairs = []
 if not(noise_isotropic):
     for aindex1 in range(narrays):
         nsplits1 = tsim.nsplits[aindex1]
-        if nsplits1>2: anisotropic_pairs.append((aindex1,aindex1))
+        if True: anisotropic_pairs.append((aindex1,aindex1))
 
 
 if analytic:
@@ -152,24 +155,29 @@ if analytic:
     Cov = Cov[:,:,modlmap<lmax1].reshape((narrays,narrays,modlmap[modlmap<lmax1].size))
 
 s = stats.Stats(comm)
+mask = enmap.ones(tsim.shape[-2:],tsim.wcs)
+
+Cov = maps.SymMat(narrays,tsim.shape[-2:])
+names = ["a%d" % i for i in range(narrays)]
+def save_fn(tcov,a1,a2): Cov[a1,a2] = tcov.copy()
 
 for task in my_tasks:
     with bench.show("sim gen"):
         isim,isimnoise = tsim.get_sim(task)
     with bench.show("ffts"):
+        iksplits = []
         ikmaps = []
         inkmaps = []
-        iksplits = []
-        for array in tsim.arrays:
-            iksplits.append([])
-            for split in range(tsim.nsplits[array]):
-                _,_,ksplit = fc.power2d(isim[array][split])
-                iksplits[array].append(ksplit.copy())
-            iksplits[array] = enmap.enmap(np.stack(iksplits[array]),tsim.wcs)
-
-            kcoadd = sum(iksplits[array])/tsim.nsplits[array]
-            ncoadd = sum(isimnoise[array])/tsim.nsplits[array]
-            _,_,kncoadd = fc.power2d(ncoadd)
+        all_wins = []
+        for aindex,array in enumerate(tsim.arrays):
+            splits = isim[array]
+            noise_splits = isimnoise[array]
+            nsplits = tsim.nsplits[aindex]
+            wins = enmap.ones((nsplits,)+tsim.shape[-2:],tsim.wcs)
+            all_wins.append(wins)
+            ksplits,kcoadd = kspace.process_splits(splits,wins=wins,mask=mask)
+            _,kncoadd = kspace.process_splits(noise_splits,wins=wins,mask=mask,skip_splits=True)
+            iksplits.append(  ksplits.copy())
             ikmaps.append(  kcoadd.copy())
             inkmaps.append(  kncoadd.copy())
 
@@ -177,29 +185,29 @@ for task in my_tasks:
     with bench.show("empirical cov"):
         if not(analytic):
             atmospheres = [tsim.nsplits[array]>2 for array in range(narrays)]
-            Cov = ilc.build_empirical_cov(iksplits,ikmaps,lmins,lmaxs,
-                                          anisotropic_pairs,
-                                          signal_bin_width=bin_width,
-                                          signal_interp_order=kind,
-                                          dfact=dfact,
-                                          rfit_lmaxes=None,
-                                          rfit_wnoise_width=250,
-                                          rfit_lmin=300,
-                                          rfit_bin_width=None,
-                                          fc=fc,return_full=False,verbose=False)
+            maxval = ilc.build_empirical_cov(iksplits,ikmaps,all_wins,mask,lmins,lmaxs,
+                                             anisotropic_pairs,atmospheres,save_fn,
+                                             signal_bin_width=bin_width,
+                                             signal_interp_order=kind,
+                                             dfact=dfact,
+                                             rfit_lmaxes=None,
+                                             rfit_wnoise_width=250,
+                                             rfit_lmin=300,
+                                             rfit_bin_width=None,verbose=False)
 
-
+    Cov.data = enmap.enmap(Cov.data,tsim.wcs,copy=False)
+    covfunc = lambda sel: Cov.to_array(sel,flatten=True)
     with bench.show("more ffts"):
         ilensed = tsim.lensed
-        _,iklensed,_ = fc.power2d(ilensed)
+        iklensed = nfft(ilensed)
         iy = tsim.y
-        _,iky,_ = fc.power2d(iy)
+        iky = nfft(iy)
         
     ikmaps = np.stack(ikmaps)
     # ikmaps[:,modlmap>lmax1] = 0
     inkmaps = np.stack(inkmaps)
     # inkmaps[:,modlmap>lmax1] = 0
-    ilcgen = ilc.chunked_ilc(modlmap,np.stack(tsim.kbeams),Cov,chunk_size,responses={'tsz':yresponses,'cmb':cresponses},invert=invert)
+    ilcgen = ilc.chunked_ilc(modlmap,np.stack(tsim.kbeams),covfunc,chunk_size,responses={'tsz':yresponses,'cmb':cresponses},invert=invert)
 
     yksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
     ynksilc = enmap.empty((Ny,Nx),wcs,dtype=np.complex128).reshape(-1)
@@ -254,20 +262,20 @@ if rank==0:
     y_silc_cross = s.stats["y_silc_cross"]['mean']
     y_cilc_cross = s.stats["y_cilc_cross"]['mean']
     # Errors on those
-    ecmb_silc_cross = s.stats["cmb_silc_cross"]['errmean']
-    ecmb_cilc_cross = s.stats["cmb_cilc_cross"]['errmean']
-    ey_silc_cross = s.stats["y_silc_cross"]['errmean']
-    ey_cilc_cross = s.stats["y_cilc_cross"]['errmean']
+    ecmb_silc_cross = s.stats["cmb_silc_cross"]['err']
+    ecmb_cilc_cross = s.stats["cmb_cilc_cross"]['err']
+    ey_silc_cross = s.stats["y_silc_cross"]['err']
+    ey_cilc_cross = s.stats["y_cilc_cross"]['err']
     # Auto of ILC CMB minus Auto of ILC CMB noise only
     cmb_silc_auto = s.stats["cmb_silc_auto"]['mean']
     cmb_cilc_auto = s.stats["cmb_cilc_auto"]['mean']
     # Auto of ILC y-map minus Auto of ILC y map noise only
     y_silc_auto = s.stats["y_silc_auto"]['mean']
     y_cilc_auto = s.stats["y_cilc_auto"]['mean']
-    ecmb_silc_auto = s.stats["cmb_silc_auto"]['errmean']
-    ecmb_cilc_auto = s.stats["cmb_cilc_auto"]['errmean']
-    ey_silc_auto = s.stats["y_silc_auto"]['errmean']
-    ey_cilc_auto = s.stats["y_cilc_auto"]['errmean']
+    ecmb_silc_auto = s.stats["cmb_silc_auto"]['err']
+    ecmb_cilc_auto = s.stats["cmb_cilc_auto"]['err']
+    ey_silc_auto = s.stats["y_silc_auto"]['err']
+    ey_cilc_auto = s.stats["y_cilc_auto"]['err']
     ells = np.arange(0,lmax,1)
     cltt = theory.lCl('TT',ells)
     clyy = fg.power_y(ells)
@@ -292,8 +300,10 @@ if rank==0:
     io.save_cols("cmb_results.txt",(cents,cmb_silc_cross,ecmb_silc_cross,cmb_cilc_cross,ecmb_cilc_cross,cmb_silc_auto,ecmb_silc_auto,cmb_cilc_auto,ecmb_cilc_auto))
 
 
+    iclyy = binner.bin(maps.interp(ells,clyy)(modlmap))[1]
     pl = io.Plotter(scalefn=lambda x: x**2,xlabel='l',ylabel='D',yscale='log')
     pl.add(ells,clyy)
+    pl.add(cents,iclyy,marker="x",ls="none",color='k')
     pl.add_err(cents-5,y_silc_cross,yerr=ey_silc_cross,marker="o",ls="none",label='standard cross')
     pl.add_err(cents-10,y_cilc_cross,yerr=ey_cilc_cross,marker="o",ls="none",label='constrained cross')
     pl.add_err(cents+5,y_silc_auto,yerr=ey_silc_auto,marker="x",ls="none",label='standard - noise')
