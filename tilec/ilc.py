@@ -374,21 +374,30 @@ def build_empirical_cov(kdiffs,kcoadds,wins,mask,lmins,lmaxs,
     narrays = len(kdiffs)
     on_disk = False
     try:
-        shape,wcs = kdiffs[0].shape[-2:],kdiffs[0].wcs
+        tshape = kdiffs[0].shape[-2:]
     except:
         assert isinstance(kdiffs[0],basestring), "List contents are neither enmaps nor filenames."
-        shape,wcs = enmap.read_map_geometry(kdiffs[0])
-        shape = shape[-2:]
         on_disk = True
-    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
-    minell = maps.minimum_ell(shape,wcs)
-    modlmap = enmap.modlmap(shape,wcs)
+
     def get_mask(aind):
         if separate_masks: 
             return _load_map(mask[aind])
         else: 
             assert mask.ndim==2
             return mask
+
+    mask = get_mask(0)
+    shape,wcs = mask.shape[-2:],mask.wcs
+
+    def _load_map(kitem): 
+        if not(on_disk):
+            return kitem
+        else:
+            if kitem[:-5]=='.fits': return enmap.read_map(kitem)
+            elif kitem[:-4]=='.npy': return enmap.enmap(np.load(kitem),wcs)
+            else: raise IOError
+    minell = maps.minimum_ell(shape,wcs)
+    modlmap = enmap.modlmap(shape,wcs)
 
     # Defaults
     if rfit_lmaxes is None:
@@ -550,7 +559,7 @@ class CTheory(object):
         
 
 def scratch_fname(scratch_dir,ftype,a1,a2):
-    return scratch_dir + "/%s_%d_%d.hdf" % (ftype,a1,a2)
+    return scratch_dir + "/%s_%d_%d.npy" % (ftype,a1,a2)
 
 
 def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
@@ -585,26 +594,37 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
     correlated_arrays: list of lists of correlated arrays
     """
 
+
     narrays = len(kdiffs)
     assert len(kcoadds)==len(lmins)==len(lmaxs)==len(freqs)==narrays
 
     on_disk = False
     try:
-        shape,wcs = kdiffs[0].shape[-2:],kdiffs[0].wcs
+        tshape = kdiffs[0].shape[-2:]
     except:
         assert isinstance(kdiffs[0],basestring), "List contents are neither enmaps nor filenames."
-        shape,wcs = enmap.read_map_geometry(kdiffs[0])
-        shape = shape[-2:]
         on_disk = True
-    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
-    minell = maps.minimum_ell(shape,wcs)
-    modlmap = enmap.modlmap(shape,wcs)
+
     def get_mask(aind):
         if separate_masks: 
             return _load_map(mask[aind])
         else: 
             assert mask.ndim==2
             return mask
+
+    mask = get_mask(0)
+    shape,wcs = mask.shape[-2:],mask.wcs
+
+    def _load_map(kitem): 
+        if not(on_disk):
+            return kitem
+        else:
+            if kitem[-5:]=='.fits': return enmap.read_map(kitem)
+            elif kitem[-4:]=='.npy': return enmap.enmap(np.load(kitem),wcs)
+            else: raise IOError
+    minell = maps.minimum_ell(shape,wcs)
+    modlmap = enmap.modlmap(shape,wcs)
+
 
     # Defaults
     if rfit_lmaxes is None:
@@ -639,7 +659,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 if scratch_dir is None:
                     dncovs[(a1,a2)] = 0.
                 else:
-                    enmap.write_map(scratch_fname(scratch_dir,"dncovs",a1,a2),ccov * 0.)
+                    np.save(scratch_fname(scratch_dir,"dncovs",a1,a2),ccov * 0.)
             else:
                 # Calculate noise power
                 kd1 = _load_map(kdiffs[a1])
@@ -671,7 +691,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 if scratch_dir is None:
                     dncovs[(a1,a2)] = dncov.copy()
                 else:
-                    enmap.write_map(scratch_fname(scratch_dir,"dncovs",a1,a2),dncov)
+                    np.save(scratch_fname(scratch_dir,"dncovs",a1,a2),dncov)
                 if a1==a2:
                     # 1d approx of noise power for weights
                     if nparams is not None:
@@ -704,7 +724,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             if scratch_dir is None:
                 scovs[(a1,a2)] = scov.copy()
             else:
-                enmap.write_map(scratch_fname(scratch_dir,"scovs",a1,a2),scov)
+                np.save(scratch_fname(scratch_dir,"scovs",a1,a2),scov)
 
                 
 
@@ -744,7 +764,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             if scratch_dir is None:
                 lscov = scovs[(a1,a2)]
             else:
-                lscov = enmap.read_map(scratch_fname(scratch_dir,"scovs",a1,a2))
+                lscov = enmap.enmap(np.load(scratch_fname(scratch_dir,"scovs",a1,a2)),wcs)
             with np.errstate(divide='ignore',invalid='ignore'): 
                 scov = lscov * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
             scov[~np.isfinite(scov)] = 0
@@ -780,7 +800,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             if scratch_dir is None:
                 lncov = dncovs[(a1,a2)]
             else:
-                lncov = enmap.read_map(scratch_fname(scratch_dir,"dncovs",a1,a2))
+                lncov = enmap.enmap(np.load(scratch_fname(scratch_dir,"dncovs",a1,a2)),wcs)
             ocov = lncov + smsig
             if (maxval is not None) and a1==a2: 
                 ocov[modlmap<lmins[a1]] = maxval
@@ -822,7 +842,13 @@ def build_cov_hybrid(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisotrop
         shape,wcs = enmap.read_map_geometry(kdiffs[0])
         shape = shape[-2:]
         on_disk = True
-    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
+    def _load_map(kitem): 
+        if not(on_disk):
+            return kitem
+        else:
+            if kitem[:-5]=='.fits': return enmap.read_map(kitem)
+            elif kitem[:-4]=='.npy': return enmap.enmap(np.load(kitem),wcs)
+            else: raise IOError
     minell = maps.minimum_ell(shape,wcs)
     modlmap = enmap.modlmap(shape,wcs)
     def get_mask(aind):
@@ -924,7 +950,13 @@ def build_cov_isotropic(names,kdiffs,kcoadds,fbeam,mask,lmins,lmaxs,freqs,anisot
         shape,wcs = enmap.read_map_geometry(kdiffs[0])
         shape = shape[-2:]
         on_disk = True
-    def _load_map(kitem): return kitem if not(on_disk) else enmap.read_map(kitem)
+    def _load_map(kitem): 
+        if not(on_disk):
+            return kitem
+        else:
+            if kitem[:-5]=='.fits': return enmap.read_map(kitem)
+            elif kitem[:-4]=='.npy': return enmap.enmap(np.load(kitem),wcs)
+            else: raise IOError
     minell = maps.minimum_ell(shape,wcs)
     modlmap = enmap.modlmap(shape,wcs)
     def get_mask(aind):

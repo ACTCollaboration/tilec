@@ -225,15 +225,15 @@ def build_and_save_cov(arrays,region,version,mask_version,
                                               inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x))
             print("Processed ",qid)
             if save_scratch: 
-                kcoadd_name = savedir + "kcoadd_%s.hdf" % qid
-                kdiff_name = scratch + "kdiff_%s.hdf" % qid
-                win_name = scratch + "win_%s.hdf" % qid
+                kcoadd_name = savedir + "kcoadd_%s.npy" % qid
+                kdiff_name = scratch + "kdiff_%s.npy" % qid
+                win_name = scratch + "win_%s.npy" % qid
                 assert win_name not in save_names
                 assert kcoadd_name not in save_names
                 assert kdiff_name not in save_names
-                enmap.write_map(win_name,win)
-                enmap.write_map(kcoadd_name,kcoadd)
-                enmap.write_map(kdiff_name,kdiff)
+                np.save(win_name,win)
+                np.save(kcoadd_name,kcoadd)
+                np.save(kdiff_name,kdiff)
                 wins.append(win_name)
                 kcoadds.append(kcoadd_name)
                 kdiffs.append(kdiff_name)
@@ -254,7 +254,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
     print("Anisotropic pairs: ",anisotropic_pairs)
 
     enmap.write_map(savedir+"tilec_mask.fits",mask)
-    save_fn = lambda x,a1,a2: enmap.write_map(savedir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[a1],names[a2]),enmap.enmap(x,wcs))
+    save_fn = lambda x,a1,a2: np.save(savedir+"tilec_hybrid_covariance_%s_%s.npy" % (names[a1],names[a2]),enmap.enmap(x,wcs))
 
 
     print("Building covariance...")
@@ -321,9 +321,9 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             array = '_'.join([array1,array2])
         elif dm.name=='planck_hybrid':
             season,patch,array = None,None,sints.arrays(qid,'freq')
-        kcoadd_name = covdir + "kcoadd_%s.hdf" % qid
+        kcoadd_name = covdir + "kcoadd_%s.npy" % qid
         kmask = maps.mask_kspace(shape,wcs,lmin=lmin,lmax=lmax)
-        kcoadd = enmap.read_map(kcoadd_name)
+        kcoadd = enmap.enmap(np.load(kcoadd_name),wcs)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy()*kmask)
         kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=region,array=array,version=beam_version,sanitize=not(unsanitized_beam)))
@@ -346,7 +346,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     cov = maps.SymMat(narrays,shape[-2:])
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
-            icov = enmap.read_map(covdir+"tilec_hybrid_covariance_%s_%s.hdf" % (names[aindex1],names[aindex2]))
+            icov = enmap.enmap(np.load(covdir+"tilec_hybrid_covariance_%s_%s.npy" % (names[aindex1],names[aindex2])),wcs)
             if aindex1==aindex2: 
                 icov[modlmap<lmins[aindex1]] = maxval
                 icov[modlmap>lmaxs[aindex1]] = maxval
