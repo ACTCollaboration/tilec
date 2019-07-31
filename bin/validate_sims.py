@@ -7,17 +7,17 @@ We cross-correlate the Y map with the input Y alms
 """
 
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
 from orphics import maps,io,cosmology,mpi,stats
-from pixell import enmap,curvedsky
+from pixell import enmap,curvedsky,utils as putils
 import numpy as np
 import os,sys,shutil
-from actsims import noise as actnoise
 from actsims.util import seed_tracker
 from soapack import interfaces as sints
 from enlib import bench
 from tilec import pipeline,utils as tutils
 import healpy as hp
-from actsims.util import seed_tracker
 from szar import foregrounds as fgs
 from datetime import datetime
 
@@ -61,11 +61,15 @@ input_names = []
 for solution in args.solutions.split(','):
     components[solution] = solution.split('-')
     input_names.append( components[solution][0] )
-input_names = set(input_names)
+input_names = sorted(list(set(input_names)))
 
 bin_edges = np.arange(80,5000,80)
 
-s = stats.Stats(comm)
+#s = stats.Stats(comm)
+
+totinputs = {}
+totautos = {}
+totcrosses = {}
 
 for i,task in enumerate(my_tasks):
     sim_index = task
@@ -75,6 +79,7 @@ for i,task in enumerate(my_tasks):
 
     # Get directory
     ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
+    #ind_str = str(set_id).zfill(2)+"_"+str(sim_index*2).zfill(4) # !!! 
     version = "map_%s_%s" % (args.version,ind_str)
     savedir = tutils.get_save_path(version,args.region)
     assert os.path.exists(savedir)
@@ -90,7 +95,11 @@ for i,task in enumerate(my_tasks):
     inputs = {}
     for input_name in input_names:
         inputs[input_name] = enmap.fft(get_input(input_name,args.set_id,sim_index,shape,wcs) * mask,normalize='phys')
-        s.add_to_stats(input_name,binner.bin(np.real(inputs[input_name]*inputs[input_name].conj()))[1]/w2)
+        #inputs[input_name] = enmap.fft(get_input(input_name,args.set_id,sim_index*2,shape,wcs) * mask,normalize='phys') # !!!
+        res = binner.bin(np.real(inputs[input_name]*inputs[input_name].conj()))[1]/w2
+        print(rank,task,input_name,res[10])
+        try: totinputs[input_name] = totinputs[input_name] + res
+        except: totinputs[input_name] = res.copy()
 
     for solution in args.solutions.split(','):
         comps = "tilec_single_tile_"+region+"_"
@@ -103,40 +112,55 @@ for i,task in enumerate(my_tasks):
         kbeam = maps.interp(ls,bells)(modlmap)
         with np.errstate(divide='ignore',invalid='ignore'): kmap = enmap.fft(imap,normalize='phys')/kbeam
         kmap[~np.isfinite(kmap)] = 0
-        s.add_to_stats("auto_"+solution,binner.bin(np.real(kmap*kmap.conj()))[1]/w2)
+        res = binner.bin(np.real(kmap*kmap.conj()))[1]/w2
+        try: totautos[solution] = totautos[solution] + res
+        except: totautos[solution] = res.copy()
         input_name = components[solution][0]
-        s.add_to_stats("cross_"+solution,binner.bin(np.real(inputs[input_name]*kmap.conj()))[1]/w2)
+        res = binner.bin(np.real(inputs[input_name]*kmap.conj()))[1]/w2
+        #s.add_to_stats("cross_"+solution,res)
+        try: totcrosses[solution] = totcrosses[solution] + res
+        except: totcrosses[solution] = res.copy()
 
 
-s.get_stats()
+#s.get_stats()
+# totcmb = putils.allreduce(totcmb,comm) /nsims 
+#tottsz = putils.allreduce(tottsz,comm) /nsims 
+for key in sorted(totinputs.keys()):
+    totinputs[key] = putils.allreduce(totinputs[key],comm) /nsims
+for key in sorted(totautos.keys()):
+    totautos[key] = putils.allreduce(totautos[key],comm) /nsims
+for key in sorted(totcrosses.keys()):
+    totcrosses[key] = putils.allreduce(totcrosses[key],comm) /nsims
 
 if rank==0:
 
     cents = binner.centers
     for input_name in input_names:
         pl = io.Plotter(xyscale='linlog',scalefn=lambda x: x**2./2./np.pi,xlabel='$\\ell$',ylabel='$D_{\\ell}$')
-        ii = s.stats[input_name]['mean']
+        # ii = totcmb if input_name=='CMB' else tottsz
+        ii = totinputs[input_name]
         pl.add(cents,ii,color='k',lw=3)
         for i,solution in enumerate(args.solutions.split(',')):
             color = "C%d" % i
             iname = components[solution][0]
             if iname!=input_name: continue
-            ri = s.stats["cross_"+solution]['mean']
+            ri = totcrosses[solution]
             pl.add(cents,ri,label=solution,ls="none",marker="o",color=color,markersize=2,alpha=0.8)
 
-            rr = s.stats["auto_"+solution]['mean']
+            rr = totautos[solution]
             pl.add(cents,rr,alpha=0.4,color=color)
         pl.done(os.environ['WORK']+"/val_%s.png" % input_name)
 
 
     for input_name in input_names:
         pl = io.Plotter(xyscale='linlin',xlabel='$\\ell$',ylabel='$\Delta C_{\\ell} / C_{\\ell}$')
-        ii = s.stats[input_name]['mean']
+        # ii = totcmb if input_name=='CMB' else tottsz
+        ii = totinputs[input_name]
         for i,solution in enumerate(args.solutions.split(',')):
             color = "C%d" % i
             iname = components[solution][0]
             if iname!=input_name: continue
-            ri = s.stats["cross_"+solution]['mean']
+            ri = totcrosses[solution]
             pl.add(cents,(ri-ii)/ii,label=solution,ls="none",marker="o",color=color,markersize=2,alpha=0.8)
             print(((ri-ii)/ii)[np.logical_and(cents>500,cents<1000)])
         pl.hline(y=0)

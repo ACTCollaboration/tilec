@@ -66,7 +66,7 @@ class JointSim(object):
                 bps.append(cfreq)
 
 
-        self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ')
+        self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ') if bandpassed else tfg.get_mix(bps, 'tSZ')
 
 
 
@@ -117,7 +117,7 @@ class JointSim(object):
         ells = np.arange(self.lmax+1)
         
         # 2. get beam, and pixel window for Planck
-        beam = tutils.get_kbeam(qid,ells,sanitize=False)    # NEVER SANITIZE THE BEAM IN A SIMULATION!!!
+        beam = tutils.get_kbeam(qid,ells,sanitize=False,planck_pixwin=False)    # NEVER SANITIZE THE BEAM IN A SIMULATION!!!
         for i in range(3): tot_alm[i] = hp.almxfl(tot_alm[i],beam)
         if dm.name=='planck_hybrid':
             pixwint,pixwinp = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax,pol=True)
@@ -218,7 +218,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
             hybrids.append(hybrid)
             freqs.append(fgroup)
             rfit_wnoise_widths.append(wrfit)
-            fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(unsanitized_beam))
+            fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(unsanitized_beam),planck_pixwin=True)
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
                                               splits_fname=sim_splits[i] if sim_splits is not None else None,
@@ -302,6 +302,8 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     Ny,Nx = shape
     modlmap = enmap.modlmap(shape,wcs)
 
+
+
     arrays = arrays.split(',')
     narrays = len(arrays)
     kcoadds = []
@@ -326,7 +328,8 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
         kcoadd = enmap.enmap(np.load(kcoadd_name),wcs)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy()*kmask)
-        kbeams.append(dm.get_beam(ells=modlmap,season=season,patch=region,array=array,version=beam_version,sanitize=not(unsanitized_beam)))
+        kbeam = tutils.get_kbeam(qid,modlmap,sanitize=not(unsanitized_beam),version=beam_version,planck_pixwin=True)
+        kbeams.append(kbeam.copy())
         if bandpasses:
             try: bps.append("data/"+dm.get_bandpass_file_name(array) )
             except:
@@ -421,7 +424,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             lbeam = maps.gauss_beam(ells,fbeam)
         except:
             qid = beam
-            bfunc = lambda x: tutils.get_kbeam(qid,x,version=beam_version,sanitize=not(unsanitized_beam))
+            bfunc = lambda x: tutils.get_kbeam(qid,x,version=beam_version,sanitize=not(unsanitized_beam),planck_pixwin=False)
             kbeam = bfunc(modlmap)
             lbeam = bfunc(ells)
 

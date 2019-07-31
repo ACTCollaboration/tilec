@@ -6,7 +6,7 @@ from soapack import interfaces as sints
 from scipy import ndimage
 import os,sys
 import pandas
-
+import healpy as hp
 
 def get_save_path(version,region):
     save_path = sints.dconfig['tilec']['save_path']
@@ -72,7 +72,7 @@ def get_nside(qid):
     else: raise ValueError
     
 
-def get_kbeam(qid,modlmap,sanitize=False,**kwargs):
+def get_kbeam(qid,modlmap,sanitize=False,version=None,planck_pixwin=False,**kwargs):
     dmodel = sints.arrays(qid,'data_model')
     season = sints.arrays(qid,'season')
     region = sints.arrays(qid,'region')
@@ -80,7 +80,16 @@ def get_kbeam(qid,modlmap,sanitize=False,**kwargs):
     freq = sints.arrays(qid,'freq')
     dm = sints.models[dmodel]()
     gfreq = array+"_"+freq if not(is_planck(qid)) else freq
-    return dm.get_beam(modlmap, season=season,patch=region,array=gfreq, kind='normalized',sanitize=sanitize,**kwargs)
+    if planck_pixwin and (qid in ['p01','p02','p03','p04','p05','p06','p07','p08']):
+        nside = get_nside(qid)
+        pixwin = hp.pixwin(nside=nside,pol=False)
+        ls = np.arange(len(pixwin))
+        assert pixwin.ndim==1
+        assert ls.size in [6144,3072]
+        pwin = maps.interp(ls,pixwin)(modlmap)
+    else:
+        pwin = 1.
+    return dm.get_beam(modlmap, season=season,patch=region,array=gfreq, kind='normalized',sanitize=sanitize,version=version,**kwargs) * pwin
 
 
 def filter_div(div):
