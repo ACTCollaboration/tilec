@@ -71,7 +71,7 @@ class JointSim(object):
 
 
 
-    def update_signal_index(self,sim_idx,set_idx=0,cmb_type='LensedCMB'):
+    def update_signal_index(self,sim_idx,set_idx=0,cmb_type='LensedUnabberatedCMB'):
         signal_path = sints.dconfig['actsims']['signal_path']
         cmb_file   = os.path.join(signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(cmb_type, set_idx, sim_idx))
         self.alms['cmb'] = hp.fitsfunc.read_alm(cmb_file, hdu = (1,2,3))
@@ -287,7 +287,6 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     bandpasses = not(effective_freq)
     savedir = tutils.get_save_path(version,region)
     covdir = tutils.get_save_path(cov_version,region)
-    print(covdir)
     assert os.path.exists(covdir)
     if not(overwrite):
         assert not(os.path.exists(savedir)), \

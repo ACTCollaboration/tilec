@@ -3,6 +3,7 @@ from orphics import maps,io,cosmology,mpi
 from pixell import enmap
 import numpy as np
 import os,sys,shutil
+from datetime import datetime
 from actsims import noise as actnoise
 from actsims.util import seed_tracker
 from soapack import interfaces as sints
@@ -22,6 +23,7 @@ parser.add_argument("arrays", type=str,help='Comma separated list of array names
 parser.add_argument("solutions", type=str,help='Comma separated list of solutions. Each solution is of the form x-y-... where x is solved for and the optionally provided y-,... are deprojected. The x can belong to any of CMB,tSZ and y,z,... can belong to any of CMB,tSZ,CIB.')
 parser.add_argument("beams", type=str,help='Comma separated list of beams. Each beam is either a float for FWHM in arcminutes or the name of an array whose beam will be used.')
 parser.add_argument("-N", "--nsims",     type=int,  default=1,help="A description.")
+parser.add_argument("--start-index",     type=int,  default=0,help="A description.")
 parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
 parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='fgres_v1')
@@ -44,13 +46,11 @@ parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore b
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 args = parser.parse_args()
 
-
 # Generate each ACT and Planck sim and store kdiffs,kcoadd in memory
 
 set_id = args.set_id
 bandpasses = not(args.effective_freq)
 gconfig = io.config_from_yaml("input/data.yml")
-save_path = sints.dconfig['tilec']['save_path']
 mask = sints.get_act_mr3_crosslinked_mask(args.region,
                                           version=args.mask_version,
                                           kind='binary_apod')
@@ -59,8 +59,8 @@ Ny,Nx = shape
 modlmap = enmap.modlmap(shape,wcs)
 
 ngen = {}
-ngen['act_mr3'] = actnoise.NoiseGen(args.sim_version,model="act_mr3",extract_region=mask,ncache=1,verbose=True)
-ngen['planck_hybrid'] = actnoise.NoiseGen(args.sim_version,model="planck_hybrid",extract_region=mask,ncache=1,verbose=True)
+ngen['act_mr3'] = actnoise.NoiseGen(args.sim_version,model="act_mr3",extract_region=mask,ncache=0,verbose=True)
+ngen['planck_hybrid'] = actnoise.NoiseGen(args.sim_version,model="planck_hybrid",extract_region=mask,ncache=0,verbose=True)
 
 
 arrays = args.arrays.split(',')
@@ -72,7 +72,9 @@ jsim = pipeline.JointSim(arrays,args.fg_res_version,bandpassed=bandpasses)
 comm,rank,my_tasks = mpi.distribute(nsims)
 
 for task in my_tasks:
-    sim_index = task
+    sim_index = task + args.start_index
+
+    print("Rank %d starting task %d at %s..." % (rank,task,str(datetime.now())))
 
     ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
     sim_version = "%s_%s" % (args.version,ind_str)
@@ -170,3 +172,4 @@ for task in my_tasks:
 
     savepath = tutils.get_save_path(sim_version,args.region)
     shutil.rmtree(savepath)
+    print("Rank %d done with task %d at %s." % (rank,task,str(datetime.now())))
