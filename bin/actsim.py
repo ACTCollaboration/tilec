@@ -35,6 +35,7 @@ parser.add_argument("--uncalibrated", action='store_true',help='Do not use calib
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
 parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
+parser.add_argument("--fit-physical",     type=int,  default=pdefaults['fit_physical'],help="A description.")
 parser.add_argument("--set-id",     type=int,  default=0,help="Sim set id.")
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
 parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfit_wnoise_width'],help="A description.")
@@ -153,7 +154,7 @@ for task in my_tasks:
                                     args.rfit_wnoise_width,args.rfit_lmin,
                                     args.overwrite,args.memory_intensive,args.uncalibrated,
                                     sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
-                                    theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam)
+                                    theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,fit_physical=args.fit_physical)
 
 
 

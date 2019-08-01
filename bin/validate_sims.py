@@ -164,7 +164,7 @@ if rank==0:
             pl.add(cents,(ri-ii)/ii,label=solution,ls="none",marker="o",color=color,markersize=2,alpha=0.8)
             print(((ri-ii)/ii)[np.logical_and(cents>500,cents<1000)])
         pl.hline(y=0)
-        pl._ax.set_ylim(-0.2,0.2)
+        pl._ax.set_ylim(-0.1,0.1)
         pl.vline(x=80)
         pl.vline(x=100)
         pl.vline(x=300)

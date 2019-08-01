@@ -185,3 +185,5 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None):
         print("unknown component specified")
         raise NotImplementedError
 ######################################
+
+
