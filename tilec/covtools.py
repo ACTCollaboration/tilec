@@ -233,26 +233,43 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
 
     if isotropic_low_ell:
         with bench.show("isotropic low ell"):
-            ifunc = lambda ells,ell0,A,shell: A*np.exp(-ell0/ells) + shell
+            if radial_fit:
+                ifunc = lambda ells,ell0,A,shell: (A*np.exp(-ell0/ells) + shell)
             sel = np.logical_and(modlmap<=lmin,modlmap>=2)
-            ys = nflat[sel]
-            xs = modlmap[sel]
-            res,_ = curve_fit(ifunc,xs,ys,p0=[20,1,0],bounds=([-np.inf,0.,-np.inf],[np.inf,np.inf,np.inf]))
-            outcov[sel] = ifunc(modlmap[sel],res[0],res[1],res[2])*nfitted[sel]
+
+            ibin_edges = np.arange(minell,(lmin*2)+2*minell,2*minell)
+            ibinner = stats.bin2D(modlmap,ibin_edges)
+            cents,inls = ibinner.bin(nflat)
+            ys = inls
+            xs = cents
+            if radial_fit:
+                res,_ = curve_fit(ifunc,xs,ys,p0=[20,1,0],bounds=([2,0.,-np.inf],[lmin*2,np.inf,np.inf]))
+                outcov[sel] = ifunc(modlmap[sel],res[0],res[1],res[2])*nfitted[sel]
+            else:
+                deg = 5
+                res = np.polyfit(np.log(xs),np.log(ys*xs**2.),deg=deg)
+                assert res.size==(deg+1)
+                fitfunc = lambda x: sum([res[deg-p]*(x**p) for p in range(0,deg+1)[::-1]])
+                outcov[sel] = (np.exp(fitfunc(np.log(modlmap[sel])))/modlmap[sel]**2.)*nfitted[sel]
             outcov[modlmap<2] = 0
 
         # fbin_edges = np.arange(minell,lmax,bin_annulus)
         # fbinner = stats.bin2D(modlmap,fbin_edges)
         # cents, n1d = fbinner.bin(nflat)
-        # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
-        # ells = np.arange(2,lmin,1)
-        # pl.add(ells,ifunc(ells,res[0],res[1],res[2]))
+        # pl = io.Plotter(xyscale='loglog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
+        # ells = np.arange(minell,2*lmin,1)
+        # if radial_fit:
+        #     pl.add(ells,ifunc(ells,res[0],res[1],res[2]))
+        # else:
+        #     pl.add(xs,ys,ls="--")
+        #     pl.add(ells,np.exp(fitfunc(np.log(ells)))/ells**2.)
         # pl.add(cents,n1d)
         # pl.vline(x=100)
         # pl.vline(x=200)
         # pl.vline(x=300)
         # pl.vline(x=500)
         # t = "000"
+        # pl._ax.set_xlim(10,3000)
         # pl.done(os.environ['WORK']+"/iso_fitnoise2_%s.png" % t)
 
 

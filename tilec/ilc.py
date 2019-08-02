@@ -609,8 +609,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,10],bounds=([0,0],[2,100]))                
                 fcmb,fgal = res
                 cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal))(modlmap)
-                print(fit_physical,smsig.shape,modlmap.shape,cfit.shape)
+                if a1==a2: print(names[a1],fcmb,fgal)
                 smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical].copy()
+                #smsig[modlmap<1000] = 0 #cfit[modlmap<1000].copy() #!!!!!
 
 
             smsig[modlmap<2] = 0
