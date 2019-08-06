@@ -24,7 +24,7 @@ dm = sints.ACTmr3()
 fbeam = lambda x: dm.get_beam(x, "s15","deep56","pa3_f090", kind='normalized')
 
 save_path = sints.dconfig['tilec']['save_path']
-savedir = save_path + args.version + "/" + args.region
+savedir = save_path + args.version + "_" + args.region
 name_map = {'CMB':'cmb','tSZ':'comptony','CIB':'cib'}
 comps = "tilec_single_tile_"+args.region+"_" + name_map[args.solution]+"_"+args.version
 lmin = args.lmin

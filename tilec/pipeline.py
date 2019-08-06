@@ -166,7 +166,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,delta_ell,
                        rfit_wnoise_width,rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
-                       sim_splits=None,skip_inpainting=False,theory_signal="none",unsanitized_beam=False,fit_physical=None):
+                       sim_splits=None,skip_inpainting=False,theory_signal="none",unsanitized_beam=False,fit_physical=None,save_all=False):
 
 
     save_scratch = not(memory_intensive)
@@ -273,7 +273,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                       separate_masks=False,theory_signal=theory_signal,scratch_dir=covscratch,fit_physical=fit_physical)
 
 
-    shutil.rmtree(scratch)
+    if not(save_all): shutil.rmtree(scratch)
 
 
 

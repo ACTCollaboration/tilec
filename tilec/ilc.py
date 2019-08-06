@@ -1,6 +1,6 @@
 import numpy as np
 from pixell import utils,enmap
-from tilec import covtools
+from tilec import covtools,fg as tfg
 from orphics import maps,stats,io,cosmology
 from actsims import noise as simnoise
 from szar import foregrounds as szfg
@@ -344,10 +344,10 @@ class CTheory(object):
         self.dlscale[~np.isfinite(self.dlscale)] = 0
 
 
-    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0):
-        gf = lambda x: szfg.gfunc(x)
+    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0.8,exp_gal=-0.7): # a_gal is now 0.8 by default
+        gf = lambda x: tfg.ItoDeltaT(x)
         clfg = szfg.power_tsz(self.ells,f1,f2,yy=self.yy) + szfg.power_cibp(self.ells,f1,f2) + szfg.power_cibc(self.ells,f1,f2) + \
-               szfg.power_radps(self.ells,f1,f2) + self.ksz + a_gal * (self.ells/500.)**(-0.7) * self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
+               szfg.power_radps(self.ells,f1,f2) + self.ksz + a_gal * (self.ells/500.)**(exp_gal) * self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
         return (a_cmb * self.cltt) + clfg
 
         
@@ -593,25 +593,36 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 except:
                     pass
             with np.errstate(invalid='ignore'): nscov = numer/denom
+
+
             nscov[~np.isfinite(nscov)] = 0
-
-
-                
-
-
             smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
-                                            kind=signal_interp_order,
-                                            lmin=slmin,
-                                            dlspace=True)
+                                           kind=signal_interp_order,
+                                           lmin=slmin,
+                                           dlspace=True)
+
 
             if fit_physical is not None:
-                ffunc = lambda d,x,y: ftheory.get_theory_cls(f1,f2,a_cmb=x,a_gal=y)
-                res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,10],bounds=([0,0],[2,100]))                
-                fcmb,fgal = res
-                cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal))(modlmap)
-                if a1==a2: print(names[a1],fcmb,fgal)
-                smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical].copy()
-                #smsig[modlmap<1000] = 0 #cfit[modlmap<1000].copy() #!!!!!
+
+                # np.random.seed(None)
+                # cfit = smsig.copy() * (1+np.random.normal(scale=0.0001))
+                # smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical] 
+
+                #enmap.write_map("/scratch/r/rbond/msyriac/dump/unsmoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),wcs))
+                #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(smsig,wcs))
+                #pass
+
+                # ffunc = lambda d,x,y,z: ftheory.get_theory_cls(f1,f2,a_cmb=x,a_gal=y,exp_gal=z)
+                # res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,0.8,-0.7],bounds=([0.2,0.,-2],[1.8,10.,0]))                
+                # fcmb,fgal,fexp = res
+                # cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal,exp_gal=fexp))(modlmap)
+                # print(names[a1],names[a2],fcmb,fgal,fexp)
+
+                # if True: #a1!=a2: 
+                #     #cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap)*10
+                #     smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical] * fbeam(names[a1],modlmap[modlmap<fit_physical]) * fbeam(names[a2],modlmap[modlmap<fit_physical])
+                pass
+                
 
 
             smsig[modlmap<2] = 0
@@ -622,7 +633,21 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 lncov = dncovs[(a1,a2)]
             else:
                 lncov = enmap.enmap(np.load(scratch_fname(scratch_dir,"dncovs",a1,a2)),wcs)
+            #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_noise_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(lncov,wcs)) # !!!
             ocov = lncov + smsig
+            
+            assert np.all(np.isfinite(ocov))
+            if a1==a2:
+                sel = np.logical_and(modlmap>=lmins[a1],modlmap<=lmaxs[a1])
+                try:
+                    assert np.all(ocov[sel]>0)
+                except AssertionError:
+                    ms = modlmap[sel][ocov[sel]<=0]
+                    print(ms,ms.min(),ms.max())
+                    raise
+
+
+
             if (maxval is not None) and a1==a2: 
                 ocov[modlmap<lmins[a1]] = maxval
                 ocov[modlmap>lmaxs[a2]] = maxval

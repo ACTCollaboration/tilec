@@ -82,6 +82,7 @@ for i,task in enumerate(my_tasks):
     #ind_str = str(set_id).zfill(2)+"_"+str(sim_index*2).zfill(4) # !!! 
     version = "map_%s_%s" % (args.version,ind_str)
     savedir = tutils.get_save_path(version,args.region)
+    print(savedir)
     assert os.path.exists(savedir)
 
     # Load mask
@@ -110,6 +111,12 @@ for i,task in enumerate(my_tasks):
         imap = enmap.read_map(fname)
         ls,bells = np.loadtxt("%s/%s_beam.txt" % (savedir,comps),unpack=True)
         kbeam = maps.interp(ls,bells)(modlmap)
+
+        # rbeam = maps.gauss_beam(imap.modlmap(),10.)/kbeam
+        # rbeam[~np.isfinite(rbeam)]=0
+        # if task==0: io.hplot(maps.filter_map(imap,rbeam),"/scratch/r/rbond/msyriac/cmap")# !!!
+        # sys.exit()
+
         with np.errstate(divide='ignore',invalid='ignore'): kmap = enmap.fft(imap,normalize='phys')/kbeam
         kmap[~np.isfinite(kmap)] = 0
         res = binner.bin(np.real(kmap*kmap.conj()))[1]/w2

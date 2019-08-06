@@ -6,8 +6,12 @@ import os,sys
 from tilec import utils as tutils
 
 #version = "v1.1.0_rc_deep56"
-version = "test_v1.1.0_rc_deep56"
-qids  = "d56_01,d56_02,p06".split(',')
+#version = "test_sim_nohigh_00_0000_deep56"
+#version = "test_v1.1.0_rc_deep56"
+version = "test_lfi_deep56"
+qids  = "p01,p02,p03,p04".split(',')
+#qids  = "d56_01,d56_02,p06".split(',')
+#qids  = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06".split(',')
 #qids  = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 #qids  = "p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 #qids = "d56_05,d56_06,p01,p04,p05,p06".split(',')
@@ -32,7 +36,7 @@ for i in range(narrays):
 
         p2d = enmap.enmap(np.load(cfunc(qid1,qid2)),wcs)
         modlmap = p2d.modlmap()
-        print(p2d[modlmap<80])
+        #print(p2d[modlmap<80])
         modlmap = enmap.modlmap(shape,wcs)
         bin_edges = np.append(np.append([0,20,40],np.arange(80,500,20)),np.arange(500,25000,20))
         #bin_edges = np.append(np.append([0,20,40],np.arange(80,300,20)),np.arange(300,25000,20))
@@ -41,8 +45,8 @@ for i in range(narrays):
         # b1 = tutils.get_kbeam(qid1,modlmap)
         # b2 = tutils.get_kbeam(qid2,modlmap)
 
-        b1 = 1
-        b2 = 1
+        b1 = tutils.get_kbeam(qid1,modlmap,planck_pixwin=True)/tutils.get_kbeam(qid1,modlmap,planck_pixwin=False)
+        b2 = tutils.get_kbeam(qid2,modlmap,planck_pixwin=True)/tutils.get_kbeam(qid2,modlmap,planck_pixwin=False)
 
         p2d = p2d/b1/b2
 

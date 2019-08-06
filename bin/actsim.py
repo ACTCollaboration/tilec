@@ -25,6 +25,8 @@ parser.add_argument("beams", type=str,help='Comma separated list of beams. Each 
 parser.add_argument("-N", "--nsims",     type=int,  default=1,help="A description.")
 parser.add_argument("--start-index",     type=int,  default=0,help="A description.")
 parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
+parser.add_argument("--exclude-tsz", action='store_true',help='Do not include tsz.')
+parser.add_argument("--save-all", action='store_true',help='Do not delete anything intermediate.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
 parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='fgres_v1')
 parser.add_argument("--sim-version", type=str,help='Region name.',default='v6.2.0_calibrated_mask_version_padded_v1')
@@ -107,7 +109,7 @@ for task in my_tasks:
         with bench.show("signal"):
             # (npol,Ny,Nx)
             signal = jsim.compute_map(mask.shape,mask.wcs,qid,
-                                      include_cmb=True,include_tsz=True,include_fgres=True)
+                                      include_cmb=True,include_tsz=not(args.exclude_tsz),include_fgres=True)
 
 
         # Special treatment for pa3
@@ -154,7 +156,8 @@ for task in my_tasks:
                                     args.rfit_wnoise_width,args.rfit_lmin,
                                     args.overwrite,args.memory_intensive,args.uncalibrated,
                                     sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
-                                    theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,fit_physical=args.fit_physical)
+                                    theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,
+                                    fit_physical=args.fit_physical,save_all=args.save_all)
 
 
 
@@ -172,5 +175,5 @@ for task in my_tasks:
                                     unsanitized_beam=args.unsanitized_beam)
 
     savepath = tutils.get_save_path(sim_version,args.region)
-    shutil.rmtree(savepath)
+    if not(args.save_all): shutil.rmtree(savepath)
     print("Rank %d done with task %d at %s." % (rank,task,str(datetime.now())))
