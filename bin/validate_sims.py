@@ -80,7 +80,7 @@ for i,task in enumerate(my_tasks):
     # Get directory
     ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
     #ind_str = str(set_id).zfill(2)+"_"+str(sim_index*2).zfill(4) # !!! 
-    version = "map_%s_%s" % (args.version,ind_str)
+    version = "map_joint_%s_%s" % (args.version,ind_str)
     savedir = tutils.get_save_path(version,args.region)
     print(savedir)
     assert os.path.exists(savedir)

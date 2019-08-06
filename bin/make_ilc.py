@@ -29,8 +29,9 @@ parser.add_argument("--chunk-size",     type=int,  default=5000000,help="Chunk s
 parser.add_argument("--maxval",     type=float,  default=700000,help="Maxval for covmat.")
 parser.add_argument("--beam-version", type=str,  default=None,help='Mask version')
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
+parser.add_argument("--do-weights", action='store_true',help='Store weights to disk.')
 args = parser.parse_args()
 
 pipeline.build_and_save_ilc(args.arrays,args.region,args.version,args.cov_version,args.beam_version,
                             args.solutions,args.beams,args.chunk_size,
-                            args.effective_freq,args.overwrite,args.maxval,unsanitized_beam=args.unsanitized_beam)
+                            args.effective_freq,args.overwrite,args.maxval,unsanitized_beam=args.unsanitized_beam,args.do_weights)

@@ -46,7 +46,7 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=T
     kdiffs,kcoadd = process_splits(qid,rsplits,wins,mask,skip_splits=skip_splits,do_fft_splits=False,pixwin=pixwin)
     return kdiffs,kcoadd,wins
 
-def process_splits(qid,splits,wins,mask,skip_splits=False,do_fft_splits=False,pixwin=False,hybrid_beam=True):
+def process_splits(qid,splits,wins,mask,skip_splits=False,do_fft_splits=False,pixwin=False,hybrid_beam=False):
     assert wins.ndim>2
     with np.errstate(divide='ignore', invalid='ignore'):
         coadd = (splits*wins).sum(axis=0)/wins.sum(axis=0)
@@ -54,6 +54,7 @@ def process_splits(qid,splits,wins,mask,skip_splits=False,do_fft_splits=False,pi
     Ny,Nx = splits.shape[-2:]
     assert coadd.shape == (Ny,Nx)
     if hybrid_beam and (qid in ['p01','p02']):
+        raise NotImplementedError
         # If this option is on, we do the following
         # 1. get alms of coadd
         # 2. get beam+planck-pixwin in ell space

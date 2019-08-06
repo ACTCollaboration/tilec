@@ -35,6 +35,11 @@ def map_term(kmaps,response,cov=None,cinv=None):
     Cinvk = cinv_x(kmaps,cov,cinv)
     return np.einsum('...k,...k->...',response,Cinvk)
 
+def weight_term(response,cinv):
+    """response^T . Cinv """
+    return np.einsum('...i,...ij->...j',response,cinv)
+
+
 def chunked_ilc(ells,kbeams,covfunc,chunk_size,responses=None,invert=True):
     """
     Provides a generator that can loop over chunks of fourier space
@@ -162,6 +167,16 @@ class HILC(object):
         out = weighted * snoise
         if np.any(np.isnan(out)): raise ValueError
         return out
+
+    def standard_weight(self,name="cmb"):
+        # Get normalized response^T cinv
+        weighted = weight_term(self.responses[name],self.cinv).swapaxes(0,1)
+        snoise = self.standard_noise(name)
+        snoise[np.isinf(np.abs(snoise))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
+        out = weighted * snoise
+        if np.any(np.isnan(out)): raise ValueError
+        return out
+
 
     def constrained_map(self,kmaps,name1,name2):
         """Constrained ILC -- Make a constrained internal linear combination (ILC) of given fourier space maps at different frequencies
@@ -512,7 +527,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 if (theory_signal=="diagonal" and a1==a2) or (theory_signal=="offdiagonal" and a1!=a2) or (theory_signal=="all") :
                     f1 = freqs[a1]
                     f2 = freqs[a2]
-                    scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap),wcs)
+                    scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap) *fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) ,wcs)
                     print("WARNING: using theory signal for %d,%d" % (a1,a2))
                 else:
                     if theory_signal not in ['none','diagonal','offdiagonal','all']: raise ValueError
@@ -528,10 +543,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
 
-            if verbose: print("Calculating weights for %d,%d" % (a1,a2))
             # Initialize signal cov and weights if needed
             f1 = freqs[a1]
             f2 = freqs[a2]
+            if verbose: print("Calculating weights for %d,%d and frequencies %d,%d " % (a1,a2,f1,f2))
             try:
                 fscovs[(f1,f2)]
             except:
@@ -547,9 +562,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             with np.errstate(divide='ignore'): cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
             with np.errstate(divide='ignore'): cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
             cl_12 = c12
-            c11[~np.isfinite(c11)] = 0
-            c22[~np.isfinite(c22)] = 0
-            c12[~np.isfinite(c12)] = 0
+            cl_11[~np.isfinite(cl_11)] = 0
+            cl_22[~np.isfinite(cl_22)] = 0
+            cl_12[~np.isfinite(cl_12)] = 0
             w = 1./((cl_11 * cl_22)+cl_12**2) 
             weight = maps.interp(ells,w)(modlmap)
 
@@ -568,14 +583,14 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
     slmin = min(lmins)
 
-    if fit_physical is not None:
-        fitmax = fit_physical
-        fitmin = slmin
-        dell = 2*minell
-        fbin_edges = np.arange(fitmin,fitmax,dell)
-        fbinner = stats.bin2D(modlmap,fbin_edges)
-        fcents = fbinner.centers
-        ftheory = CTheory(fcents)
+    # if fit_physical is not None:
+    #     fitmax = fit_physical
+    #     fitmin = slmin
+    #     dell = 2*minell
+    #     fbin_edges = np.arange(fitmin,fitmax,dell)
+    #     fbinner = stats.bin2D(modlmap,fbin_edges)
+    #     fcents = fbinner.centers
+    #     ftheory = CTheory(fcents)
 
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
@@ -590,38 +605,46 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 try:
                     numer = numer + fscovs[key2]
                     denom = denom + fws[key2]
+                    print("Found symmetric key for %d,%d" % (f1,f2))
                 except:
                     pass
             with np.errstate(invalid='ignore'): nscov = numer/denom
 
 
             nscov[~np.isfinite(nscov)] = 0
-            smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
+            # smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
+            #                                kind=signal_interp_order,
+            #                                lmin=slmin,
+            #                                dlspace=True)
+
+            smsig = covtools.signal_average(nscov,bin_width=signal_bin_width,
                                            kind=signal_interp_order,
                                            lmin=slmin,
-                                           dlspace=True)
+                                           dlspace=True)  * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) # !!!!
 
 
-            if fit_physical is not None:
+            # enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(smsig,wcs)) # !!!!
 
-                # np.random.seed(None)
-                # cfit = smsig.copy() * (1+np.random.normal(scale=0.0001))
-                # smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical] 
+            # if fit_physical is not None:
 
-                #enmap.write_map("/scratch/r/rbond/msyriac/dump/unsmoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),wcs))
-                #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(smsig,wcs))
-                #pass
+            #     # np.random.seed(None)
+            #     # cfit = smsig.copy() * (1+np.random.normal(scale=0.0001))
+            #     # smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical] 
 
-                # ffunc = lambda d,x,y,z: ftheory.get_theory_cls(f1,f2,a_cmb=x,a_gal=y,exp_gal=z)
-                # res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,0.8,-0.7],bounds=([0.2,0.,-2],[1.8,10.,0]))                
-                # fcmb,fgal,fexp = res
-                # cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal,exp_gal=fexp))(modlmap)
-                # print(names[a1],names[a2],fcmb,fgal,fexp)
+            #     #enmap.write_map("/scratch/r/rbond/msyriac/dump/unsmoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),wcs))
+            #     #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(smsig,wcs))
+            #     #pass
 
-                # if True: #a1!=a2: 
-                #     #cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap)*10
-                #     smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical] * fbeam(names[a1],modlmap[modlmap<fit_physical]) * fbeam(names[a2],modlmap[modlmap<fit_physical])
-                pass
+            #     # ffunc = lambda d,x,y,z: ftheory.get_theory_cls(f1,f2,a_cmb=x,a_gal=y,exp_gal=z)
+            #     # res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,0.8,-0.7],bounds=([0.2,0.,-2],[1.8,10.,0]))                
+            #     # fcmb,fgal,fexp = res
+            #     # cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal,exp_gal=fexp))(modlmap)
+            #     # print(names[a1],names[a2],fcmb,fgal,fexp)
+
+            #     # if True: #a1!=a2: 
+            #     #     #cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap)*10
+            #     #     smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical] * fbeam(names[a1],modlmap[modlmap<fit_physical]) * fbeam(names[a2],modlmap[modlmap<fit_physical])
+            #     pass
                 
 
 
@@ -634,7 +657,26 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             else:
                 lncov = enmap.enmap(np.load(scratch_fname(scratch_dir,"dncovs",a1,a2)),wcs)
             #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_noise_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(lncov,wcs)) # !!!
+
+
+            # !!!!
+            # ns = [240,290,41]
+            # smsig = maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap) * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) # !!!!
+            # smsig[~np.isfinite(smsig)] = 0
+            # !!!!
+
+
+
             ocov = lncov + smsig
+
+
+
+            # !!!!
+            # ns = [240,290,41]
+            # ocov = maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap) * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) + int(a1==a2)*(ns[a1]*np.pi/180./60.)**2.  # !!!!
+            # ocov[~np.isfinite(ocov)] = 0
+            # !!!!
+
             
             assert np.all(np.isfinite(ocov))
             if a1==a2:

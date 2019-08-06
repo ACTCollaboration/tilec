@@ -88,7 +88,7 @@ class JointSim(object):
 
 
     def compute_map(self,oshape,owcs,qid,pixwin_taper_deg=0.3,pixwin_pad_deg=0.3,
-                    include_cmb=True,include_tsz=True,include_fgres=True):
+                    include_cmb=True,include_tsz=True,include_fgres=True,sht_beam=True):
 
         """
         1. get total alm
@@ -117,24 +117,39 @@ class JointSim(object):
         ells = np.arange(self.lmax+1)
         
         # 2. get beam, and pixel window for Planck
-        beam = tutils.get_kbeam(qid,ells,sanitize=False,planck_pixwin=False)    # NEVER SANITIZE THE BEAM IN A SIMULATION!!!
-        for i in range(3): tot_alm[i] = hp.almxfl(tot_alm[i],beam)
-        if dm.name=='planck_hybrid':
-            pixwint,pixwinp = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax,pol=True)
-            tot_alm[0] = hp.almxfl(tot_alm[0],pixwint)
-            tot_alm[1] = hp.almxfl(tot_alm[1],pixwinp)
-            tot_alm[2] = hp.almxfl(tot_alm[2],pixwinp)
+        if sht_beam:
+            beam = tutils.get_kbeam(qid,ells,sanitize=False,planck_pixwin=False)    # NEVER SANITIZE THE BEAM IN A SIMULATION!!!
+            for i in range(3): tot_alm[i] = hp.almxfl(tot_alm[i],beam)
+            if dm.name=='planck_hybrid':
+                pixwint,pixwinp = hp.pixwin(nside=tutils.get_nside(qid),lmax=self.lmax,pol=True)
+                tot_alm[0] = hp.almxfl(tot_alm[0],pixwint)
+                tot_alm[1] = hp.almxfl(tot_alm[1],pixwinp)
+                tot_alm[2] = hp.almxfl(tot_alm[2],pixwinp)
         
         # 3. ISHT
         omap = curvedsky.alm2map(np.complex128(tot_alm),omap,spin=[0,2])
         assert omap.ndim==3
         assert omap.shape[0]==3
 
+
+        if not(sht_beam):
+            taper,_ = maps.get_taper_deg(ishape,iwcs,taper_width_degrees=pixwin_taper_deg,pad_width_degrees=pixwin_pad_deg)
+            modlmap = omap.modlmap()
+            beam = tutils.get_kbeam(qid,modlmap,sanitize=False,planck_pixwin=True)
+            kmap = enmap.fft(omap*taper,normalize='phys')
+            kmap = kmap * beam
+
+
         # 4. if ACT, apply a small taper and apply pixel window in Fourier space
         if dm.name=='act_mr3':
-            taper,_ = maps.get_taper_deg(ishape,iwcs,taper_width_degrees=pixwin_taper_deg,pad_width_degrees=pixwin_pad_deg)
+            if sht_beam: taper,_ = maps.get_taper_deg(ishape,iwcs,taper_width_degrees=pixwin_taper_deg,pad_width_degrees=pixwin_pad_deg)
             pwin = tutils.get_pixwin(ishape[-2:])
-            omap = maps.filter_map(omap*taper,pwin)
+            if sht_beam: 
+                omap = maps.filter_map(omap*taper,pwin)
+            else:
+                kmap = kmap * pwin
+
+        if not(sht_beam): omap = enmap.ifft(kmap,normalize='phys').real
 
         return enmap.extract(omap,(3,)+oshape[-2:],owcs)
 
@@ -279,7 +294,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
 
 def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                        solutions,beams,chunk_size,
-                       effective_freq,overwrite,maxval,unsanitized_beam=False):
+                       effective_freq,overwrite,maxval,unsanitized_beam=False,do_weights=False):
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")

@@ -47,6 +47,7 @@ parser.add_argument("--maxval",     type=float,  default=700000,help="Maxval for
 parser.add_argument("--beam-version", type=str,  default=None,help='Mask version')
 parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore bandpass files and use effective frequency.')
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
+parser.add_argument("--do-weights", action='store_true',help='Store weights to disk.')
 args = parser.parse_args()
 
 # Generate each ACT and Planck sim and store kdiffs,kcoadd in memory
@@ -166,13 +167,16 @@ for task in my_tasks:
     SAVE ILC
     """
     print("done")
-    ilc_version = "map_%s_%s" % (args.version,ind_str)
+    ilc_version = "map_joint_%s_%s" % (args.version,ind_str)
     with bench.show("sim ilc"):
         print("starting")
         pipeline.build_and_save_ilc(args.arrays,args.region,ilc_version,sim_version,args.beam_version,
                                     args.solutions,args.beams,args.chunk_size,
                                     args.effective_freq,args.overwrite,args.maxval,
-                                    unsanitized_beam=args.unsanitized_beam)
+                                    unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights)
+
+
+
 
     savepath = tutils.get_save_path(sim_version,args.region)
     if not(args.save_all): shutil.rmtree(savepath)
