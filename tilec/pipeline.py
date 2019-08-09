@@ -224,6 +224,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
         friends = {} # what arrays are each correlated with?
         names = arrays.split(',')
         print("Calculating FFTs for " , arrays)
+        fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(unsanitized_beam),planck_pixwin=True)
         for i,qid in enumerate(arrays.split(',')):
             dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
             lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
@@ -233,7 +234,6 @@ def build_and_save_cov(arrays,region,version,mask_version,
             hybrids.append(hybrid)
             freqs.append(fgroup)
             rfit_wnoise_widths.append(wrfit)
-            fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(unsanitized_beam),planck_pixwin=True)
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
                                               splits_fname=sim_splits[i] if sim_splits is not None else None,

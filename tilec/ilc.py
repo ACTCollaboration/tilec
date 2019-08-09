@@ -1,6 +1,6 @@
 import numpy as np
 from pixell import utils,enmap
-from tilec import covtools,fg as tfg
+from tilec import covtools,fg as tfg,utils as tutils
 from orphics import maps,stats,io,cosmology
 from actsims import noise as simnoise
 from szar import foregrounds as szfg
@@ -387,7 +387,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
     """
 
-    A more sophisticated covariance model. In comparison to build_cov_hybrid, it doesn't simply
+    A more sophisticated covariance model. In comparison to deprecated.build_cov_hybrid, it doesn't simply
     use a different S+N model for each array, but rather coadds the signal S part across arrays
     that have similar frequencies and reuses the result for those arrays.
 
@@ -395,19 +395,22 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
     We group each array by their rough frequency into nfreq groups.
 
     We loop through each a1,a2 array combination, each of which corresponds to an f1,f2 group combination.
-    If a1==a2 or if they are correlated arrays, then we calculate noise from splits and store it into the final covmat.
+    If a1==a2 or if they are correlated arrays, then we calculate noise from splits and store it into n(a1,a2).
     We calculate signal = (total - noise) and cache it into s(f1,f2).
-    If a1!=a2 and they are not correlated arrays, then we calculate the cross of their coadds and cache it into s(f1,f2).
+    If a1!=a2 and they are not correlated arrays, then we calculate the cross of their coadds and cache it into s(f1,f2) and 
+    set n(a1,a2) to zero.
 
     freqs: list of integers corresponding to central frequency denoting frequency group
     correlated_arrays: list of lists of correlated arrays
     fit_physical: if not None, specifies the integer ell below which the signal covariance is fit to a theoretical model
     """
 
+    # General crap and input validation
     if fit_physical<2: fit_physical = None
     narrays = len(kdiffs)
     assert len(kcoadds)==len(lmins)==len(lmaxs)==len(freqs)==narrays
 
+    # Is stuff on disk or in memory? Decide based on what's in the kdiffs list
     on_disk = False
     try:
         tshape = kdiffs[0].shape[-2:]
@@ -415,6 +418,8 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
         assert isinstance(kdiffs[0],basestring), "List contents are neither enmaps nor filenames."
         on_disk = True
 
+    # Mask as a function of array index is either the single mask or the separate mask
+    # for each array
     def get_mask(aind):
         if separate_masks: 
             return _load_map(mask[aind])
@@ -422,9 +427,11 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             assert mask.ndim==2
             return mask
 
+    # Get geometry from the mask
     mask = get_mask(0)
     shape,wcs = mask.shape[-2:],mask.wcs
 
+    # General map loading for both on disk and in memory
     def _load_map(kitem): 
         if not(on_disk):
             return kitem
@@ -432,9 +439,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             if kitem[-5:]=='.fits': return enmap.read_map(kitem)
             elif kitem[-4:]=='.npy': return enmap.enmap(np.load(kitem),wcs)
             else: raise IOError
+
+    # Some useful geometry stuff
     minell = maps.minimum_ell(shape,wcs)
     modlmap = enmap.modlmap(shape,wcs)
-
 
     # Defaults
     if rfit_lmaxes is None:
@@ -446,22 +454,26 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
 
     # Let's build the instrument noise model
-    if scratch_dir is None: dncovs = {}
-    if scratch_dir is None: scovs = {}
-    n1ds = {}
+    if scratch_dir is None: dncovs = {} # where to store the smoothed noise
+    if scratch_dir is None: scovs = {} # where to store the unsmoothed signal
+    n1ds = {} # store the smoothed binned noise estimate for coadding of signal
+
     gellmax = modlmap.max()
     ells = np.arange(0,gellmax,1)
+
+    # A fiducial theory object
     ctheory = CTheory(ells)
+
+    # Loop through all the array combinations
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
 
-            # Load coadds and calculate power
+            # Load coadds and calculate total power
             m1 = get_mask(a1)
             m2 = get_mask(a2)
             kc1 = _load_map(kcoadds[a1])
             kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
             ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
-
 
             # If off-diagonals that are not correlated, only calculate coadd cross for signal
             if (a1 != a2) and (not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs)): 
@@ -511,8 +523,12 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                         rfit_wnoise_width = rfit_wnoise_widths[a1]
                         wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
                         assert np.isfinite(wfit)
-                        lfit = 0
-                        afit = 1
+                        if tutils.is_planck(names[a1]): # !!!!
+                            lfit = 0
+                            afit = 1
+                        else:
+                            lfit = 3000
+                            afit = -4
                     n1d = covtools.rednoise(ells,wfit,lfit,afit)
                     n1d[ells<2] = 0
                     n1ds[a1] = n1d.copy()
@@ -562,9 +578,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             with np.errstate(divide='ignore'): cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
             with np.errstate(divide='ignore'): cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
             cl_12 = c12
-            cl_11[~np.isfinite(cl_11)] = 0
-            cl_22[~np.isfinite(cl_22)] = 0
-            cl_12[~np.isfinite(cl_12)] = 0
+            # cl_11[~np.isfinite(cl_11)] = 0
+            # cl_22[~np.isfinite(cl_22)] = 0
+            # cl_12[~np.isfinite(cl_12)] = 0 # !!!
             w = 1./((cl_11 * cl_22)+cl_12**2) 
             weight = maps.interp(ells,w)(modlmap)
 
@@ -591,6 +607,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
     #     fbinner = stats.bin2D(modlmap,fbin_edges)
     #     fcents = fbinner.centers
     #     ftheory = CTheory(fcents)
+    mtheory = CTheory(modlmap)
 
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
@@ -612,18 +629,47 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
 
             nscov[~np.isfinite(nscov)] = 0
-            # smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
-            #                                kind=signal_interp_order,
-            #                                lmin=slmin,
-            #                                dlspace=True)
-
-            smsig = covtools.signal_average(nscov,bin_width=signal_bin_width,
+            smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
                                            kind=signal_interp_order,
                                            lmin=slmin,
-                                           dlspace=True)  * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) # !!!!
+                                           dlspace=True)
+
+            # smsig = covtools.signal_average(nscov,bin_width=signal_bin_width,
+            #                                kind=signal_interp_order,
+            #                                lmin=slmin,
+            #                                dlspace=True)  * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) # !!!!
+
+            # enmap.write_map("/scratch/r/rbond/msyriac/dump/unsmoothed_debeamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(nscov,wcs)) # !!!!
+            # enmap.write_map("/scratch/r/rbond/msyriac/dump/beamsq_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),wcs)) # !!!!
 
 
-            # enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(smsig,wcs)) # !!!!
+            # dtheory = mtheory.get_theory_cls(f1,f2) # !!!
+            # pcov = nscov/dtheory
+            # pcov[~np.isfinite(pcov)] = 0
+            # dsig = covtools.signal_average(pcov* fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
+            #                                 kind=signal_interp_order,
+            #                                 lmin=slmin,
+            #                                 dlspace=True) # !!!
+            # smsig = dsig   * dtheory # !!!!
+
+            # bin_edges = np.arange(20,3000,20)
+            # binner = stats.bin2D(modlmap,bin_edges)
+            # cents,d1d = binner.bin(dsig)
+
+            # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='r')
+            # pl.add(cents,d1d)
+            # pl.hline(y=1)
+            # pl.done(os.environ['WORK']+"/flatsig_%s_%s.png" % (names[a1],names[a2]))
+
+            # cents,d1d1 = binner.bin(smsig)
+            # cents,d1d2 = binner.bin(dtheory * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) )
+            # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
+            # pl.add(cents,d1d1)
+            # pl.add(cents,d1d2,ls="--")
+            # pl._ax.set_ylim(1,1e4)
+            # pl.done(os.environ['WORK']+"/dflatsig_%s_%s.png" % (names[a1],names[a2]))
+
+            #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_beamed_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(smsig,wcs)) # !!!!
 
             # if fit_physical is not None:
 
@@ -656,7 +702,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 lncov = dncovs[(a1,a2)]
             else:
                 lncov = enmap.enmap(np.load(scratch_fname(scratch_dir,"dncovs",a1,a2)),wcs)
-            #enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_noise_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(lncov,wcs)) # !!!
+            enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_noise_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(lncov,wcs)) # !!!
 
 
             # !!!!

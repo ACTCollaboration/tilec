@@ -1,4 +1,6 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
 from orphics import maps,io,cosmology,mpi
 from pixell import enmap
 import numpy as np
@@ -25,6 +27,7 @@ parser.add_argument("beams", type=str,help='Comma separated list of beams. Each 
 parser.add_argument("-N", "--nsims",     type=int,  default=1,help="A description.")
 parser.add_argument("--start-index",     type=int,  default=0,help="A description.")
 parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
+parser.add_argument("--fft-beam", action='store_true',help='Apply the beam and healpix-pixwin with FFTs instead of SHTs.')
 parser.add_argument("--exclude-tsz", action='store_true',help='Do not include tsz.')
 parser.add_argument("--save-all", action='store_true',help='Do not delete anything intermediate.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
@@ -110,7 +113,8 @@ for task in my_tasks:
         with bench.show("signal"):
             # (npol,Ny,Nx)
             signal = jsim.compute_map(mask.shape,mask.wcs,qid,
-                                      include_cmb=True,include_tsz=not(args.exclude_tsz),include_fgres=True)
+                                      include_cmb=True,include_tsz=not(args.exclude_tsz),
+                                      include_fgres=True,sht_beam=not(args.fft_beam))
 
 
         # Special treatment for pa3
