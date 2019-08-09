@@ -1,6 +1,6 @@
 import numpy as np
 from pixell import utils,enmap
-from tilec import covtools
+from tilec import covtools,fg as tfg,utils as tutils
 from orphics import maps,stats,io,cosmology
 from actsims import noise as simnoise
 from szar import foregrounds as szfg
@@ -344,11 +344,17 @@ class CTheory(object):
         self.dlscale[~np.isfinite(self.dlscale)] = 0
 
 
-    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0):
-        gf = lambda x: szfg.gfunc(x)
+    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0.8,exp_gal=-0.7): # a_gal is now 0.8 by default
+        gf = lambda x: tfg.ItoDeltaT(x)
         clfg = szfg.power_tsz(self.ells,f1,f2,yy=self.yy) + szfg.power_cibp(self.ells,f1,f2) + szfg.power_cibc(self.ells,f1,f2) + \
-               szfg.power_radps(self.ells,f1,f2) + self.ksz + a_gal * (self.ells/500.)**(-0.7) * self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
+               szfg.power_radps(self.ells,f1,f2) + self.ksz + a_gal * (self.ells/500.)**(exp_gal) * self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
         return (a_cmb * self.cltt) + clfg
+
+    # def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0):
+    #     gf = lambda x: szfg.gfunc(x)
+    #     clfg = szfg.power_tsz(self.ells,f1,f2,yy=self.yy) + szfg.power_cibp(self.ells,f1,f2) + szfg.power_cibc(self.ells,f1,f2) + \
+    #            szfg.power_radps(self.ells,f1,f2) + self.ksz + a_gal * (self.ells/500.)**(-0.7) * self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
+    #     return (a_cmb * self.cltt) + clfg
 
         
 
@@ -496,8 +502,12 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                         rfit_wnoise_width = rfit_wnoise_widths[a1]
                         wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
                         assert np.isfinite(wfit)
-                        lfit = 0
-                        afit = 1
+                        if tutils.is_planck(names[a1]): # !!!!
+                            lfit = 0
+                            afit = 1
+                        else:
+                            lfit = 3000
+                            afit = -4
                     n1d = covtools.rednoise(ells,wfit,lfit,afit)
                     n1d[ells<2] = 0
                     n1ds[a1] = n1d.copy()
@@ -512,7 +522,8 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 if (theory_signal=="diagonal" and a1==a2) or (theory_signal=="offdiagonal" and a1!=a2) or (theory_signal=="all") :
                     f1 = freqs[a1]
                     f2 = freqs[a2]
-                    scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap),wcs)
+                    #scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2)*fbeam(names[a1],ells) * fbeam(names[a2],ells))(modlmap),wcs)
+                    scov =  enmap.enmap(maps.interp(ells,ctheory.get_theory_cls(f1,f2))(modlmap) *fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap) ,wcs)
                     print("WARNING: using theory signal for %d,%d" % (a1,a2))
                 else:
                     if theory_signal not in ['none','diagonal','offdiagonal','all']: raise ValueError
@@ -568,14 +579,14 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
     slmin = min(lmins)
 
-    if fit_physical is not None:
-        fitmax = fit_physical
-        fitmin = slmin
-        dell = 2*minell
-        fbin_edges = np.arange(fitmin,fitmax,dell)
-        fbinner = stats.bin2D(modlmap,fbin_edges)
-        fcents = fbinner.centers
-        ftheory = CTheory(fcents)
+    # if fit_physical is not None:
+    #     fitmax = fit_physical
+    #     fitmin = slmin
+    #     dell = 2*minell
+    #     fbin_edges = np.arange(fitmin,fitmax,dell)
+    #     fbinner = stats.bin2D(modlmap,fbin_edges)
+    #     fcents = fbinner.centers
+    #     ftheory = CTheory(fcents)
 
     for a1 in range(narrays):
         for a2 in range(a1,narrays):
@@ -604,14 +615,14 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                                             lmin=slmin,
                                             dlspace=True)
 
-            if fit_physical is not None:
-                ffunc = lambda d,x,y: ftheory.get_theory_cls(f1,f2,a_cmb=x,a_gal=y)
-                res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,10],bounds=([0,0],[2,100]))                
-                fcmb,fgal = res
-                cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal))(modlmap)
-                if a1==a2: print(names[a1],fcmb,fgal)
-                smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical].copy()
-                #smsig[modlmap<1000] = 0 #cfit[modlmap<1000].copy() #!!!!!
+            # if fit_physical is not None:
+            #     ffunc = lambda d,x,y: ftheory.get_theory_cls(f1,f2,a_cmb=x,a_gal=y)
+            #     res,_ = curve_fit(ffunc,fcents,fbinner.bin(nscov)[1],p0=[1,10],bounds=([0,0],[2,100]))                
+            #     fcmb,fgal = res
+            #     cfit = maps.interp(ells,ctheory.get_theory_cls(f1,f2,a_cmb=fcmb,a_gal=fgal))(modlmap)
+            #     if a1==a2: print(names[a1],fcmb,fgal)
+            #     smsig[modlmap<fit_physical] = cfit[modlmap<fit_physical].copy()
+            #     #smsig[modlmap<1000] = 0 #cfit[modlmap<1000].copy() #!!!!!
 
 
             smsig[modlmap<2] = 0
