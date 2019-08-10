@@ -578,9 +578,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             with np.errstate(divide='ignore'): cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
             with np.errstate(divide='ignore'): cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
             cl_12 = c12
-            # cl_11[~np.isfinite(cl_11)] = 0
-            # cl_22[~np.isfinite(cl_22)] = 0
-            # cl_12[~np.isfinite(cl_12)] = 0 # !!!
+            cl_11[~np.isfinite(cl_11)] = 0
+            cl_22[~np.isfinite(cl_22)] = 0
+            cl_12[~np.isfinite(cl_12)] = 0 # !!!
             w = 1./((cl_11 * cl_22)+cl_12**2) 
             weight = maps.interp(ells,w)(modlmap)
 
@@ -702,7 +702,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 lncov = dncovs[(a1,a2)]
             else:
                 lncov = enmap.enmap(np.load(scratch_fname(scratch_dir,"dncovs",a1,a2)),wcs)
-            enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_noise_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(lncov,wcs)) # !!!
+            # enmap.write_map("/scratch/r/rbond/msyriac/dump/smoothed_noise_%s_%s.fits" % (names[a1],names[a2]) ,enmap.enmap(lncov,wcs)) # !!!
 
 
             # !!!!
