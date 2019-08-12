@@ -359,8 +359,9 @@ class CTheory(object):
         self.dlscale[~np.isfinite(self.dlscale)] = 0
 
 
-    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0.8,exp_gal=-0.7): # a_gal is now 0.8 by default
-        gf = lambda x: tfg.ItoDeltaT(x)
+    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0.,exp_gal=-0.7): # a_gal is now 0.8 by default # !!!!
+        #gf = lambda x: tfg.ItoDeltaT(x)
+        gf = lambda x: szfg.gfunc(x) #!!!
         clfg = szfg.power_tsz(self.ells,f1,f2,yy=self.yy) + szfg.power_cibp(self.ells,f1,f2) + szfg.power_cibc(self.ells,f1,f2) + \
                szfg.power_radps(self.ells,f1,f2) + self.ksz + a_gal * (self.ells/500.)**(exp_gal) * self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
         return (a_cmb * self.cltt) + clfg
