@@ -522,15 +522,10 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                         rfit_wnoise_width = rfit_wnoise_widths[a1]
                         wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
                         assert np.isfinite(wfit)
-                        if True: #tutils.is_planck(names[a1]): # !!!!
-                            lfit = 0
-                            afit = 1
-                        else:
-                            lfit = 3000
-                            afit = -4
+                        lfit = 0
+                        afit = 1
                     n1d = covtools.rednoise(ells,wfit,lfit,afit)
                     n1d[ells<2] = 0
-                    # io.save_cols(os.environ['WORK']+'/white_n1d_%s.txt' % names[a1],(ells,n1d))
                     n1ds[a1] = n1d.copy()
                     if verbose: print("Populating noise for %d,%d  (wnoise estimate of %.2f)" % (a1,a2,wfit))
 
