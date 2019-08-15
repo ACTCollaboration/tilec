@@ -13,7 +13,6 @@ from enlib import bench
 from tilec import pipeline,utils as tutils
 
 
-
 pdefaults = io.config_from_yaml("input/cov_defaults.yml")['cov']
 
 import argparse
@@ -51,6 +50,24 @@ parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore b
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 parser.add_argument("--do-weights", action='store_true',help='Store weights to disk.')
 args = parser.parse_args()
+
+print("Command line arguments are %s." % args)
+tutils.validate_args(args.solutions,args.beams)
+
+# Prepare act-only and planck-only jobs
+qids = args.arrays.split(',')
+act_arrays = [] ; planck_arrays = []
+for qid in qids:
+    if tutils.is_planck(qid): 
+        planck_arrays.append(qid)
+    else: 
+        act_arrays.append(qid)
+do_act_only = len(act_arrays)>0
+do_planck_only = len(planck_arrays)>0
+act_arrays = ','.join(act_arrays)
+planck_arrays = ','.join(planck_arrays)
+print("Starting simulation for arrays %s of which %s are ACT and %s are Planck." % (args.arrays,act_arrays,planck_arrays))
+
 
 # Generate each ACT and Planck sim and store kdiffs,kcoadd in memory
 

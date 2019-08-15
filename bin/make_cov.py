@@ -40,6 +40,7 @@ parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfi
 parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin'],help="A description.")
 
 args = parser.parse_args()
+print("Command line arguments are %s." % args)
 
 pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_version,
                             args.signal_bin_width,args.signal_interp_order,args.delta_ell,

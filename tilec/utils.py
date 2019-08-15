@@ -8,6 +8,10 @@ import os,sys
 import pandas
 import healpy as hp
 
+
+def validate_args(solutions,beams):
+    assert len(solutions.split(','))==len(beams.split(','))
+
 def get_save_path(version,region):
     save_path = sints.dconfig['tilec']['save_path']
     savedir = os.path.join(save_path , version + "_" + region)

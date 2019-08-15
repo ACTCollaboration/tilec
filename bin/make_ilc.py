@@ -4,7 +4,7 @@ from pixell import enmap
 from enlib import bench
 import numpy as np
 import os,sys
-from tilec import pipeline
+from tilec import pipeline, utils as tutils
 from soapack import interfaces as sints
 
 """
@@ -31,6 +31,9 @@ parser.add_argument("--beam-version", type=str,  default=None,help='Mask version
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 parser.add_argument("--do-weights", action='store_true',help='Store weights to disk.')
 args = parser.parse_args()
+
+print("Command line arguments are %s." % args)
+tutils.validate_args(args.solutions,args.beams)
 
 pipeline.build_and_save_ilc(args.arrays,args.region,args.version,args.cov_version,args.beam_version,
                             args.solutions,args.beams,args.chunk_size,
