@@ -47,4 +47,4 @@ pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_versi
                             args.rfit_wnoise_width,args.rfit_lmin,
                             args.overwrite,args.memory_intensive,args.uncalibrated,
                             sim_splits=None,skip_inpainting=args.skip_inpainting,
-                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam)
+                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,plot_inpaint=True)

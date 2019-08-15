@@ -37,4 +37,4 @@ tutils.validate_args(args.solutions,args.beams)
 
 pipeline.build_and_save_ilc(args.arrays,args.region,args.version,args.cov_version,args.beam_version,
                             args.solutions,args.beams,args.chunk_size,
-                            args.effective_freq,args.overwrite,args.maxval,unsanitized_beam=args.unsanitized_beam,args.do_weights)
+                            args.effective_freq,args.overwrite,args.maxval,unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights)

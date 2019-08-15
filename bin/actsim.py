@@ -178,7 +178,7 @@ for task in my_tasks:
                                     args.overwrite,args.memory_intensive,args.uncalibrated,
                                     sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
                                     theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,
-                                    save_all=args.save_all)
+                                    save_all=args.save_all,plot_inpaint=False)
 
 
 

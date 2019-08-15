@@ -8,7 +8,7 @@ from soapack import interfaces as sints
 from tilec import utils as tutils
 
 
-def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True,verbose=True):
+def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True,verbose=True,plot_inpaint_path=None):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
@@ -41,6 +41,9 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=T
                                                   cache_name="qid_%s_splitnum_%d" % (qid,i) if cache_inpaint_geometries else None,
                                                   verbose=verbose)
             rsplits.append(result[0,:,:].copy())
+            if plot_inpaint_path is not None:
+                io.hplot(splits[i][0,:,:],"%s/uninpainted_qid_%s_splitnum_%d" % (plot_inpaint_path,qid,i),grid=True,color='planck')
+                io.hplot(result[0,:,:],"%s/inpainted_qid_%s_splitnum_%d" % (plot_inpaint_path,qid,i),grid=True,color='planck')
         rsplits = enmap.enmap(np.stack(rsplits),splits.wcs)
     else:
         rsplits = splits[:,0,:,:]

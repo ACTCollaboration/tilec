@@ -58,6 +58,12 @@ parser.add_argument("--uncalibrated", action='store_true',help='Do not use calib
 
 args = parser.parse_args()
 
+spath = sints.dconfig['actsims']['fg_res_path'] + "/"+ args.version + "_" + args.region +  "/"
+
+try: os.makedirs(spath)
+except: pass
+
+
 aqids = args.arrays.split(',')
 narrays = len(aqids)
 qpairs = []
@@ -85,6 +91,10 @@ region = args.region
 fbeam = lambda qname,x: tutils.get_kbeam(qname,x,sanitize=not(args.unsanitized_beam),planck_pixwin=True)
 nbin_edges = np.arange(20,8000,100)
 nbinner = stats.bin2D(modlmap,nbin_edges)
+ncents = nbinner.centers
+
+cbin_edges = np.arange(20,8000,20)
+cbinner = stats.bin2D(modlmap,cbin_edges)
 
 for task in my_tasks:
     qids = qpairs[task]
@@ -102,8 +112,9 @@ for task in my_tasks:
         lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
         assert isinstance(radial,bool)
         do_radial_fit.append(radial)
-        assert len(friend)==1
-        friend = friend[0]
+        if friend is not None: 
+            assert len(friend)==1
+            friend = friend[0]
         friends.append( friend )
         freqs.append(cfreq)
         rfit_wnoise_widths.append(wrfit)
@@ -115,7 +126,7 @@ for task in my_tasks:
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
                                               splits_fname=None,
-                                              inpaint=not(args.skip_inpainting),fn_beam = lambda x: fbeam(qid,x),verbose=False)
+                                              inpaint=not(args.skip_inpainting),fn_beam = lambda x: fbeam(qid,x),verbose=False,plot_inpaint_path=None)
 
         kdiffs.append(kdiff.copy())
         kcoadds.append(kcoadd.copy())
@@ -143,10 +154,10 @@ for task in my_tasks:
 
 
 
-    lmin
-    lmax
-    width = 40
-
+    ccents,s1d = cbinner.bin(scov)
+    io.save_cols("%sn1d_%s_%s.txt" % (spath,qid1,qid2), (ncents,n1d))
+    io.save_cols("%ss1d_%s_%s.txt" % (spath,qid1,qid2), (ccents,s1d))
+    
 
 
 sys.exit()

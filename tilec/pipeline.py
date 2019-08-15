@@ -181,7 +181,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,delta_ell,
                        rfit_wnoise_width,rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
-                       sim_splits=None,skip_inpainting=False,theory_signal="none",unsanitized_beam=False,save_all=False):
+                       sim_splits=None,skip_inpainting=False,theory_signal="none",unsanitized_beam=False,save_all=False,plot_inpaint=False):
 
 
     save_scratch = not(memory_intensive)
@@ -237,7 +237,8 @@ def build_and_save_cov(arrays,region,version,mask_version,
             kdiff,kcoadd,win = kspace.process(dm,region,qid,mask,
                                               skip_splits=False,
                                               splits_fname=sim_splits[i] if sim_splits is not None else None,
-                                              inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x))
+                                              inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x),
+                                              plot_inpaint_path = savedir if plot_inpaint else None)
             print("Processed ",qid)
             if save_scratch: 
                 kcoadd_name = savedir + "kcoadd_%s.npy" % qid
@@ -264,6 +265,10 @@ def build_and_save_cov(arrays,region,version,mask_version,
             lmaxs.append(lmax)
     if sim_splits is not None: del sim_splits
     print("Done with ffts.")
+
+    # print("Exiting because I just want to see inpainted stuff.")
+    # sys.exit()
+
     # Decide what pairs to do hybrid smoothing for
     anisotropic_pairs = get_aniso_pairs(arrays.split(','),hybrids,friends)
     print("Anisotropic pairs: ",anisotropic_pairs)
