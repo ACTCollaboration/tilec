@@ -38,7 +38,6 @@ parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell']
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
 parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfit_wnoise_width'],help="A description.")
 parser.add_argument("--rfit-lmin",     type=int,  default=pdefaults['rfit_lmin'],help="A description.")
-parser.add_argument("--fit-physical",     type=int,  default=pdefaults['fit_physical'],help="A description.")
 
 args = parser.parse_args()
 
@@ -47,4 +46,4 @@ pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_versi
                             args.rfit_wnoise_width,args.rfit_lmin,
                             args.overwrite,args.memory_intensive,args.uncalibrated,
                             sim_splits=None,skip_inpainting=args.skip_inpainting,
-                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,fit_physical=args.fit_physical)
+                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam)

@@ -40,7 +40,6 @@ parser.add_argument("--uncalibrated", action='store_true',help='Do not use calib
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
 parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
-parser.add_argument("--fit-physical",     type=int,  default=pdefaults['fit_physical'],help="A description.")
 parser.add_argument("--set-id",     type=int,  default=0,help="Sim set id.")
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
 parser.add_argument("--rfit-wnoise-width",     type=int,  default=pdefaults['rfit_wnoise_width'],help="A description.")
@@ -162,22 +161,42 @@ for task in my_tasks:
                                     args.overwrite,args.memory_intensive,args.uncalibrated,
                                     sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
                                     theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,
-                                    fit_physical=args.fit_physical,save_all=args.save_all)
+                                    save_all=args.save_all)
 
 
 
+    print("Done with cov.")
 
     """
     SAVE ILC
     """
-    print("done")
+    print("Starting joint ILC")
     ilc_version = "map_joint_%s_%s" % (args.version,ind_str)
     with bench.show("sim ilc"):
-        print("starting")
         pipeline.build_and_save_ilc(args.arrays,args.region,ilc_version,sim_version,args.beam_version,
                                     args.solutions,args.beams,args.chunk_size,
                                     args.effective_freq,args.overwrite,args.maxval,
                                     unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights)
+
+
+    if do_act_only:
+        print("Starting ACT-only ILC")
+        ilc_version = "map_act_only_%s_%s" % (args.version,ind_str)
+        with bench.show("sim ilc"):
+            pipeline.build_and_save_ilc(act_arrays,args.region,ilc_version,sim_version,args.beam_version,
+                                        args.solutions,args.beams,args.chunk_size,
+                                        args.effective_freq,args.overwrite,args.maxval,
+                                        unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights)
+
+
+    if do_planck_only:
+        print("Starting Planck-only ILC")
+        ilc_version = "map_planck_only_%s_%s" % (args.version,ind_str)
+        with bench.show("sim ilc"):
+            pipeline.build_and_save_ilc(planck_arrays,args.region,ilc_version,sim_version,args.beam_version,
+                                        args.solutions,args.beams,args.chunk_size,
+                                        args.effective_freq,args.overwrite,args.maxval,
+                                        unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights)
 
 
 
