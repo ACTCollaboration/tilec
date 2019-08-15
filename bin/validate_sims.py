@@ -63,7 +63,7 @@ for solution in args.solutions.split(','):
     input_names.append( components[solution][0] )
 input_names = sorted(list(set(input_names)))
 
-bin_edges = np.arange(80,5000,80)
+bin_edges = np.arange(80,8000,80)
 
 #s = stats.Stats(comm)
 
