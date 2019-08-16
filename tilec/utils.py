@@ -69,10 +69,15 @@ def load_geometries(qids):
         geoms[qid] = shape[-2:],wcs 
     return geoms
 
+def is_lfi(qid):
+    return qid in ['p01','p02','p03']
+
+def is_hfi(qid):
+    return qid in ['p04','p05','p06','p07','p08']
 
 def get_nside(qid):
-    if qid in ['p01','p02','p03']: return 1024
-    elif qid in ['p04','p05','p06','p07','p08']: return 2048
+    if is_lfi(qid): return 1024
+    elif is_hfi(qid): return 2048
     else: raise ValueError
     
 
