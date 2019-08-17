@@ -434,7 +434,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
         except: pass
         try:
             cnoise = enmap.enmap(data[solution]['cnoise'].reshape((Ny,Nx)),wcs)
-            enmap.write_map("%s/%s_cross_noise.fits" % (savedir,comps),noise)
+            enmap.write_map("%s/%s_cross_noise.fits" % (savedir,comps),cnoise)
         except: pass
 
         ells = np.arange(0,modlmap.max(),1)

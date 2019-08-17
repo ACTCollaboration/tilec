@@ -44,6 +44,8 @@ ACT       x ACT  1000 < ell < 8000
 
 """
 
+def plaw(ells,a1,a2,a3,e1,e2,e3,b,ellp):
+    return a1*(ells/ellp)**e1 + a2*(ells/ellp)**e2 + a3*(ells/ellp)**e3 + b
 
 import argparse
 # Parse command line
@@ -99,6 +101,8 @@ for task in my_tasks:
     qids = qpairs[task]
     qid1,qid2 = qids
     ncents,n1d = np.loadtxt("%sn1d_%s_%s.txt" % (spath,qid1,qid2),unpack=True)
+    ncents,n1d1 = np.loadtxt("%sn1d_%s_%s.txt" % (spath,qid1,qid1),unpack=True)
+    ncents,n1d2 = np.loadtxt("%sn1d_%s_%s.txt" % (spath,qid2,qid2),unpack=True)
     ccents,s1d = np.loadtxt("%ss1d_%s_%s.txt" % (spath,qid1,qid2),unpack=True)
     fbeam1 = lambda x: tutils.get_kbeam(qid1,x,sanitize=not(args.unsanitized_beam),planck_pixwin=True)
     fbeam2 = lambda x: tutils.get_kbeam(qid2,x,sanitize=not(args.unsanitized_beam),planck_pixwin=True)
@@ -147,11 +151,50 @@ for task in my_tasks:
     if flmax<flmin: continue
     print("Rank %d doing task %d for array %s x %s with lmin %d and lmax %d ..." % (rank,task,qids[0],qids[1],flmin,flmax))
 
+    # ERROR CALC
+    c11 = stheory.get_theory_cls(f1,f1,a_cmb=1,a_gal=0.8) 
+    n11 = maps.interp(ncents,n1d1)(ccents)/fbeam1(ccents)/fbeam1(ccents)
+    c22 = stheory.get_theory_cls(f2,f2,a_cmb=1,a_gal=0.8) 
+    n22 = maps.interp(ncents,n1d2)(ccents)/fbeam2(ccents)/fbeam2(ccents)
+    c12 = stheory.get_theory_cls(f1,f2,a_cmb=1,a_gal=0.8) 
+    n12 = maps.interp(ncents,n1d)(ccents)/fbeam1(ccents)/fbeam2(ccents)
+    c11[~np.isfinite(c11)] = 0
+    c12[~np.isfinite(c12)] = 0
+    c22[~np.isfinite(c22)] = 0
+    cbin_edges = np.arange(20,8000,20)
+    LF = cosmology.LensForecast()
+    LF.loadGenericCls("11",ccents,c11,ellsNls=ccents,Nls=n11)        
+    LF.loadGenericCls("22",ccents,c22,ellsNls=ccents,Nls=n22)        
+    LF.loadGenericCls("12",ccents,c12,ellsNls=ccents,Nls=n12)         
+    if region=='deep56':
+        fsky = 500./41252.
+    if region=='boss':
+        fsky = 1700/41252.
+    _,errs = LF.sn(cbin_edges,fsky,'12')
+
+    ###
+
+    sel = np.logical_and(ccents>flmin,ccents<flmax)
+
+    #ffunc = plaw
+    ffunc = lambda x,a_gal,exp_gal,a_radps,al_ps,a_cibp,a_cibc,a_ksz: stheory.get_theory_cls(f1,f2,a_cmb=0,a_gal=a_gal,exp_gal=exp_gal,a_cibp=a_cibp,a_cibc=a_cibc,a_radps=a_radps,a_ksz=a_ksz,a_tsz=0,al_ps=al_ps)[sel]
+
+    from scipy.optimize import curve_fit
+    #popt,pcov = curve_fit(ffunc,ccents[sel],res[sel],sigma=errs[sel],bounds=([0,0,0,0,0,-2,0,100],np.inf),absolute_sigma=True)
+    #pfit = lambda x: ffunc(x,popt[0],popt[1],popt[2],popt[3],popt[4],popt[5],popt[6],popt[7])
+
+    popt,pcov = curve_fit(ffunc,ccents[sel],res[sel],p0=[0.8,-0.7,1,-0.5,1,1,1],sigma=errs[sel],bounds=([0,-1,0,-1,0,0,0],[np.inf,1,np.inf,1,np.inf,np.inf,np.inf]),absolute_sigma=True)
+    pfit = lambda x: ffunc(x,popt[0],popt[1],popt[2],popt[3],popt[4],popt[5],popt[6])
+    print("a_gal:%.2f, exp_gal:%.2f, a_ps:%.2f, exp_ps:%.2f, a_cibp:%.2f, a_cibc:%.2f, a_ksz:%.2f " %  (popt[0],popt[1],popt[2],popt[3],popt[4],popt[5],popt[6]))
+
+
     pl = io.Plotter(xyscale='linlog',scalefn=lambda x: x**2./2./np.pi,xlabel='l',ylabel='D')
     #if tutils.is_planck(qid1) and tutils.is_planck(qid2): pl.add(ncents,cltt,color='k',lw=3) # unblind only if both planck
-    pl.add(ccents,res,marker="o",ls="none")
+    pl.add_err(ccents,res,yerr=errs,marker="o",ls="none")
+    pl.add(ccents[sel],pfit(ccents),ls='--')
     pl._ax.set_xlim(flmin,flmax)
-    pl._ax.set_ylim(1,1e8)
+    pl._ax.set_ylim(0.1,1e8)
+    pl.hline(y=0)
     pl.done("%sres_%s_%s.png" % (spath,qid1,qid2),verbose=False)
 
     

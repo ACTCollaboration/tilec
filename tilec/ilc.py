@@ -359,11 +359,11 @@ class CTheory(object):
         self.dlscale[~np.isfinite(self.dlscale)] = 0
 
 
-    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0,exp_gal=-0.7,a_cibp=1,a_cibc=1,a_radps=1,a_ksz=1,a_tsz=1):
+    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0,exp_gal=-0.7,a_cibp=1,a_cibc=1,a_radps=1,a_ksz=1,a_tsz=1,al_ps=None):
         gf = lambda x: tfg.ItoDeltaT(x)
         clfg = a_tsz*szfg.power_tsz(self.ells,f1,f2,yy=self.yy) + \
                a_cibp*szfg.power_cibp(self.ells,f1,f2) + a_cibc*szfg.power_cibc(self.ells,f1,f2) + \
-               a_radps*szfg.power_radps(self.ells,f1,f2) + a_ksz*self.ksz
+               a_radps*szfg.power_radps(self.ells,f1,f2,al_ps=al_ps) + a_ksz*self.ksz
 
         if np.abs(a_gal)>0: clfg = clfg + a_gal * (self.ells/500.)**(exp_gal) * \
            self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
