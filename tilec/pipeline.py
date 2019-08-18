@@ -40,13 +40,44 @@ Compute map
 
 
 class JointSim(object):
-    def __init__(self,qids,fg_res_version,ellmax=5101,bandpassed=True):
+    def __init__(self,qids,fg_res_version=None,ellmax=8101,bandpassed=True):
         self.qids = qids
         self.alms = {}
         ells = np.arange(ellmax)
+        self.ellmax = ellmax
         self.cyy = fgs.power_y(ells)[None,None]
         self.cyy[0,0][ells<2] = 0
-        #self.cfgres #
+
+        if fg_res_version is not None:
+            fpath = sints.dconfig['actsims']['fg_res_path'] + "/" + fg_res_version + "/"
+            narrays = len(qids)
+            self.cfgres = np.zeros((narrays,narrays,ellmax))
+            pl = io.Plotter(xyscale='linlog',scalefn = lambda x: x**2./2./np.pi,xlabel='l',ylabel='D')
+            for i in range(narrays):
+                for j in range(i,narrays):
+                    qid1 = qids[i]
+                    qid2 = qids[j]
+                    clfilename = "%sfgcov_%s_%s.txt" % (fpath,qid1,qid2)
+                    clfilename_alt = "%sfgcov_%s_%s.txt" % (fpath,qid2,qid1)
+                    try:
+                        ls,cls = np.loadtxt(clfilename,unpack=True)
+                    except:
+                        ls,cls = np.loadtxt(clfilename_alt,unpack=True)
+                    pl.add(ls,cls,label='%s_%s' % (qid1,qid2))
+                    assert np.all(np.isclose(ls,ells))
+                    self.cfgres[i,j] = cls.copy()
+                    if i!=j: self.cfgres[j,i] = cls.copy()
+            pl.done(os.environ['WORK'] + "/fgcomp_all.png")
+            maxval = self.cfgres.max()*1000
+            self.zsels = []
+            for i in range(narrays):
+                sel = self.cfgres[i,i]==0
+                #self.cfgres[i,i][sel] = maxval #!!!
+                self.zsels.append(sel)
+            self.narrays = narrays
+            
+        else:
+            self.cfgres = None
 
 
         # get tSZ response, and also zero out parts of map that are not observed
@@ -77,13 +108,21 @@ class JointSim(object):
         self.alms['cmb'] = hp.fitsfunc.read_alm(cmb_file, hdu = (1,2,3))
         comptony_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'comptony')
         fgres_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'srcfree')
-        self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)
-        #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
+        #self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)
+        self.alms['comptony'] = curvedsky.rand_alm(self.cyy, lmax=self.ellmax, seed = comptony_seed) #!!!!
+        if self.cfgres is not None: 
+            #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
+            self.alms['fgres'] = curvedsky.rand_alm(self.cfgres, lmax=self.ellmax, seed = fgres_seed)
+            for i in range(self.narrays):
+                fl = self.cfgres[i,i]*0 + 1
+                fl[self.zsels[i]] = 0
+                self.alms['fgres'][i] = hp.almxfl(self.alms['fgres'][i],fl)
+
 
         # 1. convert to maximum ellmax
         lmax = max([hp.Alm.getlmax(self.alms[comp].shape[1]) for comp in self.alms.keys()])
         for comp in self.alms.keys():
-            if hp.Alm.getlmax(self.alms[comp].shape[1])!=lmax: self.alms[comp] = maps.change_alm_lmax(alms[comp], lmax)
+            if hp.Alm.getlmax(self.alms[comp].shape[1])!=lmax: self.alms[comp] = maps.change_alm_lmax(self.alms[comp], lmax)
         self.lmax = lmax
 
 
@@ -111,7 +150,8 @@ class JointSim(object):
         # 1. get total alm
         array_index = self.qids.index(qid)
         tot_alm = int(include_cmb)*self.alms['cmb']
-        tot_alm[0] = tot_alm[0] + int(include_tsz)*self.tsz_fnu[array_index]*self.alms['comptony'] #+ int(include_fgres)*self.alms['fgres'][array_index]
+        tot_alm[0] = tot_alm[0] + int(include_tsz)*self.tsz_fnu[array_index]*self.alms['comptony'] 
+        if self.cfgres is not None: tot_alm[0] = tot_alm[0] + int(include_fgres)*self.alms['fgres'][array_index]
         assert tot_alm.ndim==2
         assert tot_alm.shape[0]==3
         ells = np.arange(self.lmax+1)

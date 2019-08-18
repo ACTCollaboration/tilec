@@ -30,7 +30,7 @@ parser.add_argument("--fft-beam", action='store_true',help='Apply the beam and h
 parser.add_argument("--exclude-tsz", action='store_true',help='Do not include tsz.')
 parser.add_argument("--save-all", action='store_true',help='Do not delete anything intermediate.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
-parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='fgres_v1')
+parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='test')
 parser.add_argument("--sim-version", type=str,help='Region name.',default='v6.2.0_calibrated_mask_version_padded_v1')
 parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
@@ -90,7 +90,7 @@ arrays = args.arrays.split(',')
 narrays = len(arrays)
 nsims = args.nsims
 
-jsim = pipeline.JointSim(arrays,args.fg_res_version,bandpassed=bandpasses)
+jsim = pipeline.JointSim(arrays,args.fg_res_version+"_"+args.region,bandpassed=bandpasses)
 
 comm,rank,my_tasks = mpi.distribute(nsims)
 
