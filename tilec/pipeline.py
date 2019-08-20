@@ -429,6 +429,10 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
         if len(comps)==2: 
             data[solution]['cnoise'] = enmap.zeros((Ny*Nx),wcs)
         data[solution]['kmap'] = enmap.zeros((Ny*Nx),wcs,dtype=dtype) # FIXME: reduce dtype?
+        if do_weights and len(comps)<=2:
+            for qid in arrays:
+                data[solution]['weight_%s' % qid] = enmap.zeros((Ny*Nx),wcs)
+            
 
     for chunknum,(hilc,selchunk) in enumerate(ilcgen):
         print("ILC on chunk ", chunknum+1, " / ",int(modlmap.size/chunk_size)+1," ...")
@@ -436,13 +440,24 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             comps = data[solution]['comps']
             if len(comps)==1: # GENERALIZE
                 data[solution]['noise'][selchunk] = hilc.standard_noise(comps[0])
+                if do_weights: weight = hilc.standard_weight(comps[0])
                 data[solution]['kmap'][selchunk] = hilc.standard_map(kcoadds[...,selchunk],comps[0])
             elif len(comps)==2:
                 data[solution]['noise'][selchunk] = hilc.constrained_noise(comps[0],comps[1])
                 data[solution]['cnoise'][selchunk] = hilc.cross_noise(comps[0],comps[1])
-                data[solution]['kmap'][selchunk] = hilc.constrained_map(kcoadds[...,selchunk],comps[0],comps[1])
+                ret = hilc.constrained_map(kcoadds[...,selchunk],comps[0],comps[1],return_weight=do_weights)
+                if do_weights:
+                    data[solution]['kmap'][selchunk],weight = ret
+                else:
+                    data[solution]['kmap'][selchunk] = ret
+
             elif len(comps)>2:
                 data[solution]['kmap'][selchunk] = np.nan_to_num(hilc.multi_constrained_map(kcoadds[...,selchunk],comps[0],*comps[1:]))
+
+            if len(comps)<=2 and do_weights:
+                for qind,qid in enumerate(arrays):
+                    data[solution]['weight_%s' % qid][selchunk] = weight[qind]
+
 
     del ilcgen,cov
 
@@ -454,6 +469,13 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
         comps = comps + name_map[data[solution]['comps'][0]]+"_"
         if len(data[solution]['comps'])>1: comps = comps + "deprojects_"+ '_'.join([name_map[x] for x in data[solution]['comps'][1:]]) + "_"
         comps = comps + version
+
+        if do_weights and len(data[solution]['comps'])<=2:
+            for qind,qid in enumerate(arrays):
+                enmap.write_map("%s/%s_%s_weight.fits" % (savedir,comps,qid), enmap.enmap(data[solution]['weight_%s' % qid].reshape((Ny,Nx)),wcs))
+            
+
+
         try:
             noise = enmap.enmap(data[solution]['noise'].reshape((Ny,Nx)),wcs)
             enmap.write_map("%s/%s_noise.fits" % (savedir,comps),noise)

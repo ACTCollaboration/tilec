@@ -178,7 +178,7 @@ class HILC(object):
         return out
 
 
-    def constrained_map(self,kmaps,name1,name2):
+    def constrained_map(self,kmaps,name1,name2,return_weight=False):
         """Constrained ILC -- Make a constrained internal linear combination (ILC) of given fourier space maps at different frequencies
         and an inverse covariance matrix for its variance. The component of interest is specified through its f_nu response vector
         response_a. The component to explicitly project out is specified through response_b.
@@ -202,7 +202,15 @@ class HILC(object):
         norm[np.isinf(np.abs(norm))] = 0 # ells outside lmin and lmax are hopefully where the noise is inf
         out = numer*norm
         if np.any(np.isnan(out)): raise ValueError
-        return out
+
+        if not(return_weight):
+            return out
+        else:
+            ar = weight_term(response_a,self.cinv).swapaxes(0,1)
+            br = weight_term(response_b,self.cinv).swapaxes(0,1)
+            weight = (brb * ar - arb * br)*norm
+            assert np.all(np.isfinite(weight))
+            return out, weight
 
     def multi_constrained_map(self,kmaps,name1,names=[]):
         """Multiply Constrained ILC -- Make a multiply constrained internal 
