@@ -36,8 +36,7 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=T
         rsplits = []
         for i in range(nsplits): 
             result = inpainting.inpaint_map_white(splits[i],wins[i],fn_beam,
-                                                  union_sources_version=None,noise_pix = 20,
-                                                  hole_radius = 3.,plots=False,
+                                                  union_sources_version=None,plots=False,
                                                   cache_name="qid_%s_splitnum_%d" % (qid,i) if cache_inpaint_geometries else None,
                                                   verbose=verbose)
             rsplits.append(result[0,:,:].copy())

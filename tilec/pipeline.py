@@ -52,7 +52,6 @@ class JointSim(object):
             fpath = sints.dconfig['actsims']['fg_res_path'] + "/" + fg_res_version + "/"
             narrays = len(qids)
             self.cfgres = np.zeros((narrays,narrays,ellmax))
-            pl = io.Plotter(xyscale='linlog',scalefn = lambda x: x**2./2./np.pi,xlabel='l',ylabel='D')
             for i in range(narrays):
                 for j in range(i,narrays):
                     qid1 = qids[i]
@@ -63,18 +62,9 @@ class JointSim(object):
                         ls,cls = np.loadtxt(clfilename,unpack=True)
                     except:
                         ls,cls = np.loadtxt(clfilename_alt,unpack=True)
-                    pl.add(ls,cls,label='%s_%s' % (qid1,qid2))
                     assert np.all(np.isclose(ls,ells))
-                    self.cfgres[i,j] = cls.copy()
-                    if i!=j: self.cfgres[j,i] = cls.copy()
-            pl.done(os.environ['WORK'] + "/fgcomp_all.png")
-            maxval = self.cfgres.max()*1000
-            self.zsels = []
-            for i in range(narrays):
-                sel = self.cfgres[i,i]==0
-                #self.cfgres[i,i][sel] = maxval #!!!
-                self.zsels.append(sel)
-            self.narrays = narrays
+                    self.cfgres[i,j] = cls.copy() 
+                    if i!=j: self.cfgres[j,i] = cls.copy() 
             
         else:
             self.cfgres = None
@@ -113,10 +103,6 @@ class JointSim(object):
         if self.cfgres is not None: 
             #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
             self.alms['fgres'] = curvedsky.rand_alm(self.cfgres, lmax=self.ellmax, seed = fgres_seed)
-            for i in range(self.narrays):
-                fl = self.cfgres[i,i]*0 + 1
-                fl[self.zsels[i]] = 0
-                self.alms['fgres'][i] = hp.almxfl(self.alms['fgres'][i],fl)
 
 
         # 1. convert to maximum ellmax

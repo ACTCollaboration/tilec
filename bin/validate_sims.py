@@ -29,12 +29,12 @@ def get_input(input_name,set_idx,sim_idx,shape,wcs):
         cmb_file   = os.path.join(signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(cmb_type, set_idx, sim_idx))
         alms = hp.fitsfunc.read_alm(cmb_file, hdu = 1)
     elif input_name=='tSZ':
-        ellmax = 5101
+        ellmax = 8101
         ells = np.arange(ellmax)
         cyy = fgs.power_y(ells)[None,None]
         cyy[0,0][ells<2] = 0
         comptony_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'comptony')
-        alms = curvedsky.rand_alm_healpy(cyy, seed = comptony_seed)
+        alms = curvedsky.rand_alm(cyy, seed = comptony_seed,lmax=ellmax)
     omap = enmap.zeros((1,)+shape[-2:],wcs)
     omap = curvedsky.alm2map(np.complex128(alms),omap,spin=0)[0]
     return omap

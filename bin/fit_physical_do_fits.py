@@ -185,9 +185,10 @@ for task in my_tasks:
     ffunc = plaw #(ells,a1,a2,e1,e2,w)
     from scipy.optimize import curve_fit
     try:
-        popt,pcov = curve_fit(ffunc,ccents[sel],res[sel]*ccents[sel]**2.,p0=[1,1,-2,2,1e2],bounds=([0,0,-np.inf,0,0],[np.inf,np.inf,0,2,np.inf]),absolute_sigma=True,sigma=errs[sel]*ccents[sel]**2.)
+        #popt,pcov = curve_fit(ffunc,ccents[sel],res[sel]*ccents[sel]**2.,p0=[1,1,-2,2,1e2],bounds=([0,0,-np.inf,0,0],[np.inf,np.inf,0,2,np.inf]),absolute_sigma=True,sigma=errs[sel]*ccents[sel]**2.)
+        popt,pcov = curve_fit(ffunc,ccents[sel],res[sel]*ccents[sel]**2.,p0=[1,1,-1,1,1e2],bounds=([0,0,-5,0,0],[np.inf,np.inf,0,2,np.inf]),absolute_sigma=True,sigma=errs[sel]*ccents[sel]**2.)
         pfit = lambda x: ffunc(x,popt[0],popt[1],popt[2],popt[3],popt[4])/x**2
-        print("a1:%.2f, a2:%.2f, e1:%.2f, e2:%.2f, w:%.2f " %  (popt[0],popt[1],popt[2],popt[3],popt[4]))
+        print("a1:", popt[0], "a2:", popt[1], "e1:",popt[2], "e2:",popt[3], "w:" ,popt[4])
     except:
         pfit = lambda x: x*0
 
