@@ -2,6 +2,14 @@
 tILe-C
 =======
 
+.. image:: https://travis-ci.org/simonsobs/tilec.svg?branch=master
+           :target: https://travis-ci.org/ACTCollaboration/tilec
+
+.. image:: https://coveralls.io/repos/github/ACTCollaboration/tilec/badge.svg?branch=master
+		   :target: https://coveralls.io/github/ACTCollaboration/tilec?branch=master
+
+
+
 `tILe-C` is ILC in tiles. It is both a library for CMB foregrounds and harmonic
 ILC as well as a set of pipeline scripts designed primarily for component
 separation of high-resolution ground-based CMB maps that might have
