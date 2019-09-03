@@ -7,7 +7,7 @@ python:
 os: linux
 install:
 - pip install -r requirements.txt
-- python setup.py develop
+- pip install -e . --user
 script:
 - py.test --cov=tilec tests/ -s
 after_success:
