@@ -305,7 +305,6 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                     # -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
                     # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
                     # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-                    #val = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz))
                     val = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file) * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
                     # N.B. this expression follows from Eqs. 32 and 35 of 
                     # https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , 
