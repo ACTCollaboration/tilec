@@ -49,6 +49,7 @@ parser.add_argument("--beam-version", type=str,  default=None,help='Mask version
 parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore bandpass files and use effective frequency.')
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 parser.add_argument("--no-act-color-correction", action='store_true',help='Do not color correct ACT arrays in a scale dependent way.')
+parser.add_argument("--ccor-exp",     type=float,  default=-1,help="ccor exp.")
 args = parser.parse_args()
 
 print("Command line arguments are %s." % args)
@@ -194,7 +195,7 @@ for task in my_tasks:
                                     args.solutions,args.beams,args.chunk_size,
                                     args.effective_freq,args.overwrite,args.maxval,
                                     unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                    no_act_color_correction=args.no_act_color_correction)
+                                    no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
 
 
     if do_act_only:
@@ -205,7 +206,7 @@ for task in my_tasks:
                                         args.solutions,args.beams,args.chunk_size,
                                         args.effective_freq,args.overwrite,args.maxval,
                                         unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                        no_act_color_correction=args.no_act_color_correction)
+                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
 
 
     if do_planck_only:
@@ -216,7 +217,7 @@ for task in my_tasks:
                                         args.solutions,args.beams,args.chunk_size,
                                         args.effective_freq,args.overwrite,args.maxval,
                                         unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                        no_act_color_correction=args.no_act_color_correction)
+                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
 
 
 

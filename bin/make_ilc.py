@@ -27,6 +27,7 @@ parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existi
 parser.add_argument("-e", "--effective-freq", action='store_true',help='Ignore bandpass files and use effective frequency.')
 parser.add_argument("--chunk-size",     type=int,  default=5000000,help="Chunk size.")
 parser.add_argument("--maxval",     type=float,  default=700000,help="Maxval for covmat.")
+parser.add_argument("--ccor-exp",     type=float,  default=-1,help="ccor exp.")
 parser.add_argument("--pa1-shift",     type=float,  default=None,help="Shift of nu for pa1.")
 parser.add_argument("--pa2-shift",     type=float,  default=None,help="Shift of nu for pa2.")
 parser.add_argument("--pa3-150-shift",     type=float,  default=None,help="Shift of nu for pa3-150.")
@@ -47,4 +48,4 @@ pipeline.build_and_save_ilc(args.arrays,args.region,args.version,args.cov_versio
                             pa2_shift = args.pa2_shift,
                             pa3_150_shift = args.pa3_150_shift,
                             pa3_090_shift = args.pa3_090_shift,
-                            no_act_color_correction=args.no_act_color_correction)
+                            no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)

@@ -230,7 +230,9 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         beam transmission starting from ell=0 and normalized to one at ell=0.
         The provided beams for each channel are then scaled by
         (nu/nu_central)**ccor_exp where ccor_exp defaults to -1 and nu_central is specified
-        through ccor_cen_nus. See get_scaled_beams for more information.
+        through ccor_cen_nus. If any list element is None, no scale dependent color correction
+        is applied for that frequency channel. See get_scaled_beams for more information.
+    
 
 
     ccor_exps : list of floats, optional
@@ -252,8 +254,9 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         assert len(ccor_beams)==N_freqs
         lmaxs = []
         for i in range(N_freqs):
-            assert ccor_beams[i].ndims==1
-            lmaxs.append( ccor_beams[i].size )
+            if ccor_beams[i] is not None:
+                assert ccor_beams[i].ndims==1
+                lmaxs.append( ccor_beams[i].size )
         lmax =max(lmaxs)
         shape = (N_freqs,lmax)
     else:
@@ -284,14 +287,14 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                 if bandpass_shifts is not None: nu_ghz = nu_ghz + bandpass_shifts[i]
 
                 
+                lbeam = 1
+                bnus = 1
                 if ccor_cen_nus is not None: 
                     lbeam = ccor_beams[i]
-                    ells = np.arange(lbeam.size)
-                    cen_nu_ghz = ccor_cen_nus[i]
-                    bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=ccor_exps[i]).swapaxes(0,1)
-                else:
-                    lbeam = 1
-                    bnus = 1
+                    if lbeam is not None:
+                        ells = np.arange(lbeam.size)
+                        cen_nu_ghz = ccor_cen_nus[i]
+                        bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=ccor_exps[i]).swapaxes(0,1)
 
 
                 if (comp == 'tSZ' or comp == 'mu' or comp == 'rSZ'): 

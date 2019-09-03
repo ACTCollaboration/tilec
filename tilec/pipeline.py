@@ -99,6 +99,7 @@ class JointSim(object):
                 bps.append(cfreq)
 
 
+
         self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ') if bandpassed else tfg.get_mix(bps, 'tSZ')
 
 
@@ -344,7 +345,8 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                        pa1_shift = None,
                        pa2_shift = None,
                        pa3_150_shift = None,
-                       pa3_090_shift = None):
+                       pa3_090_shift = None,
+                       no_act_color_correction=False, ccor_exp = -1):
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
@@ -378,9 +380,13 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     lmins = []
     lmaxs = []
     shifts = []
+    cfreqs = []
+    lbeams = []
+    ells = np.arange(0,modlmap.max())
     for i,qid in enumerate(arrays):
         dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
         lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
+        cfreqs.append(cfreq)
         lmins.append(lmin)
         lmaxs.append(lmax)
         names.append(qid)
@@ -389,12 +395,21 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             array = '_'.join([array1,array2])
         elif dm.name=='planck_hybrid':
             season,patch,array = None,None,sints.arrays(qid,'freq')
+        else:
+            raise ValueError
         kcoadd_name = covdir + "kcoadd_%s.npy" % qid
         kmask = maps.mask_kspace(shape,wcs,lmin=lmin,lmax=lmax)
         kcoadd = enmap.enmap(np.load(kcoadd_name),wcs)
         dtype = kcoadd.dtype
         kcoadds.append(kcoadd.copy()*kmask)
         kbeam = tutils.get_kbeam(qid,modlmap,sanitize=not(unsanitized_beam),version=beam_version,planck_pixwin=True)
+        if dm.name=='act_mr3':
+            lbeam = tutils.get_kbeam(qid,ells,sanitize=not(unsanitized_beam),version=beam_version,planck_pixwin=False) # note no pixwin but doesnt matter since no ccorr for planck
+        elif dm.name=='planck_hybrid':
+            lbeam = None
+        else:
+            raise ValueError
+        lbeams.append(lbeam.copy())
         kbeams.append(kbeam.copy())
         if bandpasses:
             try: 
@@ -443,7 +458,13 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     responses = {}
     for comp in ['tSZ','CMB','CIB']:
         if bandpasses:
-            responses[comp] = tfg.get_mix_bandpassed(bps, comp)
+            if no_act_color_correction:
+                responses[comp] = tfg.get_mix_bandpassed(bps, comp, bandpass_shifts=shifts)
+            else:
+                responses[comp] = tfg.get_mix_bandpassed(bps, comp, bandpass_shifts=shifts,
+                                                         ccor_cen_nus=cfreqs, ccor_beams=lbeams, 
+                                                         ccor_exps = [ccor_exp] * narrays)
+                
         else:
             responses[comp] = tfg.get_mix(bps, comp)
 
