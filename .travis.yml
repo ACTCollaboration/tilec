@@ -1,0 +1,23 @@
+language: python
+python:
+- 3.6
+- 3.5
+- 2.7
+- 2.6
+os: linux
+install:
+- pip install -r requirements.txt
+- python setup.py develop
+script:
+- py.test --cov=tilec tests/ -s
+after_success:
+  - coveralls
+matrix:
+  allow_failures:
+  - python: 3.5-dev
+  - python: 3.6-dev
+  - python: 3.7-dev
+  - python: 2.6
+addons:
+  apt_packages:
+  - gfortran

@@ -337,7 +337,8 @@ def get_test_fdict():
     import glob
     nus = np.geomspace(10,1000,100)
     comps = ['CMB','kSZ','tSZ','mu','rSZ','CIB','CIB_Jysr']
-    bp_list = glob.glob("../data/*.txt") + [None]
+    dirname = os.path.dirname(os.path.abspath(__file__))
+    bp_list = glob.glob(dirname+"/../data/*.txt") + [None]
 
 
     fdict = {}
@@ -351,7 +352,7 @@ def get_test_fdict():
             fdict['mix1'][comp] = {}
             mixes_bp = get_mix_bandpassed(bp_list, comp)
             for i in range(len(bp_list)):
-                fdict['mix1'][comp][str(bp_list[i])] = mixes_bp[i]
+                fdict['mix1'][comp][os.path.basename(str(bp_list[i]))] = mixes_bp[i]
     return fdict
 
 
