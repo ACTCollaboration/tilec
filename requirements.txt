@@ -13,4 +13,3 @@ pytest-cov>=2.6
 coveralls>=1.5
 pytest>=3.6
 pixell>=0.5.2
-healpy>=1.11
