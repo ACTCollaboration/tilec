@@ -8,7 +8,7 @@ from soapack import interfaces as sints
 from tilec import utils as tutils
 
 
-def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True,verbose=True,plot_inpaint_path=None):
+def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True,verbose=True,plot_inpaint_path=None,do_pol=False):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
@@ -43,48 +43,25 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=T
             if plot_inpaint_path is not None:
                 io.hplot(splits[i][0,:,:],"%s/uninpainted_qid_%s_splitnum_%d" % (plot_inpaint_path,qid,i),grid=True,color='planck')
                 io.hplot(result[0,:,:],"%s/inpainted_qid_%s_splitnum_%d" % (plot_inpaint_path,qid,i),grid=True,color='planck')
+                # if do_pol:
+                #     for i in range(1,3):
+                #         io.hplot(splits[i][0,:,:],"%s/uninpainted_qid_%s_splitnum_%d" % (plot_inpaint_path,qid,i),grid=True,color='planck')
+                #         io.hplot(result[0,:,:],"%s/inpainted_qid_%s_splitnum_%d" % (plot_inpaint_path,qid,i),grid=True,color='planck')
+
         rsplits = enmap.enmap(np.stack(rsplits),splits.wcs)
     else:
         rsplits = splits[:,0,:,:]
-    kdiffs,kcoadd = process_splits(qid,rsplits,wins,mask,skip_splits=skip_splits,do_fft_splits=False,pixwin=pixwin)
+    kdiffs,kcoadd = process_splits(rsplits,wins,mask,skip_splits=skip_splits,do_fft_splits=False,pixwin=pixwin)
     return kdiffs,kcoadd,wins
 
-def process_splits(qid,splits,wins,mask,skip_splits=False,do_fft_splits=False,pixwin=False,hybrid_beam=False):
+def process_splits(splits,wins,mask,skip_splits=False,do_fft_splits=False,pixwin=False):
     assert wins.ndim>2
     with np.errstate(divide='ignore', invalid='ignore'):
         coadd = (splits*wins).sum(axis=0)/wins.sum(axis=0)
     coadd[~np.isfinite(coadd)] = 0
     Ny,Nx = splits.shape[-2:]
     assert coadd.shape == (Ny,Nx)
-    if hybrid_beam and (qid in ['p01','p02']):
-        raise NotImplementedError
-        # If this option is on, we do the following
-        # 1. get alms of coadd
-        # 2. get beam+planck-pixwin in ell space
-        # 3. divide it out
-        # 4. ISHT the map
-        # 5. multiply in Fourier space by the same beam_planck-pixwin
-        wcs = splits.wcs
-        modlmap = splits.modlmap()
-        lmax = int(modlmap.max())+1
-        imap = (coadd*mask)[None]
-        alms = curvedsky.map2alm(imap,spin=0,lmax=lmax)[0]
-        ells = np.arange(0,lmax)
-        def bfunc(x): 
-            rbeam = tutils.get_kbeam(qid,x,sanitize=True,planck_pixwin=True)
-            rbeam[~np.isfinite(rbeam)] = 0
-            return rbeam
-        ibeam = 1./bfunc(ells)
-        ibeam[~np.isfinite(ibeam)] = 0
-        oalms = hp.almxfl(alms,ibeam)
-        omap = enmap.zeros((Ny,Nx),wcs)
-        omap = curvedsky.alm2map(oalms,omap)
-        kcoadd = enmap.enmap(enmap.fft(omap,normalize='phys') * bfunc(modlmap),wcs)
-    else:
-        kcoadd = enmap.enmap(enmap.fft(coadd*mask,normalize='phys'),wins.wcs)
-
-
-
+    kcoadd = enmap.enmap(enmap.fft(coadd*mask,normalize='phys'),wins.wcs)
 
     if pixwin: pwin = tutils.get_pixwin(coadd.shape[-2:])
     else: pwin = 1
@@ -94,7 +71,7 @@ def process_splits(qid,splits,wins,mask,skip_splits=False,do_fft_splits=False,pi
         kdiffs = enmap.fft(data,normalize='phys')
         kdiffs = kdiffs / pwin
     else:
-        ksplits = None
+        kdiffs = None
     if do_fft_splits:
         ksplits = enmap.fft(splits*wins*mask,normalize='phys')
         ksplits = ksplits / pwin

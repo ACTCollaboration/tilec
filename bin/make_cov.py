@@ -31,6 +31,7 @@ parser.add_argument("-m", "--memory-intensive", action='store_true',help='Do not
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
 parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
 parser.add_argument("--uncalibrated", action='store_true',help='Do not use calibration factors.')
+parser.add_argument("--isotropic-override", action='store_true',help='Do not use calibration factors.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
@@ -47,4 +48,5 @@ pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_versi
                             args.rfit_wnoise_width,args.rfit_lmin,
                             args.overwrite,args.memory_intensive,args.uncalibrated,
                             sim_splits=None,skip_inpainting=args.skip_inpainting,
-                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,plot_inpaint=True)
+                            theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,plot_inpaint=True,
+                            isotropic_override=args.isotropic_override)

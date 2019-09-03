@@ -395,7 +395,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                            rfit_bin_width=None,
                            verbose=True,
                            debug_plots_loc=None,separate_masks=False,theory_signal="none",
-                           maxval=None,scratch_dir=None):
+                           maxval=None,scratch_dir=None,isotropic_override=False):
 
     """
 
@@ -514,12 +514,23 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                     dolog = False
                 
                 with bench.show("noise smoothing"):
-                    dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
-                                                                   radial_fit=drfit,lmax=min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max()),
-                                                                   wnoise_annulus=min(rfit_wnoise_widths[a1],rfit_wnoise_widths[a2]),
-                                                                   lmin = rfit_lmin,
-                                                                   bin_annulus=rfit_bin_width,fill_lmax=min(min(lmaxs[a1],lmaxs[a2]),modlmap.max()),
-                                                                   log=dolog)
+                    if not(isotropic_override):
+                        dncov,_,nparams = covtools.noise_block_average(ncov,nsplits=nsplits,delta_ell=delta_ell,
+                                                                       radial_fit=drfit,lmax=min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max()),
+                                                                       wnoise_annulus=min(rfit_wnoise_widths[a1],rfit_wnoise_widths[a2]),
+                                                                       lmin = rfit_lmin,
+                                                                       bin_annulus=rfit_bin_width,fill_lmax=min(min(lmaxs[a1],lmaxs[a2]),modlmap.max()),
+                                                                       log=dolog)
+                    else:
+
+                        slmin = min(lmins)
+                        dncov = covtools.signal_average(ncov,bin_width=signal_bin_width,
+                                                        kind=signal_interp_order,
+                                                        lmin=slmin,
+                                                        dlspace=False)
+
+                        nparams = None
+                        
                 if scratch_dir is None:
                     dncovs[(a1,a2)] = dncov.copy()
                 else:
@@ -531,10 +542,19 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                     else:
                         lmax = min(min(rfit_lmaxes[a1],rfit_lmaxes[a2]),modlmap.max())
                         rfit_wnoise_width = rfit_wnoise_widths[a1]
-                        wfit = np.sqrt(dncov[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)].mean())*180.*60./np.pi
+                        
+                        if not(tutils.is_planck(names[a1])): pwin = tutils.get_pixwin(shape[-2:])
+                        else: pwin = 1
+
+                        wfit = np.sqrt(((pwin**2 * dncov)[np.logical_and(modlmap>=(lmax-rfit_wnoise_width),modlmap<lmax)] ).mean())*180.*60./np.pi
                         assert np.isfinite(wfit)
-                        lfit = 0
-                        afit = 1
+
+                        if not(tutils.is_planck(names[a1])): 
+                            lfit = 3000
+                            afit = -4
+                        else:
+                            lfit = 0
+                            afit = 1
                     n1d = covtools.rednoise(ells,wfit,lfit,afit)
                     n1d[ells<2] = 0
                     n1ds[a1] = n1d.copy()

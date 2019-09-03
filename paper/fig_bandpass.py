@@ -4,12 +4,13 @@ from pixell import enmap
 import numpy as np
 import os,sys
 from soapack import interfaces as sints
-from tilec import utils as tutils
+from tilec import utils as tutils,fg
 
 fnames = []
 qids = "boss_01,boss_02,boss_03,boss_04,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 
-pl = io.Plotter(xyscale='loglin',xlabel='$\\nu$',ylabel='$B(\\nu)$')
+#pl = io.Plotter(xyscale='loglin',xlabel='$\\nu$',ylabel='$B(\\nu)$')
+
 
 for qid in qids:
     dm = sints.models[sints.arrays(qid,'data_model')]()
@@ -33,6 +34,25 @@ for qid in qids:
     else:
         col = 'C2'
 
-    pl.add(nu,bp/bp.max(),color=col,lw=2)
-pl._ax.set_xlim(20,800)
-pl.done("fig_bandpass.png")
+#     pl.add(nu,bp/bp.max(),color=col,lw=2)
+# pl._ax.set_xlim(20,800)
+# pl.done("fig_bandpass.png")
+
+comp = 'tSZ'
+mix = fg.get_mix_bandpassed(fnames, comp)
+mixp = fg.get_mix_bandpassed(fnames, comp,shifts=[2.4,2.4,1.5,2.4] + [0]*8)
+mixn = fg.get_mix_bandpassed(fnames, comp,shifts=[-2.4,-2.4,-1.5,-2.4] + [0]*8)
+
+diff = (mixp - mix)*100./mix
+diff2 = (mixn - mix)*100./mix
+diff3 = (mixp - mixn)*100./mix
+print(diff,diff2,diff3)
+
+sys.exit()
+dm = sints.ACTmr3()
+for season in dm.cals.keys():
+    for patch in dm.cals[season].keys():
+        for array in dm.cals[season][patch].keys():
+            cal = dm.cals[season][patch][array]['cal']
+            cal_err = dm.cals[season][patch][array]['cal_err']
+            print(season,patch,array,cal_err*100./cal)

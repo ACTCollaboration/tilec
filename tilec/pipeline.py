@@ -39,6 +39,18 @@ Compute map
 """
 
 
+def get_websky_sim(qid,shape,wcs,shift=None,components=['cmb','cib','tsz','ksz','isw'],bandpassed=True,no_act_color_correction=False):
+    # load cmb + ksz + tsz + isw alm
+    # get cfreq
+    # add nearest cib scaled to cfreq
+
+    owcs = wcs.copy()
+    if shift is not None: owcs.wcs.crpix -= np.asarray([shift,0])
+    
+    
+    pass
+
+
 class JointSim(object):
     def __init__(self,qids,fg_res_version=None,ellmax=8101,bandpassed=True):
         self.qids = qids
@@ -207,7 +219,9 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,delta_ell,
                        rfit_wnoise_width,rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
-                       sim_splits=None,skip_inpainting=False,theory_signal="none",unsanitized_beam=False,save_all=False,plot_inpaint=False):
+                       sim_splits=None,skip_inpainting=False,theory_signal="none",
+                       unsanitized_beam=False,save_all=False,plot_inpaint=False,
+                       isotropic_override=False):
 
 
     save_scratch = not(memory_intensive)
@@ -316,7 +330,8 @@ def build_and_save_cov(arrays,region,version,mask_version,
                       rfit_bin_width=None,
                       verbose=True,
                       debug_plots_loc=False,
-                      separate_masks=False,theory_signal=theory_signal,scratch_dir=covscratch)
+                      separate_masks=False,theory_signal=theory_signal,scratch_dir=covscratch,
+                      isotropic_override=isotropic_override)
 
 
     if not(save_all): shutil.rmtree(scratch)
@@ -325,7 +340,11 @@ def build_and_save_cov(arrays,region,version,mask_version,
 
 def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                        solutions,beams,chunk_size,
-                       effective_freq,overwrite,maxval,unsanitized_beam=False,do_weights=False):
+                       effective_freq,overwrite,maxval,unsanitized_beam=False,do_weights=False,
+                       pa1_shift = None,
+                       pa2_shift = None,
+                       pa3_150_shift = None,
+                       pa3_090_shift = None):
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
@@ -358,6 +377,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     names = []
     lmins = []
     lmaxs = []
+    shifts = []
     for i,qid in enumerate(arrays):
         dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
         lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
@@ -377,7 +397,20 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
         kbeam = tutils.get_kbeam(qid,modlmap,sanitize=not(unsanitized_beam),version=beam_version,planck_pixwin=True)
         kbeams.append(kbeam.copy())
         if bandpasses:
-            try: bps.append("data/"+dm.get_bandpass_file_name(array) )
+            try: 
+                fname = dm.get_bandpass_file_name(array) 
+                bps.append("data/"+fname)
+                if (pa1_shift is not None) and 'PA1' in fname:
+                    shifts.append(pa1_shift)
+                elif (pa2_shift is not None) and 'PA2' in fname:
+                    shifts.append(pa2_shift)
+                elif (pa3_150_shift is not None) and ('PA3' in fname) and ('150' in fname):
+                    shifts.append(pa3_150_shift)
+                elif (pa3_090_shift is not None) and ('PA3' in fname) and ('090' in fname):
+                    shifts.append(pa3_90_shift)
+                else:
+                    shifts.append(0)
+
             except:
                 warn()
                 bps.append(None)

@@ -136,6 +136,13 @@ def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies 
         raise NotImplementedError
 ######################################
 
+def get_beams(ells,lbeam,cen_nu_ghz,nus_ghz):
+    fbnus = maps.interp(ells,lbeam[None,:],fill_value=(lbeam[0],lbeam[-1]))
+    bnus = fbnus((cen_nu_ghz/nus_ghz)*ells[:,None])[0].swapaxes(0,1)
+    bnus = bnus / bnus[:,:1]
+    return bnus
+
+
 
 ######################################
 # spectral functions of physical components, evaluated for non-trivial bandpasses
@@ -144,8 +151,11 @@ def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies 
 # bandpass file columns should be [freq (GHz)] [transmission]  (any other columns are ignored)
 # bp_list can contain entries that are None, which correspond to maps that have no CMB-relevant (or CIB) signals in them (e.g., HI maps)
 ######################################
-def get_mix_bandpassed(bp_list, comp, param_dict_file=None):
+def get_mix_bandpassed(bp_list, comp, param_dict_file=None,shifts=None,
+                       ccor_cen_nus=None, ccor_beams=None):
     #bp_list = list containing strings of bandpass filenames; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for some SEDs)
+    if shifts is not None and np.any(np.array(shifts)!=0):
+        print("WARNING: shifted bandpasses provided.")
     assert (comp != None)
     assert (bp_list != None)
     N_freqs = len(bp_list)
@@ -161,6 +171,10 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None):
         for i,bp in enumerate(bp_list):
             if (bp_list[i] != None):
                 nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
+                if shifts is not None: nu_ghz = nu_ghz + shifts[i]
+                if ccor_cen_nus is not None:
+                    lbeam = ccor_beams[i]
+                    val = np.trapz(trans * dBnudT(nu_ghz) * bnus.swapaxes(0,1) * get_mix(nu_ghz, comp), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz) / lbeam
                 output[i] = np.trapz(trans * dBnudT(nu_ghz) * get_mix(nu_ghz, comp), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)
             elif (bp_list[i] == None): #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
                 output[i] = 0.
@@ -176,6 +190,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None):
         for i,bp in enumerate(bp_list):
             if (bp_list[i] != None):
                 nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
+                if shifts is not None: nu_ghz = nu_ghz + shifts[i]
                 # N.B. this expression follows from Eqs. 32 and 35 of https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , and then noting that one also needs to first rescale the CIB emission in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).  The resulting cancellation leaves this simple expression which has no dependence on nu_c.
                 output[i] = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz))
             elif (bp_list[i] == None): #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list

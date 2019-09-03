@@ -11,8 +11,10 @@ qids = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p0
 #qids = "d56_01,d56_02".split(',')
 #qids = "d56_05,p01,p05".split(',')
 version = "wtest_map_v1.0.0_rc_joint"
+cversion = "v1.0.0_rc"
 
-fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/%s_%s/tilec_single_tile_%s_cmb_%s_%s_weight.fits" % (version,region,region,version,qid)
+fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/20190819/%s_%s/tilec_single_tile_%s_cmb_%s_%s_weight.fits" % (version,region,region,version,qid)
+cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/20190819/%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
 
 bw = 20
 bin_edges = np.arange(20,10000,bw)
@@ -22,6 +24,7 @@ aspecs = tutils.ASpecs().get_specs
 w1ds = []
 for i,qid in enumerate(qids):
     weight = enmap.read_map(fname(qid))
+    cov = enmap.enmap(np.load(cname(qid)),weight.wcs)
     modlmap = weight.modlmap()
 
     lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)    
@@ -43,7 +46,9 @@ for i,qid in enumerate(qids):
 
 
 
-    io.plot_img(maps.crop_center(np.fft.fftshift(weight),N,int(N*Nx/Ny)),"%s/weight2d_%s.png" % (os.environ['WORK'],qid),aspect='auto',xlabel='$\\ell_x$',ylabel='$\\ell_y$',arc_width=2*M[0,0])
+    io.plot_img(maps.crop_center(np.fft.fftshift(weight),N,int(N*Nx/Ny)),"%s/weight2d_%s.pdf" % (os.environ['WORK'],qid),aspect='auto',xlabel='$\\ell_x$',ylabel='$\\ell_y$',arc_width=2*M[0,0])
+
+    io.plot_img(np.log10(maps.crop_center(np.fft.fftshift(cov),N,int(N*Nx/Ny))),"%s/cov2d_%s.pdf" % (os.environ['WORK'],qid),aspect='auto',xlabel='$\\ell_x$',ylabel='$\\ell_y$',arc_width=2*M[0,0])
 
 
     cents,w1d = binner.bin(weight)
@@ -74,4 +79,4 @@ for i in range(len(qids)):
     pl.add(cents,w1d,label=lab,ls=ls)
 pl._ax.set_xlim(20+bw/2.,10000)
 pl.legend(loc='upper right', bbox_to_anchor=(1.45, 1))
-pl.done("%s/weight1d.png" % (os.environ['WORK']))
+pl.done("%s/weight1d.pdf" % (os.environ['WORK']))

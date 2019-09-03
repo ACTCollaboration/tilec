@@ -218,3 +218,30 @@ def get_pixwin(shape):
     wy, wx = enmap.calc_window(shape)
     wind   = wy[:,None] * wx[None,:]
     return wind
+
+
+def get_test_fdict():
+    import glob
+    from tilec import fg as tfg
+
+    nus = np.geomspace(10,1000,100)
+    comps = ['CMB','kSZ','tSZ','mu','rSZ','CIB','CIB_Jysr']
+    bp_list = glob.glob("../data/*.txt") + [None]
+
+
+    fdict = {}
+    fdict['mix0'] = {}
+    fdict['mix1'] = {}
+
+    for comp in comps:
+        mixes = tfg.get_mix(nus, comp)
+        fdict['mix0'][comp] = mixes.copy()
+        if comp!='CIB_Jysr':
+            fdict['mix1'][comp] = {}
+            mixes_bp = tfg.get_mix_bandpassed(bp_list, comp,shifts=None,
+                                              ccor_cen_nus=None, ccor_beams=None)
+            for i in range(len(bp_list)):
+                fdict['mix1'][comp][str(bp_list[i])] = mixes_bp[i]
+    return fdict
+
+

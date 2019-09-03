@@ -312,22 +312,16 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     else:
         minell = modlmap[modlmap<=lmin].max()
 
-    if bin_edges is None: 
-        # if lmin!=500: # !!!!
-        #     bin_edges = np.append([2,minell],np.arange(500,modlmap.max(),bin_width))
-        # else:
-        #     bin_edges = np.append([2],np.arange(minell,modlmap.max(),bin_width))
-        bin_edges = np.append([2],np.arange(minell,modlmap.max(),bin_width))
-    # print(bin_edges)
-        
+    if bin_edges is None: bin_edges = np.append([2],np.arange(minell,modlmap.max(),bin_width))
 
     binner = stats.bin2D(modlmap,bin_edges)
     cents,c1d = binner.bin(dcov)
-    outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,**kwargs)(modlmap),dcov.wcs)
+
+    outcov = enmap.enmap(maps.interp(cents,c1d,kind=kind,fill_value=c1d[-1],**kwargs)(modlmap),dcov.wcs)
     with np.errstate(invalid='ignore'): outcov = outcov / modlmap**2. if dlspace else outcov
     outcov[modlmap<2] = 0
     assert np.all(np.isfinite(outcov))
-
+    
     return outcov
 
 
