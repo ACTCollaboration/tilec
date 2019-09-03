@@ -159,46 +159,91 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,shifts=None,
     assert (comp != None)
     assert (bp_list != None)
     N_freqs = len(bp_list)
-    output = np.zeros(N_freqs)
-    if (comp == 'CMB' or comp == 'kSZ'): #CMB (or kSZ)
-        output = np.ones(N_freqs) #this is unity by definition, since we're working in Delta T units [uK_CMB]; output ILC map will thus also be in uK_CMB
+
+    if ccor_cen_nus is not None:
+        assert len(ccor_cen_nus)==N_freqs
+        assert len(ccor_beams)==N_freqs
+        lmaxs = []
         for i in range(N_freqs):
-            if(bp_list[i] == None): #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
-                output[i] = 0.
-        return output
-    elif (comp == 'tSZ' or comp == 'mu' or comp == 'rSZ'): #Thermal SZ (y-type distortion) or mu-type distortion or relativistic tSZ
-        # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
-        for i,bp in enumerate(bp_list):
-            if (bp_list[i] != None):
-                nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
-                if shifts is not None: nu_ghz = nu_ghz + shifts[i]
-                if ccor_cen_nus is not None:
-                    lbeam = ccor_beams[i]
-                    val = np.trapz(trans * dBnudT(nu_ghz) * bnus.swapaxes(0,1) * get_mix(nu_ghz, comp), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz) / lbeam
-                output[i] = np.trapz(trans * dBnudT(nu_ghz) * get_mix(nu_ghz, comp), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)
-            elif (bp_list[i] == None): #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
-                output[i] = 0.
-        return output #this is the response at each frequency channel in uK_CMB for a signal with y=1 (or mu=1)
-    elif (comp == 'CIB'):
-        # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
-        # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
-        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+            assert ccor_beams[i].ndims==1
+            lmaxs.append( ccor_beams[i].size )
+        lmax =max(lmaxs)
+        shape = (N_freqs,lmax)
+    else:
+        shape = N_freqs
+
+
+    if (comp == 'CIB'):
         if param_dict_file is None:
             p = default_dict
         else:
             p = read_param_dict_from_yaml(param_dict_file)
+
+
+    if (comp == 'CMB' or comp == 'kSZ'): #CMB (or kSZ)
+        output = np.ones(shape) #this is unity by definition, since we're working in Delta T units [uK_CMB]; output ILC map will thus also be in uK_CMB
+        for i in range(N_freqs):
+            if(bp_list[i] == None): #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
+                output[i] = 0.
+        return output
+
+    else:
+
+        output = np.zeros(shape)
+
         for i,bp in enumerate(bp_list):
             if (bp_list[i] != None):
                 nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
                 if shifts is not None: nu_ghz = nu_ghz + shifts[i]
-                # N.B. this expression follows from Eqs. 32 and 35 of https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , and then noting that one also needs to first rescale the CIB emission in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).  The resulting cancellation leaves this simple expression which has no dependence on nu_c.
-                output[i] = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz))
-            elif (bp_list[i] == None): #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
-                output[i] = 0.
-        return output/np.amax(output) #overall amplitude not meaningful, so divide by max to get numbers of order unity; output gives the relative conversion between CIB at different frequencies, for maps in uK_CMB
-    else:
-        print("unknown component specified")
-        raise NotImplementedError
+
+                
+                if ccor_cen_nus is not None: 
+                    lbeam = ccor_beams[i]
+                    ells = np.arange(lbeam.size)
+                    cen_nu_ghz = ccor_cen_nus[i]
+                    bnus = get_beams(ells,lbeam,cen_nu_ghz,nus_ghz).swapaxes(0,1)
+                else:
+                    lbeam = 1
+                    bnus = 1
+
+
+                if (comp == 'tSZ' or comp == 'mu' or comp == 'rSZ'): 
+                    # Thermal SZ (y-type distortion) or mu-type distortion or relativistic tSZ
+                    # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf 
+                    # -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
+                    val = np.trapz(trans * dBnudT(nu_ghz) * bnus * get_mix(nu_ghz, comp), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz) / lbeam
+                    # this is the response at each frequency channel in uK_CMB for a signal with y=1 (or mu=1)
+                elif (comp == 'CIB'):
+                    # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf 
+                    # -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
+                    # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
+                    # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+                    #val = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file), nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz))
+                    val = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file) * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
+                    # N.B. this expression follows from Eqs. 32 and 35 of 
+                    # https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , 
+                    # and then noting that one also needs to first rescale the CIB emission 
+                    # in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in 
+                    # those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).  
+                    # The resulting cancellation leaves this simple expression which has no dependence on nu_c.
+                else:
+                    print("unknown component specified")
+                    raise NotImplementedError
+
+                output[i] = val
+
+            elif (bp_list[i] == None): 
+                #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
+                output[i] = 0.        
+
+
+        if (comp == 'CIB'):        
+            #overall amplitude not meaningful, so divide by max to get numbers of order unity; 
+            # output gives the relative conversion between CIB at different frequencies, for maps in uK_CMB
+            return output / output.max(axis=0)
+        else:
+            return output
+
 ######################################
 
 
