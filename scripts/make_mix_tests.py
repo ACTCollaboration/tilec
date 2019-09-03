@@ -6,4 +6,4 @@ import pickle
 version = "MM_20190903"
 
 fdict = tfg.get_test_fdict()
-pickle.dump(fdict,open("%s_fdict.pkl" % version,'wb'))
+pickle.dump(fdict,open("%s_fdict.pkl" % version,'wb'), protocol=2)
