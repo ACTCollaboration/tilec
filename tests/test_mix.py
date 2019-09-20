@@ -34,5 +34,9 @@ def test_fg_mix():
             #print(fdict0['mix1'][comp][key],fdict['mix1'][comp][key])
             assert np.isclose(fdict0['mix1'][comp][key],fdict['mix1'][comp][key])
 
+
+def test_conversions():
+    assert np.isclose(tfg.ItoDeltaT(545)/1e26,0.017483363768883677)
+    for f in np.geomspace(1,1000,1000):
+        assert np.isclose(tfg.ItoDeltaT(f),1/tfg.dBnudT(f))
         
-#test(version)

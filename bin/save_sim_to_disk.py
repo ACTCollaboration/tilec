@@ -115,7 +115,6 @@ for task in my_tasks:
     jsim.update_signal_index(sim_index,set_idx=set_id)
 
     pa3_cache = {} # This assumes there are at most 2 pa3 arrays in the input
-    sim_splits = []
     for aindex in range(narrays):
         qid = arrays[aindex]
         dmname = sints.arrays(qid,'data_model')
@@ -167,69 +166,4 @@ for task in my_tasks:
         fname = tutils.get_temp_split_fname(qid,args.region,sim_version)
         assert splits.shape[0]==1
         enmap.write_map(fname,splits[0])
-        sim_splits.append(fname)
-
-    
-    """
-    k-space coadd
-    """
-
-
-
-    """
-    SAVE COV
-    """
-    print("Beginning covariance calculation...")
-    with bench.show("sim cov"):
-        pipeline.build_and_save_cov(args.arrays,args.region,sim_version,args.mask_version,
-                                    args.signal_bin_width,args.signal_interp_order,args.delta_ell,
-                                    args.rfit_wnoise_width,args.rfit_lmin,
-                                    args.overwrite,args.memory_intensive,args.uncalibrated,
-                                    sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
-                                    theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,
-                                    save_all=args.save_all,plot_inpaint=False)
-
-
-
-    print("Done with cov.")
-
-    """
-    SAVE ILC
-    """
-    print("Starting joint ILC")
-    ilc_version = "map_joint_%s_%s" % (args.version,ind_str)
-    with bench.show("sim ilc"):
-        pipeline.build_and_save_ilc(args.arrays,args.region,ilc_version,sim_version,args.beam_version,
-                                    args.solutions,args.beams,args.chunk_size,
-                                    args.effective_freq,args.overwrite,args.maxval,
-                                    unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                    no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
-
-
-    if do_act_only:
-        print("Starting ACT-only ILC")
-        ilc_version = "map_act_only_%s_%s" % (args.version,ind_str)
-        with bench.show("sim ilc"):
-            pipeline.build_and_save_ilc(act_arrays,args.region,ilc_version,sim_version,args.beam_version,
-                                        args.solutions,args.beams,args.chunk_size,
-                                        args.effective_freq,args.overwrite,args.maxval,
-                                        unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
-
-
-    if do_planck_only:
-        print("Starting Planck-only ILC")
-        ilc_version = "map_planck_only_%s_%s" % (args.version,ind_str)
-        with bench.show("sim ilc"):
-            pipeline.build_and_save_ilc(planck_arrays,args.region,ilc_version,sim_version,args.beam_version,
-                                        args.solutions,args.beams,args.chunk_size,
-                                        args.effective_freq,args.overwrite,args.maxval,
-                                        unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
-
-
-
-
-    savepath = tutils.get_save_path(sim_version,args.region)
-    if not(args.save_all): shutil.rmtree(savepath)
-    print("Rank %d done with task %d at %s." % (rank,task,str(datetime.now())))
+        

@@ -34,6 +34,7 @@ parser.add_argument("--uncalibrated", action='store_true',help='Do not use calib
 parser.add_argument("--isotropic-override", action='store_true',help='Do not use calibration factors.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
 parser.add_argument("--signal-bin-width",     type=int,  default=pdefaults['signal_bin_width'],help="A description.")
+parser.add_argument("--split-set",     type=int,  default=None,help="A description.")
 parser.add_argument("--signal-interp-order",     type=int,  default=pdefaults['signal_interp_order'],help="A description.")
 parser.add_argument("--delta-ell",     type=int,  default=pdefaults['delta_ell'],help="A description.")
 parser.add_argument("--rfit-bin-width",     type=int,  default=pdefaults['rfit_bin_width'],help="A description.")
@@ -49,4 +50,4 @@ pipeline.build_and_save_cov(args.arrays,args.region,args.version,args.mask_versi
                             args.overwrite,args.memory_intensive,args.uncalibrated,
                             sim_splits=None,skip_inpainting=args.skip_inpainting,
                             theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,plot_inpaint=True,
-                            isotropic_override=args.isotropic_override)
+                            isotropic_override=args.isotropic_override,split_set=args.split_set)

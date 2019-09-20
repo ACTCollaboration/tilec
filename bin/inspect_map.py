@@ -34,11 +34,11 @@ lmax = args.lmax
 w2 = np.mean(mask**2.)
 imap = enmap.read_map("%s/%s.fits" % (savedir,comps))
 color = 'planck' if args.solution=='CMB' else 'gray'
-io.hplot(imap,"map_%s_%s" % (args.solution,args.region),color=color,grid=True)
+io.hplot(imap,"map_%s_%s" % (args.solution,args.region),color='planck',grid=True)
 imap1 = dm.get_coadd(season="s15",patch=args.region,array="pa3_f090",srcfree=True,ncomp=1)
 imap2 = dm.get_coadd(season="s15",patch=args.region,array="pa3_f150",srcfree=True,ncomp=1)
-io.hplot(imap2,"cmb_map_%s_s15_pa3_f150" % (args.region),color="planck",grid=True)
-io.hplot(imap1,"cmb_map_%s_s15_pa3_f090" % (args.region),color="planck",grid=True)
+#io.hplot(imap2,"cmb_map_%s_s15_pa3_f150" % (args.region),color="planck",grid=True)
+#io.hplot(imap1,"cmb_map_%s_s15_pa3_f090" % (args.region),color="planck",grid=True)
 
 
 

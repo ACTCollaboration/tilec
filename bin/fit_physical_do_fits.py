@@ -57,7 +57,6 @@ parser.add_argument("region", type=str,help='Region name.')
 parser.add_argument("arrays", type=str,help='Comma separated list of array names. Array names map to a data specification in data.yml')
 parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("--unsanitized-beam", action='store_true',help='Do not sanitize beam.')
-parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
 lmax = 8101
 args = parser.parse_args()
 

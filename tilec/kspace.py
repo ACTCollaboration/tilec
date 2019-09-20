@@ -8,12 +8,17 @@ from soapack import interfaces as sints
 from tilec import utils as tutils
 
 
-def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True,verbose=True,plot_inpaint_path=None,do_pol=False):
+def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=True,fn_beam=None,cache_inpaint_geometries=True,verbose=True,plot_inpaint_path=None,do_pol=False,split_set=None):
     """
     Return (nsplits,Ny,Nx) fourier transform
     Return (Ny,Nx) fourier transform of coadd
 
     This function applies no corrections for masks.
+
+
+    split_set : None by default means it returns all splits. Otherwise, can be 0 or 1, which
+    determines which half of the splits to use. E.g. for ACT with 4 splits, 0 will return
+    split 0,1 and 1 will return split 2,3.
     """
     qid = array_id
     if dm.name=='act_mr3':
@@ -28,9 +33,25 @@ def process(dm,patch,array_id,mask,skip_splits=False,splits_fname=None,inpaint=T
         splits = dm.get_splits(season=season,patch=patch,arrays=[array],ncomp=3,srcfree=True)[0,:,:,:,:]
     else:
         splits = enmap.read_map(splits_fname)
+
+    if split_set is not None:
+        fsplits = splits.shape[0]
+        assert fsplits==2 or fsplits==4
+        hsplits = fsplits // 2
+        assert split_set in [0,1]
+        if split_set==0:
+            wins = wins[:hsplits]
+            splits = splits[:hsplits]
+        elif split_set==1:
+            wins = wins[hsplits:]
+            splits = splits[hsplits:]
+        
+        
     assert splits.ndim==4
     nsplits = splits.shape[0]
-    assert nsplits==2 or nsplits==4
+    if split_set is None: assert nsplits==2 or nsplits==4
+    else: assert nsplits==1 or nsplits==2
+    assert nsplits==wins.shape[0]
     # Inpaint
     if inpaint and dm.name=='act_mr3':
         rsplits = []

@@ -39,20 +39,36 @@ Compute map
 """
 
 
-def get_websky_sim(qid,shape,wcs,shift=None,components=['cmb','cib','tsz','ksz','isw'],bandpassed=True,no_act_color_correction=False):
+def get_websky_sim(qid,shape,wcs,ra_pix_shift=None,components=['cmb','cib','tsz','ksz','ksz_patchy'],
+                   bandpassed=True,no_act_color_correction=False,cmb_set=0):
     # load cmb + ksz + tsz + isw alm
     # get cfreq
     # add nearest cib scaled to cfreq
 
+    gmix = lambda x: gen_mix(qid,x,bandpassed=bandpassed,bandpass_shifts=None,no_act_color_correction=no_act_color_correction)
+
     owcs = wcs.copy()
-    if shift is not None: owcs.wcs.crpix -= np.asarray([shift,0])
+    if shift is not None: owcs.wcs.crpix -= np.asarray([ra_pix_shift,0])
+    lmax = 8192*3
+    asize = hp.Alm.getsize(lmax)
+    oalms = np.zeros((3,asize))
     
+    rpath = sints.dconfig['actsims']['websky_path'] + "/" 
     
-    pass
+    if 'cmb' in components:
+        ialm = hp.read_alm(rpath + "lensed_alm_seed%d.fits" % cmb_set,hdu=(1,2,3))
+        for i in range(3): oalms[i] = oalms[i] + maps.change_alm_lmax(ialm[i], lmax)        
+
+    if 'tsz' in components:
+        tconversion = gmix('tSZ') # !!!
+        ialm = hp.read_alm(rpath + "alms/tsz_8192_alm.fits" )
+        oalms[0] = oalms[0] + ialm * tconversion
+            
+            
 
 
 class JointSim(object):
-    def __init__(self,qids,fg_res_version=None,ellmax=8101,bandpassed=True):
+    def __init__(self,qids,fg_res_version=None,ellmax=8101,bandpassed=True,no_act_color_correction=False,ccor_exp=-1):
         self.qids = qids
         self.alms = {}
         ells = np.arange(ellmax)
@@ -85,22 +101,41 @@ class JointSim(object):
         # get tSZ response, and also zero out parts of map that are not observed
         aspecs = tutils.ASpecs().get_specs
         bps = []
+        cfreqs = []
+        lbeams = []
+        ells = np.arange(0,35000)
         for qid in qids:
             dm = sints.models[sints.arrays(qid,'data_model')]()
             if dm.name=='act_mr3':
                 season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
                 array = '_'.join([array1,array2])
+                lbeam = tutils.get_kbeam(qid,ells,sanitize=True,planck_pixwin=False) # note no pixwin but doesnt matter since no ccorr for planck
             elif dm.name=='planck_hybrid':
                 season,patch,array = None,None,sints.arrays(qid,'freq')
+                lbeam = None
+            else:
+                raise ValueError
+            lbeams.append(lbeam)
+
             lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
             if bandpassed:
                 bps.append("data/"+dm.get_bandpass_file_name(array))
             else:
                 bps.append(cfreq)
 
+            cfreqs.append(cfreq)
 
+        if bandpassed:
+            if no_act_color_correction:
+                self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ')
+            else:
+                self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ',
+                                                      ccor_cen_nus=cfreqs, ccor_beams=lbeams, 
+                                                      ccor_exps = [ccor_exp] * narrays)
+                
+        else:
+            self.tsz_fnu = tfg.get_mix(bps, 'tSZ')
 
-        self.tsz_fnu = tfg.get_mix_bandpassed(bps, 'tSZ') if bandpassed else tfg.get_mix(bps, 'tSZ')
 
 
 
@@ -149,7 +184,14 @@ class JointSim(object):
         # 1. get total alm
         array_index = self.qids.index(qid)
         tot_alm = int(include_cmb)*self.alms['cmb']
-        tot_alm[0] = tot_alm[0] + int(include_tsz)*self.tsz_fnu[array_index]*self.alms['comptony'] 
+
+        if include_tsz:
+            try:
+                assert self.tsz_fnu.ndim==2
+                tot_alm[0] = tot_alm[0] + hp.almxfl(self.alms['comptony'][0] ,self.tsz_fnu[array_index])
+            except:
+                tot_alm[0] = tot_alm[0] + self.alms['comptony'][0] * self.tsz_fnu[array_index]
+                
         if self.cfgres is not None: tot_alm[0] = tot_alm[0] + int(include_fgres)*self.alms['fgres'][array_index]
         assert tot_alm.ndim==2
         assert tot_alm.shape[0]==3
@@ -222,7 +264,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        overwrite,memory_intensive,uncalibrated,
                        sim_splits=None,skip_inpainting=False,theory_signal="none",
                        unsanitized_beam=False,save_all=False,plot_inpaint=False,
-                       isotropic_override=False):
+                       isotropic_override=False,split_set=None):
 
 
     save_scratch = not(memory_intensive)
@@ -279,7 +321,8 @@ def build_and_save_cov(arrays,region,version,mask_version,
                                               skip_splits=False,
                                               splits_fname=sim_splits[i] if sim_splits is not None else None,
                                               inpaint=not(skip_inpainting),fn_beam = lambda x: fbeam(qid,x),
-                                              plot_inpaint_path = savedir if plot_inpaint else None)
+                                              plot_inpaint_path = savedir if plot_inpaint else None,
+                                              split_set=split_set)
             print("Processed ",qid)
             if save_scratch: 
                 kcoadd_name = savedir + "kcoadd_%s.npy" % qid
@@ -409,7 +452,7 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
             lbeam = None
         else:
             raise ValueError
-        lbeams.append(lbeam.copy())
+        lbeams.append(lbeam)
         kbeams.append(kbeam.copy())
         if bandpasses:
             try: 
@@ -464,7 +507,6 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                 responses[comp] = tfg.get_mix_bandpassed(bps, comp, bandpass_shifts=shifts,
                                                          ccor_cen_nus=cfreqs, ccor_beams=lbeams, 
                                                          ccor_exps = [ccor_exp] * narrays)
-                
         else:
             responses[comp] = tfg.get_mix(bps, comp)
 
@@ -557,3 +599,266 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
 
 
     enmap.write_map(savedir+"/tilec_mask.fits",mask)
+
+
+def calculate_yy(bin_edges,arrays,region,version,cov_versions,beam_version,
+                 effective_freq,overwrite,maxval,unsanitized_beam=False,do_weights=False,
+                 pa1_shift = None,
+                 pa2_shift = None,
+                 pa3_150_shift = None,
+                 pa3_090_shift = None,
+                 no_act_color_correction=False, ccor_exp = -1,
+                 sim_splits=None,unblind=False,all_analytic=False,beta_samples=None):
+
+
+    """
+    
+    We calculate the yy power spectrum as follows.
+    We restrict the Fourier modes in our analysis to those within bin_edges.
+    This way we don't carry irrelevant pixels and thus speed up the ability to MC.
+    We accept two covariance versions in cov_versions, which correspond to 
+    [act_covariance_from_split_0,act_covariance_from_split_1,other_covs].
+    Thus the ACT auto covariances are pre-calculated
+
+    """
+    arrays = arrays.split(',')
+    narrays = len(arrays)
+    if sim_splits is not None: assert not(unblind)
+    def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
+    aspecs = tutils.ASpecs().get_specs
+    bandpasses = not(effective_freq)
+    savedir = tutils.get_save_path(version,region)
+    assert len(cov_versions)==3
+    covdirs = [tutils.get_save_path(cov_versions[i],region) for i in range(3)]
+    for covdir in covdirs: assert os.path.exists(covdir)
+    if not(overwrite):
+        assert not(os.path.exists(savedir)), \
+       "This version already exists on disk. Please use a different version identifier."
+    try: os.makedirs(savedir)
+    except:
+        if overwrite: pass
+        else: raise
+
+
+    mask = enmap.read_map(covdir+"tilec_mask.fits")
+
+
+    from scipy.ndimage.filters import gaussian_filter as smooth
+    pm = enmap.read_map("/scratch/r/rbond/msyriac/data/planck/data/pr2/COM_Mask_Lensing_2048_R2.00_car_deep56_interp_order0.fits")
+    wcs = pm.wcs
+    mask = enmap.enmap(smooth(pm,sigma=10),wcs) * mask
+
+
+    shape,wcs = mask.shape,mask.wcs
+    Ny,Nx = shape
+    modlmap = enmap.modlmap(shape,wcs)
+    omodlmap = modlmap.copy()
+    ells = np.arange(0,modlmap.max())
+    minell = maps.minimum_ell(shape,wcs)
+    sel = np.where(np.logical_and(modlmap>=bin_edges[0]-minell,modlmap<=bin_edges[-1]+minell))
+    modlmap = modlmap[sel]
+
+    bps = []
+    lbeams = []
+    kbeams = []
+    shifts = []
+    cfreqs = []
+    lmins = []
+    lmaxs = []
+    names = []
+    for i,qid in enumerate(arrays):
+        dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
+        if dm.name=='act_mr3':
+            season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
+            array = '_'.join([array1,array2])
+        elif dm.name=='planck_hybrid':
+            season,patch,array = None,None,sints.arrays(qid,'freq')
+        else:
+            raise ValueError
+        lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
+        lmins.append(lmin)
+        lmaxs.append(lmax)
+        names.append(qid)
+        cfreqs.append(cfreq)
+        if bandpasses:
+            try: 
+                fname = dm.get_bandpass_file_name(array) 
+                bps.append("data/"+fname)
+                if (pa1_shift is not None) and 'PA1' in fname:
+                    shifts.append(pa1_shift)
+                elif (pa2_shift is not None) and 'PA2' in fname:
+                    shifts.append(pa2_shift)
+                elif (pa3_150_shift is not None) and ('PA3' in fname) and ('150' in fname):
+                    shifts.append(pa3_150_shift)
+                elif (pa3_090_shift is not None) and ('PA3' in fname) and ('090' in fname):
+                    shifts.append(pa3_90_shift)
+                else:
+                    shifts.append(0)
+
+            except:
+                warn()
+                bps.append(None)
+        else:
+            try: bps.append(cfreq)
+            except:
+                warn()
+                bps.append(None)
+
+        kbeam = tutils.get_kbeam(qid,modlmap,sanitize=not(unsanitized_beam),version=beam_version,planck_pixwin=True)
+        if dm.name=='act_mr3':
+            lbeam = tutils.get_kbeam(qid,ells,sanitize=not(unsanitized_beam),version=beam_version,planck_pixwin=False) # note no pixwin but doesnt matter since no ccorr for planck
+        elif dm.name=='planck_hybrid':
+            lbeam = None
+        else:
+            raise ValueError
+        lbeams.append(lbeam)
+        kbeams.append(kbeam.copy())
+    # Make responses
+    responses = {}
+
+    def _get_response(comp,param_override=None):
+        if bandpasses:
+            if no_act_color_correction:
+                r = tfg.get_mix_bandpassed(bps, comp, bandpass_shifts=shifts,
+                                           param_dict_override=param_override)
+            else:
+                r = tfg.get_mix_bandpassed(bps, comp, bandpass_shifts=shifts,
+                                           ccor_cen_nus=cfreqs, ccor_beams=lbeams, 
+                                           ccor_exps = [ccor_exp] * narrays,
+                                           param_dict_override=param_override)
+        else:
+            r = tfg.get_mix(bps, comp,param_dict_override=param_override)
+        return r
+
+    for comp in ['tSZ','CMB','CIB']:
+        responses[comp] = _get_response(comp,None)
+
+
+    
+    from tilec.utils import is_planck
+    ilcgens = []
+    okcoadds = []
+    for splitnum in range(2):
+        covdir = covdirs[splitnum]
+        kcoadds = []
+        for i,qid in enumerate(arrays):
+            lmin = lmins[i]
+            lmax = lmaxs[i]
+
+            if is_planck(qid):
+                dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=True)
+
+                _,kcoadd,_ = kspace.process(dm,region,qid,mask,
+                                            skip_splits=True,
+                                            splits_fname=sim_splits[i] if sim_splits is not None else None,
+                                            inpaint=False,fn_beam = None,
+                                            plot_inpaint_path = None,
+                                            split_set=splitnum)
+            else:
+                kcoadd_name = covdir + "kcoadd_%s.npy" % qid
+                kcoadd = enmap.enmap(np.load(kcoadd_name),wcs)
+
+            kmask = maps.mask_kspace(shape,wcs,lmin=lmin,lmax=lmax)
+            dtype = kcoadd.dtype
+            kcoadds.append((kcoadd.copy()*kmask)[sel])
+
+        kcoadds = enmap.enmap(np.stack(kcoadds),wcs)
+        okcoadds.append(kcoadds.copy())
+
+
+        # Read Covmat
+        ctheory = ilc.CTheory(modlmap)
+        nells = kcoadds[0].size
+        cov = np.zeros((narrays,narrays,nells))
+        for aindex1 in range(narrays):
+            for aindex2 in range(aindex1,narrays):
+                qid1 = names[aindex1]
+                qid2 = names[aindex2]
+                if is_planck(names[aindex1]) or is_planck(names[aindex2]) or all_analytic:
+                    lmin,lmax,hybrid,radial,friend,f1,fgroup,wrfit = aspecs(qid1)
+                    lmin,lmax,hybrid,radial,friend,f2,fgroup,wrfit = aspecs(qid2)
+                    # If both are Planck and same array, get white noise from last bin
+                    icov = ctheory.get_theory_cls(f1,f2,a_cmb=1,a_gal=0.8)*kbeams[aindex1]*kbeams[aindex2]
+                    if aindex1==aindex2:
+                        pcov = enmap.enmap(np.load(covdirs[2]+"tilec_hybrid_covariance_%s_%s.npy" % (names[aindex1],names[aindex2])),wcs)
+                        pbin_edges = np.append(np.arange(500,3000,200) ,[3000,4000,5000,5800])
+                        pbinner = stats.bin2D(omodlmap,pbin_edges)
+                        w = pbinner.bin(pcov)[1][-1]
+                        icov = icov + w
+                else:
+                    icov = np.load(covdir+"tilec_hybrid_covariance_%s_%s.npy" % (names[aindex1],names[aindex2]))[sel]
+                if aindex1==aindex2: 
+                    icov[modlmap<lmins[aindex1]] = maxval
+                    icov[modlmap>lmaxs[aindex1]] = maxval
+                cov[aindex1,aindex2] = icov
+                cov[aindex2,aindex1] = icov
+
+        assert np.all(np.isfinite(cov))
+
+        ilcgen = ilc.HILC(modlmap,np.stack(kbeams),cov=cov,responses=responses,invert=True)
+        ilcgens.append(ilcgen)
+      
+
+    solutions = ['tSZ','tSZ-CMB','tSZ-CIB']
+    ypowers = {}
+    w2 = np.mean(mask**2.)
+    binner = stats.bin2D(modlmap,bin_edges)
+    np.random.seed(100)
+    blinding = np.random.uniform(0.8,1.2) if not(unblind) else 1
+
+
+    def _get_ypow(sname,dname,dresponse=None,dcmb=False):
+
+        if dresponse is not None:
+            assert dname is not None
+            for splitnum in range(2):
+                ilcgens[splitnum].add_response(dname,dresponse)
+
+        ykmaps = []
+        for splitnum in range(2):
+            if dcmb:
+                assert dname is not None
+                ykmap = ilcgens[splitnum].multi_constrained_map(okcoadds[splitnum],sname,[dname,"CMB"])
+            else:
+                if dname is None:
+                    ykmap = ilcgens[splitnum].standard_map(okcoadds[splitnum],sname)
+                else:
+                    ykmap = ilcgens[splitnum].constrained_map(okcoadds[splitnum],sname,dname)
+            ykmaps.append(ykmap.copy())
+
+        ypower = (ykmaps[0]*ykmaps[1].conj()).real / w2
+        return binner.bin(ypower)[1] * blinding
+
+
+    # The usual solutions
+    for solution in solutions:
+
+        sols = solution.split('-')
+        if len(sols)==2:
+            sname = sols[0]
+            dname = sols[1]
+        elif len(sols)==1:
+            sname = sols[0]
+            dname = None
+        else:
+            raise ValueError
+
+        ypowers[solution] = _get_ypow(sname,dname,dresponse=None)
+
+
+    # The CIB SED samples
+    if beta_samples is not None:
+        y_bsamples = []
+        y_bsamples_cmb = []
+        for beta in beta_samples:
+            pdict = tfg.default_dict.copy()
+            pdict['beta_CIB'] = beta
+            response = _get_response("CIB",param_override=pdict)
+            y_bsamples.append(  _get_ypow("tSZ","iCIB",dresponse=response,dcmb=False) )
+            y_bsamples_cmb.append(  _get_ypow("tSZ","iCIB",dresponse=response,dcmb=True) )
+    else:
+        y_bsamples = None
+        y_bsamples_cmb = None
+
+
+    return binner.centers,ypowers,y_bsamples,y_bsamples_cmb

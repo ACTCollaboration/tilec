@@ -55,6 +55,9 @@ if "map" in outputs:
 			npol = 1
 		elif ("smica" in name) or ("WPR2" in name):
 			npol = 1
+		elif ("COM_Mask_Lensing" in name):
+			npol = 1
+			runit = 1
 		else:
 			npol = 3
 		fields = range(npol)
@@ -139,6 +142,10 @@ if "ivar" in outputs or "map0" in outputs:
 				runit *= factor_857
 				npol = 1
 				fields = {"ivar":(2),"map0":(0)}[output]
+			elif ("COM_Mask_Lensing" in name):
+				npol = 1
+				runit = 1
+				fields = {"map0":(0)}[output]
 			else:
 				fields = {"ivar":(4,7,9),"map0":(0,1,2)}[output]
 				npol = 3

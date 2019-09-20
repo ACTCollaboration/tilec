@@ -63,9 +63,9 @@ for solution in args.solutions.split(','):
     input_names.append( components[solution][0] )
 input_names = sorted(list(set(input_names)))
 
-bin_edges = np.arange(80,8000,80)
+bin_edges = np.arange(20,5000,80)
 
-#s = stats.Stats(comm)
+s = stats.Stats(comm)
 
 totinputs = {}
 totautos = {}
@@ -94,13 +94,17 @@ for i,task in enumerate(my_tasks):
         w2 = np.mean(mask**2.)
 
     inputs = {}
+    iis = {}
     for input_name in input_names:
         inputs[input_name] = enmap.fft(get_input(input_name,args.set_id,sim_index,shape,wcs) * mask,normalize='phys')
         #inputs[input_name] = enmap.fft(get_input(input_name,args.set_id,sim_index*2,shape,wcs) * mask,normalize='phys') # !!!
         res = binner.bin(np.real(inputs[input_name]*inputs[input_name].conj()))[1]/w2
         print(rank,task,input_name,res[10])
-        try: totinputs[input_name] = totinputs[input_name] + res
-        except: totinputs[input_name] = res.copy()
+        try: 
+            totinputs[input_name] = totinputs[input_name] + res
+        except: 
+            totinputs[input_name] = res.copy()
+        iis[input_name] = res
 
     for solution in args.solutions.split(','):
         comps = "tilec_single_tile_"+region+"_"
@@ -120,16 +124,21 @@ for i,task in enumerate(my_tasks):
         with np.errstate(divide='ignore',invalid='ignore'): kmap = enmap.fft(imap,normalize='phys')/kbeam
         kmap[~np.isfinite(kmap)] = 0
         res = binner.bin(np.real(kmap*kmap.conj()))[1]/w2
-        try: totautos[solution] = totautos[solution] + res
-        except: totautos[solution] = res.copy()
+        try:
+            totautos[solution] = totautos[solution] + res
+        except: 
+            totautos[solution] = res.copy()
         input_name = components[solution][0]
         res = binner.bin(np.real(inputs[input_name]*kmap.conj()))[1]/w2
-        #s.add_to_stats("cross_"+solution,res)
-        try: totcrosses[solution] = totcrosses[solution] + res
-        except: totcrosses[solution] = res.copy()
+        try: 
+            ii = iis[input_name]
+            s.add_to_stats("rat_"+solution,(res-ii)/ii)
+            totcrosses[solution] = totcrosses[solution] + res
+        except: 
+            totcrosses[solution] = res.copy()
 
 
-#s.get_stats()
+s.get_stats()
 # totcmb = putils.allreduce(totcmb,comm) /nsims 
 #tottsz = putils.allreduce(tottsz,comm) /nsims 
 for key in sorted(totinputs.keys()):
@@ -156,25 +165,34 @@ if rank==0:
 
             rr = totautos[solution]
             pl.add(cents,rr,alpha=0.4,color=color)
-        pl.done(os.environ['WORK']+"/val_%s.png" % input_name)
+        pl.done(os.environ['WORK']+"/val_%s_%s_%s.png" % (input_name,args.region,args.version))
+        io.save_cols("%s/verification_%s_%s_%s.txt" % (os.environ['WORK'],input_name,args.region,args.version),(cents,ri,rr,ii))
 
 
     for input_name in input_names:
         pl = io.Plotter(xyscale='linlin',xlabel='$\\ell$',ylabel='$\Delta C_{\\ell} / C_{\\ell}$')
         # ii = totcmb if input_name=='CMB' else tottsz
-        ii = totinputs[input_name]
+        #ii = totinputs[input_name]
         for i,solution in enumerate(args.solutions.split(',')):
+            rat = s.stats['rat_%s' % solution]['mean']
+            erat = s.stats['rat_%s' % solution]['err']
             color = "C%d" % i
             iname = components[solution][0]
             if iname!=input_name: continue
             ri = totcrosses[solution]
-            pl.add(cents,(ri-ii)/ii,label=solution,ls="none",marker="o",color=color,markersize=2,alpha=0.8)
-            print(((ri-ii)/ii)[np.logical_and(cents>500,cents<1000)])
+            pl.add_err(cents,rat,yerr=erat,label=solution,ls="none",marker="o",color=color,markersize=4,alpha=0.8,mew=2)
+            print((rat)[np.logical_and(cents>500,cents<1000)])
         pl.hline(y=0)
-        pl._ax.set_ylim(-0.1,0.1)
-        pl.vline(x=80)
-        pl.vline(x=100)
-        pl.vline(x=300)
+        if input_name=='CMB':
+            pl._ax.set_ylim(-0.04,0.04)
+            pl.hline(y=-0.01)
+            pl.hline(y=0.01)
+        else:
+            pl._ax.set_ylim(-0.1,0.1)
+            pl.hline(y=-0.05)
+            pl.hline(y=0.05)
+
+        pl.vline(x=20)
         pl.vline(x=500)
         pl.vline(x=3000)
-        pl.done(os.environ['WORK']+"/valdiff_%s.png" % input_name)
+        pl.done(os.environ['WORK']+"/valdiff_%s_%s_%s.png" % (input_name,args.region,args.version))

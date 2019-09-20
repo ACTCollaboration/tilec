@@ -21,14 +21,6 @@ m_elec = 510.999 #keV
 ######################################
 # various unit conversions
 ######################################
-# conversion from specific intensity to Delta T units (i.e., 1/dBdT|T_CMB)
-#   i.e., from W/m^2/Hz/sr (Jy/sr) --> uK_CMB
-#   i.e., you would multiply a map in Jy/sr by this factor to get an output map in uK_CMB
-def ItoDeltaT(nu_ghz):
-    nu = 1.e9*np.asarray(nu_ghz)
-    X  = hplanck*nu/(kboltz*TCMB)
-    return (1.0 / (2.0 * X**4.0 * np.exp(X) * (kboltz**3.0*TCMB**2.0) / (hplanck * clight)**2.0 / (np.exp(X) - 1.0)**2.0)) * 1.e6 #the 1e6 takes you from K to uK
-
 # conversion from antenna temperature to CMB thermodynamic temperature
 def antenna2thermoTemp(nu_ghz):
     nu = 1.e9*np.asarray(nu_ghz)
@@ -37,11 +29,18 @@ def antenna2thermoTemp(nu_ghz):
 
 # function needed for Planck bandpass integration/conversion following approach in Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf
 # blackbody derivative
-# units are Jy/sr/uK_CMB
+# units are 1e-26 Jy/sr/uK_CMB
 def dBnudT(nu_ghz):
     nu = 1.e9*np.asarray(nu_ghz)
     X = hplanck*nu/(kboltz*TCMB)
     return (2.*hplanck*nu**3.)/clight**2. * (np.exp(X))/(np.exp(X)-1.)**2. * X/TCMB_uK
+
+# conversion from specific intensity to Delta T units (i.e., 1/dBdT|T_CMB)
+#   i.e., from W/m^2/Hz/sr (1e-26 Jy/sr) --> uK_CMB
+#   i.e., you would multiply a map in 1e-26 Jy/sr by this factor to get an output map in uK_CMB
+def ItoDeltaT(nu_ghz):
+    return 1./dBnudT(nu_ghz)
+
 ######################################
 
 ######################################
@@ -64,10 +63,24 @@ default_dict = read_param_dict_from_yaml(fpath+'/../input/fg_SEDs_default_params
 # convention is that the maps being modeled are in uK_CMB units
 # nu_ghz can contain entries that are None, which correspond to maps that have no CMB-relevant (or CIB) signals in them (e.g., HI maps)
 ######################################
-def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies in GHz; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for some SEDs)
+def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None): #nu_ghz = array of frequencies in GHz; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for some SEDs)
     assert (comp != None)
     nu_ghz = np.atleast_1d(nu_ghz) #catch possible scalar input
     assert (len(nu_ghz) > 0)
+
+
+    def _setp():
+        if param_dict_override is not None:
+            assert param_dict_file is None
+            v = param_dict_override
+        else:
+            if param_dict_file is None:
+                v = default_dict
+            else:
+                v = read_param_dict_from_yaml(param_dict_file)
+        return v
+
+
     if (comp == 'CMB' or comp == 'kSZ'): #CMB (or kSZ)
         resp = np.ones(len(np.asarray(nu_ghz))) #this is unity by definition, since we're working in Delta T units [uK_CMB]; output ILC map will thus also be in uK_CMB
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
@@ -86,10 +99,7 @@ def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies 
         return resp
     elif (comp == 'rSZ'): #relativistic thermal SZ (to 3rd order in kT_e/(m_e*c^2) using expressions from Nozawa+2006)
         # relativistic SZ parameter choice in dict file: kT_e_keV [keV] (temperature of electrons)
-        if param_dict_file is None:
-            p = default_dict
-        else:
-            p = read_param_dict_from_yaml(param_dict_file)
+        p = _setp()
         nu = 1.e9*np.asarray(nu_ghz).astype(float)
         kTe = p['kT_e_keV'] / m_elec #kT_e/(m_e*c^2)
         X = hplanck*nu/(kboltz*TCMB)
@@ -106,10 +116,7 @@ def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies 
     elif (comp == 'CIB'):
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        if param_dict_file is None:
-            p = default_dict
-        else:
-            p = read_param_dict_from_yaml(param_dict_file)
+        p = _setp()
         nu = 1.e9*np.asarray(nu_ghz).astype(float)
         X_CIB = hplanck*nu/(kboltz*(p['Tdust_CIB']))
         nu0_CIB = p['nu0_CIB_ghz']*1.e9
@@ -120,10 +127,7 @@ def get_mix(nu_ghz, comp, param_dict_file=None): #nu_ghz = array of frequencies 
     elif (comp == 'CIB_Jysr'): #same as CIB above but in Jy/sr instead of uK_CMB
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        if param_dict_file is None:
-            p = default_dict
-        else:
-            p = read_param_dict_from_yaml(param_dict_file)
+        p = _setp()
         nu = 1.e9*np.asarray(nu_ghz).astype(float)
         X_CIB = hplanck*nu/(kboltz*(p['Tdust_CIB']))
         nu0_CIB = p['nu0_CIB_ghz']*1.e9
@@ -166,7 +170,7 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
         to diffraction limited optics.
 
     """
-
+    from orphics import maps
     fbnus = maps.interp(ells,lbeam[None,:],fill_value=(lbeam[0],lbeam[-1]))
     bnus = fbnus(((cen_nu_ghz/nus_ghz)**(-ccor_exp))*ells[:,None])[0].swapaxes(0,1)
     bnus = bnus / bnus[:,:1]
@@ -182,7 +186,8 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
 # bp_list can contain entries that are None, which correspond to maps that have no CMB-relevant (or CIB) signals in them (e.g., HI maps)
 ######################################
 def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
-                       ccor_cen_nus=None, ccor_beams=None, ccor_exps = None):
+                       ccor_cen_nus=None, ccor_beams=None, ccor_exps = None, 
+                       normalize_cib=True,param_dict_override=None):
 
     """
     Get mixing factors for a given component that have "color corrections" that account for
@@ -255,10 +260,17 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         lmaxs = []
         for i in range(N_freqs):
             if ccor_beams[i] is not None:
-                assert ccor_beams[i].ndims==1
+                assert ccor_beams[i].ndim==1
                 lmaxs.append( ccor_beams[i].size )
-        lmax =max(lmaxs)
-        shape = (N_freqs,lmax)
+        if len(lmaxs)==0:
+            ccor_cen_nus = None
+            shape = N_freqs
+        else:
+            lmax = max(lmaxs)
+            shape = (N_freqs,lmax)
+
+        if ccor_exps is None: ccor_exps = [-1]*N_freqs
+
     else:
         shape = N_freqs
 
@@ -290,11 +302,12 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                 lbeam = 1
                 bnus = 1
                 if ccor_cen_nus is not None: 
-                    lbeam = ccor_beams[i]
-                    if lbeam is not None:
+                    if ccor_beams[i] is not None:
+                        lbeam = ccor_beams[i]
                         ells = np.arange(lbeam.size)
                         cen_nu_ghz = ccor_cen_nus[i]
-                        bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=ccor_exps[i]).swapaxes(0,1)
+                        bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nu_ghz,ccor_exp=ccor_exps[i]).swapaxes(0,1)
+                        assert np.all(np.isfinite(bnus))
 
 
                 if (comp == 'tSZ' or comp == 'mu' or comp == 'rSZ'): 
@@ -308,7 +321,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                     # -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
                     # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
                     # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-                    val = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file) * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
+                    val = (np.trapz(trans * get_mix(nu_ghz, 'CIB_Jysr', param_dict_file=param_dict_file,param_dict_override=param_dict_override) * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
                     # N.B. this expression follows from Eqs. 32 and 35 of 
                     # https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , 
                     # and then noting that one also needs to first rescale the CIB emission 
@@ -319,19 +332,28 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                     print("unknown component specified")
                     raise NotImplementedError
 
+                if (ccor_cen_nus is not None) and (ccor_beams[i] is not None): val[lbeam==0] = 0
                 output[i] = val
+                assert np.all(np.isfinite(val))
 
-            elif (bp_list[i] == None): 
+            elif (bp_list[i] is None): 
                 #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
                 output[i] = 0.        
 
 
-        if (comp == 'CIB'):        
+        if (comp == 'CIB') and normalize_cib:        
             #overall amplitude not meaningful, so divide by max to get numbers of order unity; 
             # output gives the relative conversion between CIB at different frequencies, for maps in uK_CMB
-            return output / output.max(axis=0)
+            omax = output.max(axis=0)
+            ret = output / omax
+            if (ccor_cen_nus is not None): ret[:,omax==0] = 0
         else:
-            return output
+            ret = output
+
+        
+        assert np.all(np.isfinite(ret))
+        return ret
+
 
 ######################################
 

@@ -122,12 +122,30 @@ class HILC(object):
             raise ValueError
         self.responses = {}
         if responses is None: responses = {}
-        if "cmb" not in responses.keys(): responses['cmb'] = np.ones((1,nmap))
+        if "CMB" not in responses.keys(): responses['CMB'] = np.ones((1,nmap))
         for key in responses.keys():
-            self.add_response(key,responses[key].reshape((1,nmap)))
+            self.add_response(key,responses[key])
                 
     def add_response(self,name,response):
-        self.responses[name] = response * self.kbeams
+        # assert self._2d, "1D ILC not generalized to scale dependent color correction yet"
+        if response.ndim==1:
+            self.responses[name] = response[None,:] * self.kbeams
+        elif response.ndim==2:
+            ells = np.arange(response.shape[1])
+            self.responses[name] = self.kbeams.copy()
+            for i in range(self.nmap):
+                r = maps.interp(ells,response[i])(self.ells)
+                assert np.all(np.isfinite(r))
+                # try:
+                #     assert np.all(np.isfinite(r))
+                # except:
+                #     print(name)
+                #     print(self.ells[~np.isfinite(r)])
+                #     sys.exit()
+                self.responses[name][:,i] = self.responses[name][:,i] * r
+        else:
+            raise ValueError
+            
 
     def cross_noise(self,name1,name2):
         """
@@ -158,7 +176,7 @@ class HILC(object):
         kmaps = kmaps.swapaxes(0,1)
         return kmaps
         
-    def standard_map(self,kmaps,name="cmb"):
+    def standard_map(self,kmaps,name="CMB"):
         # Get response^T cinv kmaps
         kmaps = self._prepare_maps(kmaps)
         weighted = map_term(kmaps,self.responses[name],self.cov,self.cinv)
@@ -168,7 +186,7 @@ class HILC(object):
         if np.any(np.isnan(out)): raise ValueError
         return out
 
-    def standard_weight(self,name="cmb"):
+    def standard_weight(self,name="CMB"):
         # Get normalized response^T cinv
         weighted = weight_term(self.responses[name],self.cinv).swapaxes(0,1)
         snoise = self.standard_noise(name)
