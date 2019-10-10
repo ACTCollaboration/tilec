@@ -9,6 +9,10 @@ We cross-correlate the Y map with the input Y alms
 from __future__ import print_function
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["mathtext.fontset"] = "stix"
+#plt.rcParams["mathtext.fontset"] = "dejavuserif"
 from orphics import maps,io,cosmology,mpi,stats
 from pixell import enmap,curvedsky,utils as putils
 import numpy as np
@@ -20,24 +24,9 @@ from tilec import pipeline,utils as tutils
 import healpy as hp
 from szar import foregrounds as fgs
 from datetime import datetime
+from tilec.pipeline import get_input
 
-def get_input(input_name,set_idx,sim_idx,shape,wcs):
-    if input_name=='CMB':
-        cmb_type = 'LensedUnabberatedCMB'
-        #cmb_type = 'LensedCMB' # !!!!!!!!!!!!!
-        signal_path = sints.dconfig['actsims']['signal_path']
-        cmb_file   = os.path.join(signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(cmb_type, set_idx, sim_idx))
-        alms = hp.fitsfunc.read_alm(cmb_file, hdu = 1)
-    elif input_name=='tSZ':
-        ellmax = 8101
-        ells = np.arange(ellmax)
-        cyy = fgs.power_y(ells)[None,None]
-        cyy[0,0][ells<2] = 0
-        comptony_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'comptony')
-        alms = curvedsky.rand_alm(cyy, seed = comptony_seed,lmax=ellmax)
-    omap = enmap.zeros((1,)+shape[-2:],wcs)
-    omap = curvedsky.alm2map(np.complex128(alms),omap,spin=0)[0]
-    return omap
+rversion = "v1.0.0_rc_20190919"
 
 import argparse
 # Parse command line
@@ -81,7 +70,7 @@ for i,task in enumerate(my_tasks):
     ind_str = str(set_id).zfill(2)+"_"+str(sim_index).zfill(4)
     #ind_str = str(set_id).zfill(2)+"_"+str(sim_index*2).zfill(4) # !!! 
     version = "map_joint_%s_%s" % (args.version,ind_str)
-    savedir = tutils.get_save_path(version,args.region)
+    savedir = tutils.get_save_path(version,args.region,rversion)
     print(savedir)
     assert os.path.exists(savedir)
 
@@ -171,16 +160,20 @@ if rank==0:
 
     for input_name in input_names:
         pl = io.Plotter(xyscale='linlin',xlabel='$\\ell$',ylabel='$\Delta C_{\\ell} / C_{\\ell}$')
+        plt.gca().set_prop_cycle(None)
         # ii = totcmb if input_name=='CMB' else tottsz
         #ii = totinputs[input_name]
-        for i,solution in enumerate(args.solutions.split(',')):
+        i = 0
+        for solution in args.solutions.split(','):
             rat = s.stats['rat_%s' % solution]['mean']
             erat = s.stats['rat_%s' % solution]['err']
             color = "C%d" % i
+            print(solution,i)
             iname = components[solution][0]
             if iname!=input_name: continue
+            i = i + 1
             ri = totcrosses[solution]
-            pl.add_err(cents,rat,yerr=erat,label=solution,ls="none",marker="o",color=color,markersize=4,alpha=0.8,mew=2)
+            pl.add_err(cents,rat,yerr=erat,label=solution,ls="none",marker="o",color=color,markersize=4,alpha=0.6,band=True,markeredgecolor='k',markeredgewidth=1)
             print((rat)[np.logical_and(cents>500,cents<1000)])
         pl.hline(y=0)
         if input_name=='CMB':
@@ -195,4 +188,4 @@ if rank==0:
         pl.vline(x=20)
         pl.vline(x=500)
         pl.vline(x=3000)
-        pl.done(os.environ['WORK']+"/valdiff_%s_%s_%s.png" % (input_name,args.region,args.version))
+        pl.done(os.environ['WORK']+"/valdiff_%s_%s_%s.pdf" % (input_name,args.region,args.version))

@@ -1,4 +1,9 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["mathtext.fontset"] = "stix"
 from orphics import maps,io,cosmology,stats
 from pixell import enmap,reproject
 import numpy as np
@@ -18,21 +23,21 @@ dfwhm = 0.0001
 
 
 for method,methodp in zip(['','_deprojects_comptony'],['sz','nosz']):
-    pl = io.Plotter(xyscale='loglog',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn = lambda x: x**2./2./np.pi)
+    pl = io.Plotter(xyscale='linlog',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn = lambda x: x**2./2./np.pi)
     for col,region in zip(['red','blue'],['deep56','boss']):
 
         if redo:
             mask = sints.get_act_mr3_crosslinked_mask(region)
             shape,wcs = mask.shape,mask.wcs
 
-            bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,method,cversion)
-            yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.0.0_rc_%s.fits" % (cversion,region,region,method,cversion)
+            bfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,method,cversion)
+            yfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.0.0_rc_%s.fits" % (cversion,region,region,method,cversion)
             w2 = np.mean(mask**2.)
 
             als,bells = np.loadtxt(bfile,unpack=True)
             imap = enmap.read_map(yfile)
             modlmap = mask.modlmap()
-            bin_edges = np.arange(20,6000,20)
+            bin_edges = np.arange(20,6000,80)
 
             binner = stats.bin2D(modlmap,bin_edges)
             kmap = enmap.fft(imap,normalize='phys')/maps.interp(als,bells)(modlmap)*maps.gauss_beam(modlmap,dfwhm)
@@ -82,4 +87,4 @@ for method,methodp in zip(['','_deprojects_comptony'],['sz','nosz']):
         pl.add(cents,p1d,color=col,label='Planck %s %s' % (szlab,region),ls="--")
 
 
-    pl.done(os.environ['WORK']+"/fig_cmb_power%s.png" % method)
+    pl.done(os.environ['WORK']+"/fig_cmb_power%s.pdf" % method)

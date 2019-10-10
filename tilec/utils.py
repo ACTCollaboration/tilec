@@ -12,8 +12,9 @@ import healpy as hp
 def validate_args(solutions,beams):
     assert len(solutions.split(','))==len(beams.split(','))
 
-def get_save_path(version,region):
+def get_save_path(version,region,rversion=None):
     save_path = sints.dconfig['tilec']['save_path']
+    if rversion is not None: save_path = os.path.join(save_path , rversion)
     savedir = os.path.join(save_path , version + "_" + region)
     return savedir + "/"
 
@@ -220,3 +221,44 @@ def get_pixwin(shape):
     return wind
 
 
+
+
+def get_generic_fname(tdir,region,solution,deproject=None,data_comb='joint',version=None,sim_index=None,beam=False,noise=False,cross_noise=False,mask=False):
+    """
+    Implements the naming convention in the release directory.
+    """
+
+    assert sum([int(x) for x in [beam,noise,cross_noise,mask]]) <= 1
+    data_comb = data_comb.lower().strip()
+    solution = solution.lower().strip()
+
+    if sim_index is not None:
+        data_comb = {'joint':'joint','act':'act_only','act_only':'act_only','planck':'planck_only','planck_only':'planck_only'}[data_comb]
+        version = "test_sim_baseline_00_%s" % str(sim_index).zfill(4)
+    else:
+        data_comb = {'joint':'joint','act':'act','act_only':'act','planck':'planck','planck_only':'planck'}[data_comb]
+        if version is None: version = "v1.0.0_rc"
+    
+    solution = {'cmb':'cmb','ksz':'cmb','tsz':'comptony','comptony':'comptony'}[solution]
+    if deproject is None:
+        dstr = '' 
+    else:
+        deproject = deproject.lower().strip()
+        deproject = {'cmb':'cmb','ksz':'cmb','tsz':'comptony','comptony':'comptony','cib':'cib','dust':'cib'}[deproject]
+        dstr = '_deprojects_%s' % deproject
+    if sim_index is None:
+        if mask: suff = "tilec_mask.fits"
+        else: suff = "tilec_single_tile_%s_%s%s_map_%s_%s.fits" % (region,solution,dstr,version,data_comb)
+        rval = tdir + "/map_%s_%s_%s/%s" % (version,data_comb,region,suff)
+    else:
+        if mask: suff = "tilec_mask.fits"
+        else: suff = "tilec_single_tile_%s_%s%s_map_%s_%s.fits" % (region,solution,dstr,data_comb,version)
+        rval = tdir + "/map_%s_%s_%s/%s" % (data_comb,version,region,suff)
+
+    if beam: 
+        rval = rval[:-5] + "_beam.txt"
+    elif noise:
+        rval = rval[:-5] + "_noise.fits"
+    elif cross_noise:
+        rval = rval[:-5] + "_cross_noise.fits"
+    return rval

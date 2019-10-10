@@ -1,4 +1,9 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["mathtext.fontset"] = "stix"
 from orphics import maps,io,cosmology,catalogs,stats
 from pixell import enmap,reproject
 import numpy as np
@@ -18,6 +23,13 @@ decs = cols['DECdeg']
 sns = cols['SNR']
 
 
+# fname = os.environ['WORK'] + "/data/boss/eboss_dr14/data_DR14_QSO_S.fits"
+# cols = catalogs.load_fits(fname,['RA','DEC'])
+# ras = cols['RA']
+# decs = cols['DEC']
+# sns = np.array(ras)*0 + 6
+
+
 array = "pa3_f150"
 #array = "pa3_f090"
 
@@ -33,14 +45,14 @@ modlmap = mask.modlmap()
 ells = np.arange(0,modlmap.max())
 kbeam = dm.get_beam(modlmap, "s15",region,array,sanitize=True)
 lbeam = dm.get_beam(ells, "s15",region,array,sanitize=True)
-bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_comptony_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
-yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_comptony_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
+bfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_comptony_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
+yfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_comptony_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
 
-bfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
-yfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
+bfile2 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
+yfile2 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
 
-bfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
-yfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
+bfile3 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
+yfile3 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
 
 
 ls,obells = np.loadtxt(bfile,unpack=True)
@@ -137,6 +149,11 @@ io.hplot(enmap.enmap(ystack,nwcs),"ystack",ticks=5,tick_unit='arcmin',grid=True,
 io.hplot(enmap.enmap(sstack,nwcs),"fig_sstack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
 io.hplot(enmap.enmap(cstack,nwcs),"fig_cstack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
 
+# io.plot_img(enmap.enmap(istack,nwcs),"istack.png",cmap='gray',lim=[-5,25])
+# io.plot_img(enmap.enmap(ystack,nwcs),"ystack.png",cmap='gray',lim=[-5,25])
+# io.plot_img(enmap.enmap(sstack,nwcs),"fig_sstack.png",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
+# io.plot_img(enmap.enmap(cstack,nwcs),"fig_cstack.png",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
+
 
 
 #cents,i1d = binner.bin(istack)
@@ -152,7 +169,7 @@ pl = io.Plotter(xlabel='$\\theta$ (arcmin)',ylabel='Filtered $Y  (\\times 10^6)$
 pl.add_err(cents,i1d,yerr=ei1d,label="Single frequency ACT_06",ls="none",marker="_",markersize=8,elinewidth=2,mew=2)
 pl.add_err(cents+0.1,y1d,yerr=ey1d,label='Compton-Y map',ls="none",marker="x",markersize=8,elinewidth=2,mew=2)
 pl.hline(y=0)
-pl.done('fig_yprofile.png')
+pl.done('fig_yprofile.pdf')
 
 print((i1d-y1d)/y1d*100.)
 

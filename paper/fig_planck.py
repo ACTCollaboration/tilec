@@ -1,4 +1,9 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["mathtext.fontset"] = "stix"
 from orphics import maps,io,cosmology,stats
 from pixell import enmap,reproject
 import numpy as np
@@ -19,7 +24,7 @@ dfwhm = 0.0001
 
 
 
-pl = io.Plotter(xyscale='loglog',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn = lambda x: x**2./2./np.pi)
+pl = io.Plotter(xyscale='linlog',xlabel='$\\ell$',ylabel='$D_{\\ell}$',scalefn = lambda x: x**2./2./np.pi)
 for col,region in zip(['red','blue'],['deep56','boss']):
 
     if redo:
@@ -78,4 +83,4 @@ for col,region in zip(['red','blue'],['deep56','boss']):
         pl.add(cents,p1d,color=col,ls=ls,label='Planck NILC %s' % region)
 
 
-pl.done("ypower.png")
+pl.done("ypower.pdf")
