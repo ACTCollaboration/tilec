@@ -187,7 +187,7 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
 ######################################
 def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                        ccor_cen_nus=None, ccor_beams=None, ccor_exps = None, 
-                       normalize_cib=True,param_dict_override=None,bandpass_exps=None):
+                       normalize_cib=True,param_dict_override=None,bandpass_exps=None,nus_ghz=None,btrans=None):
 
     """
     Get mixing factors for a given component that have "color corrections" that account for
@@ -295,7 +295,11 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
 
         for i,bp in enumerate(bp_list):
             if (bp_list[i] is not None):
-                nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
+                if nus_ghz is None:
+                    nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
+                else:
+                    nu_ghz = nus_ghz
+                    trans = btrans
                 if bandpass_shifts is not None: nu_ghz = nu_ghz + bandpass_shifts[i]
                 if bandpass_exps is not None: trans = trans * nu_ghz**bandpass_exps[i]
 
@@ -382,3 +386,19 @@ def get_test_fdict():
     return fdict
 
 
+
+
+def get_atm_trans(numin,numax,nustep,pwv):
+    """
+    Get atmospheric transmission
+    Needs AAMT to be installed
+    """
+    fname = "temp_opacity_%.5f.txt" % pwv
+    os.system("absorption --fmin %.2f --fmax %.2f --fstep %.2f --pwv %.5f --altitude 5190  > %s" % (numin,numax,nustep,pwv,fname))
+    nus,odry,owet,_ = np.loadtxt(fname,unpack=True,delimiter=',',skiprows=1)
+    os.remove(fname)
+    op = odry + owet
+    tdry = np.exp(-odry)
+    twet = np.exp(-owet)
+    ttot = np.exp(-op)
+    return nus/1e9,tdry,twet,ttot

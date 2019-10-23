@@ -39,6 +39,30 @@ Compute map
 """
 
 
+def get_input(input_name,set_idx,sim_idx,shape,wcs):
+    if input_name=='CMB':
+        cmb_type = 'LensedUnabberatedCMB'
+        signal_path = sints.dconfig['actsims']['signal_path']
+        cmb_file   = os.path.join(signal_path, 'fullsky%s_alm_set%02d_%05d.fits' %(cmb_type, set_idx, sim_idx))
+        alms = hp.fitsfunc.read_alm(cmb_file, hdu = 1)
+    elif input_name=='tSZ':
+        ellmax = 8101
+        ells = np.arange(ellmax)
+        cyy = fgs.power_y(ells)[None,None]
+        cyy[0,0][ells<2] = 0
+        comptony_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'comptony')
+        alms = curvedsky.rand_alm(cyy, seed = comptony_seed,lmax=ellmax)
+    elif input_name=='kappa':
+        signal_path = sints.dconfig['actsims']['signal_path']
+        k_file   = os.path.join(signal_path, 'fullskyPhi_alm_%05d.fits' %(sim_idx))
+        palms = hp.fitsfunc.read_alm(k_file)
+        from pixell import lensing as plensing
+        alms = plensing.phi_to_kappa(palms)
+    omap = enmap.zeros((1,)+shape[-2:],wcs)
+    omap = curvedsky.alm2map(np.complex128(alms),omap,spin=0)[0]
+    return omap
+
+
 def get_websky_sim(qid,shape,wcs,ra_pix_shift=None,components=['cmb','cib','tsz','ksz','ksz_patchy'],
                    bandpassed=True,no_act_color_correction=False,cmb_set=0):
     # load cmb + ksz + tsz + isw alm
