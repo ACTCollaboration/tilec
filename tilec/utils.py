@@ -73,7 +73,7 @@ def is_lfi(qid):
     return qid in ['p01','p02','p03']
 
 def is_hfi(qid):
-    return qid in ['p04','p05','p06','p07','p08']
+    return qid in ['p04','p05','p06','p07','p08','p09']
 
 def get_nside(qid):
     if is_lfi(qid): return 1024
