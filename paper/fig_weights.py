@@ -1,4 +1,9 @@
 from __future__ import print_function
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["mathtext.fontset"] = "stix"
 from orphics import maps,io,cosmology,stats
 from pixell import enmap
 import numpy as np
@@ -6,14 +11,18 @@ import os,sys
 from soapack import interfaces as sints
 from tilec import utils as tutils
 
+#comp = 'cmb'
+comp = 'comptony'
 region = "deep56"
 qids = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
+#qids = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06".split(',')
 #qids = "d56_01,d56_02".split(',')
 #qids = "d56_05,p01,p05".split(',')
 version = "map_v1.0.0_rc_joint"
+#version = "map_v1.0.0_rc_act"
 cversion = "v1.0.0_rc"
-fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/20190917/%s_%s/tilec_single_tile_%s_cmb_%s_%s_weight.fits" % (version,region,region,version,qid)
-cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/20190917/%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
+fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
+cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
 
 bw = 20
 bin_edges = np.arange(20,10000,bw)
@@ -54,6 +63,7 @@ for i,qid in enumerate(qids):
     w1ds.append(w1d)
 
 
+#pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel='$W$')
 pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel='$W$')
 for i in range(len(qids)):
 
@@ -68,14 +78,14 @@ for i in range(len(qids)):
         ls = ":"
         lab = "LFI %d GHz" % cfreq 
     elif tutils.is_hfi(qid):
-        ls = "-"
+        ls = "--"
         lab = "HFI %d GHz" % cfreq 
     else:
-        ls = "--"
+        ls = "-"
         aind = qid.split("_")[1]
         lab = "ACT_%s %d GHz" % (aind,cfreq )
 
     pl.add(cents,w1d,label=lab,ls=ls)
 pl._ax.set_xlim(20+bw/2.,10000)
 pl.legend(loc='upper right', bbox_to_anchor=(1.45, 1))
-pl.done("%s/fig_weight1d.pdf" % (os.environ['WORK']))
+pl.done(("%s/fig_weight1d_%s_%s" % (os.environ['WORK'],comp,version)).replace('.','_')+".pdf")
