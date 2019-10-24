@@ -1,0 +1,20 @@
+Name,Season,Array,Region,Freq.,FWHM
+,,,,(GHz),(arcmin)
+P030,PR2 Full mission,-,-,30,32.408
+P044,PR2 Full mission,-,-,44,27.100
+P070,PR2 Full mission,-,-,70,13.315
+P100,PR2 Full mission,-,-,100,9.69
+P143,PR2 Full mission,-,-,143,7.30
+P217,PR2 Full mission,-,-,217,5.02
+P353,PR2 Full mission,-,-,353,4.94
+P545,PR2 Full mission,-,-,545,4.83
+B1_149,ACTPol 2015,PA1,boss,149,1.4
+B2_149,ACTPol 2015,PA2,boss,149,1.4
+B3_097,ACTPol 2015,PA3,boss,97,2.2
+B4_149,ACTPol 2015,PA3,boss,149,1.4
+D1_149,ACTPol 2014,PA1,deep56,149,1.4
+D2_149,ACTPol 2014,PA2,deep56,149,1.4
+D3_149,ACTPol 2015,PA1,deep56,149,1.4
+D4_149,ACTPol 2015,PA2,deep56,149,1.4
+D5_097,ACTPol 2015,PA3,deep56,97,2.2
+D6_149,ACTPol 2015,PA3,deep56,149,1.4
