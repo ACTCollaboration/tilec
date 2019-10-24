@@ -187,7 +187,7 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
 ######################################
 def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                        ccor_cen_nus=None, ccor_beams=None, ccor_exps = None, 
-                       normalize_cib=True,param_dict_override=None,nus_ghz=None,btrans=None):
+                       normalize_cib=True,param_dict_override=None,bandpass_exps=None,nus_ghz=None,btrans=None):
 
     """
     Get mixing factors for a given component that have "color corrections" that account for
@@ -250,8 +250,8 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
 
     if bandpass_shifts is not None and np.any(np.array(bandpass_shifts)!=0):
         print("WARNING: shifted bandpasses provided.")
-    assert (comp != None)
-    assert (bp_list != None)
+    assert (comp is not None)
+    assert (bp_list is not None)
     N_freqs = len(bp_list)
 
     if ccor_cen_nus is not None:
@@ -294,13 +294,14 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         output = np.zeros(shape)
 
         for i,bp in enumerate(bp_list):
-            if (bp_list[i] != None):
+            if (bp_list[i] is not None):
                 if nus_ghz is None:
                     nu_ghz, trans = np.loadtxt(bp, usecols=(0,1), unpack=True)
                 else:
                     nu_ghz = nus_ghz
                     trans = btrans
                 if bandpass_shifts is not None: nu_ghz = nu_ghz + bandpass_shifts[i]
+                if bandpass_exps is not None: trans = trans * nu_ghz**bandpass_exps[i]
 
                 
                 lbeam = 1
