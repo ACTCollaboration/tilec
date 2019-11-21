@@ -108,15 +108,19 @@ class JointSim(object):
                 for j in range(i,narrays):
                     qid1 = qids[i]
                     qid2 = qids[j]
-                    clfilename = "%sfgcov_%s_%s.txt" % (fpath,qid1,qid2)
-                    clfilename_alt = "%sfgcov_%s_%s.txt" % (fpath,qid2,qid1)
+                    clfilename = "%shfgcov_%s_%s.txt" % (fpath,qid1,qid2) #!!!! Changed fgcov to hfgcov # !!!!
+                    clfilename_alt = "%shfgcov_%s_%s.txt" % (fpath,qid2,qid1) #!!!! Changed fgcov to hfgcov
                     try:
                         ls,cls = np.loadtxt(clfilename,unpack=True)
                     except:
                         ls,cls = np.loadtxt(clfilename_alt,unpack=True)
                     assert np.all(np.isclose(ls,ells))
                     self.cfgres[i,j] = cls.copy() 
-                    if i!=j: self.cfgres[j,i] = cls.copy() 
+                    if i!=j: 
+                        self.cfgres[j,i] = cls.copy() 
+                        # self.cfgres[j,i] = self.cfgres[i,j] = cls.copy()*0 # !!!! REMOVED CORR
+                    #if (qid1 in ['p01','p02']) or (qid2 in ['p01','p02']): self.cfgres[j,i] = self.cfgres[i,j] = 0 # !!!! 
+                    # self.cfgres[j,i][ls<300] = self.cfgres[i,j][ls<300] = 0 # !!!!
             
         else:
             self.cfgres = None
@@ -173,8 +177,8 @@ class JointSim(object):
         #self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)
         self.alms['comptony'] = curvedsky.rand_alm(self.cyy, lmax=self.ellmax, seed = comptony_seed) #!!!!
         if self.cfgres is not None: 
-            #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
-            self.alms['fgres'] = curvedsky.rand_alm(self.cfgres, lmax=self.ellmax, seed = fgres_seed)
+            self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed) # SWITCHED BACK!!!
+            #self.alms['fgres'] = curvedsky.rand_alm(self.cfgres, lmax=self.ellmax, seed = fgres_seed)
 
 
         # 1. convert to maximum ellmax

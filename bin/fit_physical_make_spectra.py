@@ -93,7 +93,7 @@ nbin_edges = np.arange(20,8000,100)
 nbinner = stats.bin2D(modlmap,nbin_edges)
 ncents = nbinner.centers
 
-cbin_edges = np.arange(20,8000,20)
+cbin_edges = np.arange(20,8000,40)
 cbinner = stats.bin2D(modlmap,cbin_edges)
 
 for task in my_tasks:
@@ -153,8 +153,10 @@ for task in my_tasks:
         ncents,n1d = nbinner.bin(ncov)
 
 
+    fbeam1 = lambda x: tutils.get_kbeam(qid1,x,sanitize=True,planck_pixwin=True)
+    fbeam2 = lambda x: tutils.get_kbeam(qid2,x,sanitize=True,planck_pixwin=True)
 
-    ccents,s1d = cbinner.bin(scov)
+    ccents,s1d = cbinner.bin(scov/fbeam1(modlmap)/fbeam2(modlmap))
     io.save_cols("%sn1d_%s_%s.txt" % (spath,qid1,qid2), (ncents,n1d))
     io.save_cols("%ss1d_%s_%s.txt" % (spath,qid1,qid2), (ccents,s1d))
     

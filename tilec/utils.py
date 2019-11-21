@@ -234,7 +234,10 @@ def get_generic_fname(tdir,region,solution,deproject=None,data_comb='joint',vers
 
     if sim_index is not None:
         data_comb = {'joint':'joint','act':'act_only','act_only':'act_only','planck':'planck_only','planck_only':'planck_only'}[data_comb]
-        version = "test_sim_baseline_00_%s" % str(sim_index).zfill(4)
+        if version is None:
+            version = "test_sim_baseline_00_%s" % str(sim_index).zfill(4)
+        else:
+            version = "%s_00_%s" % (version,str(sim_index).zfill(4))
     else:
         data_comb = {'joint':'joint','act':'act','act_only':'act','planck':'planck','planck_only':'planck'}[data_comb]
         if version is None: version = "v1.0.0_rc"

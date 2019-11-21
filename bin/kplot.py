@@ -7,6 +7,15 @@ from soapack import interfaces as sints
 import healpy as hp
 
 
+import argparse
+# Parse command line
+parser = argparse.ArgumentParser(description='Do a thing.')
+parser.add_argument("region", type=str,help='Region name.')
+parser.add_argument("mtype", type=str,help='phi or def or kappa.')
+parser.add_argument("--planck", action='store_true',help='Planck instead of ACT.')
+args = parser.parse_args()
+
+
 """
 Saves filtered maps. Run kplot2.py after.
 """
@@ -14,12 +23,9 @@ Saves filtered maps. Run kplot2.py after.
 f = lambda x: enmap.fft(x,normalize='phys')
 p = lambda x: (x*x.conj()).real
 
-# Toggle region here
-region = 'boss'
-#region = 'deep56'
-
-# Toggle Planck here
-planck = False
+region = args.region
+mtype = args.mtype
+planck = args.planck
 
 
 if planck: pstr = "_planck"
@@ -48,12 +54,20 @@ clkk2d = theory.gCl('kk',modlmap)
 cents,t1d = binner.bin(p2d)
 w1d = binner.bin(clkk2d)[1]/t1d
 w1d[cents<80] = 0
-w2d = maps.interp(cents,w1d)(modlmap) /modlmap**2
+
+if mtype=='kappa':
+    dfact = 1
+elif mtype=='phi':
+    dfact = modlmap**2
+elif mtype=='def':
+    dfact = modlmap
+
+w2d = maps.interp(cents,w1d)(modlmap) / dfact
 w2d[~np.isfinite(w2d)] = 0
 fmap = maps.filter_map(imap,w2d)
 
-io.hplot(fmap*mask,'fmap_%s%s' % (region,pstr),color='gray')
-enmap.write_map("fmap_%s%s.fits" % (region,pstr),fmap*mask)
+io.hplot(fmap*mask,'fmap_%s_%s%s' % (mtype,region,pstr),color='gray')
+enmap.write_map("fmap_%s_%s%s.fits" % (mtype,region,pstr),fmap*mask)
 
 hname = "/scratch/r/rbond/msyriac/data/planck/data/pr3/COM_CompMap_CIB-GNILC-F545_2048_R2.00.fits"
 hmap = hp.read_map(hname)
@@ -62,8 +76,8 @@ hmap = reproject.enmap_from_healpix(hname, mask.shape, mask.wcs, ncomp=1, unit=1
                                     rot="gal,equ", first=0, is_alm=False, return_alm=False)
 io.hplot(hmap,'cibmap_%s%s' % (region,pstr),color='planck')
 hmap = maps.filter_map(hmap*mask,w2d)
-io.hplot(hmap*mask,'hmap_%s%s' % (region,pstr),color='gray')
-enmap.write_map("hmap_%s%s.fits" % (region,pstr),hmap*mask)
+io.hplot(hmap*mask,'hmap_%s_%s%s' % (mtype,region,pstr),color='gray')
+enmap.write_map("hmap_%s_%s%s.fits" % (mtype,region,pstr),hmap*mask)
 
 
 

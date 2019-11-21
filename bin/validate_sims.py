@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams["font.family"] = "serif"
-plt.rcParams["mathtext.fontset"] = "stix"
+plt.rcParams["mathtext.fontset"] = "cm"
 #plt.rcParams["mathtext.fontset"] = "dejavuserif"
 from orphics import maps,io,cosmology,mpi,stats
 from pixell import enmap,curvedsky,utils as putils
@@ -26,7 +26,8 @@ from szar import foregrounds as fgs
 from datetime import datetime
 from tilec.pipeline import get_input
 
-rversion = "v1.0.0_rc_20190919"
+#rversion = "v1.0.0_rc_20190919"
+rversion = ""
 
 import argparse
 # Parse command line
@@ -159,7 +160,7 @@ if rank==0:
 
 
     for input_name in input_names:
-        pl = io.Plotter(xyscale='linlin',xlabel='$\\ell$',ylabel='$\Delta C_{\\ell} / C_{\\ell}$')
+        pl = io.Plotter(xyscale='linlin',xlabel='$\\ell$',ylabel='$\Delta C_{\\ell} / C_{\\ell}$',ftsize=16,labsize=14)
         plt.gca().set_prop_cycle(None)
         # ii = totcmb if input_name=='CMB' else tottsz
         #ii = totinputs[input_name]

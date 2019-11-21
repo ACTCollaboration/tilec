@@ -29,8 +29,9 @@ parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpain
 parser.add_argument("--fft-beam", action='store_true',help='Apply the beam and healpix-pixwin with FFTs instead of SHTs.')
 parser.add_argument("--exclude-tsz", action='store_true',help='Do not include tsz.')
 parser.add_argument("--save-all", action='store_true',help='Do not delete anything intermediate.')
+parser.add_argument("--skip-fg", action='store_true',help='Skip fg res.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
-parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='test')
+parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='fgfit')
 parser.add_argument("--sim-version", type=str,help='Region name.',default='v6.2.0_calibrated_mask_version_padded_v1')
 parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
@@ -133,7 +134,7 @@ for task in my_tasks:
             # (npol,Ny,Nx)
             signal = jsim.compute_map(mask.shape,mask.wcs,qid,
                                       include_cmb=True,include_tsz=not(args.exclude_tsz),
-                                      include_fgres=True,sht_beam=not(args.fft_beam))
+                                      include_fgres=not(args.skip_fg),sht_beam=not(args.fft_beam))
 
 
         # Special treatment for pa3
