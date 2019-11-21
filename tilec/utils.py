@@ -28,8 +28,8 @@ def get_temp_split_fname(qid,region,version):
     
 
 class ASpecs(object):
-    def __init__(self):
-        cfile = "input/array_specs.csv"
+    def __init__(self,pref="./"):
+        cfile = "%sinput/array_specs.csv" % pref
         self.adf = pandas.read_csv(cfile)
         self.aspecs = lambda qid,att : self.adf[self.adf['#qid']==qid][att].item()
 

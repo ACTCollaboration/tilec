@@ -15,7 +15,7 @@ output = \
     """\\begin{table}[ht]
 \\label{tab:maps}
 \\centering
-\\caption{Description of maps used for component separation. The central frequencies are not intended to be precise; we use the full bandpass in our analysis. While the beam FWHM for Planck reflects what we assume in our analysis, for ACT, only rough estimates are shown in this table; we use the appropriate harmonic transfer function in our analysis.}
+\\caption{Maps used for component separation. The central frequencies are not intended to be precise; we use the full bandpass in our analysis. While the beam FWHM for Planck reflects what we assume in our analysis, for ACT, only rough estimates are shown in this table; we use the appropriate harmonic transfer function in our analysis.}
 \\begin{tabular}[t]{%s} 
 """ % Nells
 
