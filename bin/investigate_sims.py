@@ -61,14 +61,19 @@ if False:
 
 
 
-seeds = [11,12]
 
 p = lambda x: (x*x.conj()).real
 
 bin_edges = np.arange(20,6000,20)
 
 
-versions = ['test_sim_galtest_nofg','test_sim_galtest_withfg_fgfit','test_sim_galtest_withfg_test']
+#versions = ['test_sim_galtest_nofg','test_sim_galtest_withfg_fgfit','test_sim_galtest_withfg_test']
+#seeds = [11,12]
+
+versions = ['test_sim_galtest_sim_updates','test_sim_galtest_rc_commit']
+seeds = [12]
+
+
 for version in versions:
     pl = io.Plotter(xyscale='linlog',scalefn = lambda x: x**2./2./np.pi,xlabel='l',ylabel='D')
     for seed in seeds:
