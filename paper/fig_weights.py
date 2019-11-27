@@ -20,11 +20,16 @@ for comp in ['cmb','comptony']:
     #qids = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06".split(',')
     #qids = "d56_01,d56_02".split(',')
     #qids = "d56_05,p01,p05".split(',')
-    version = "map_v1.0.0_rc_joint"
-    #version = "map_v1.0.0_rc_act"
-    cversion = "v1.0.0_rc"
-    fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
-    cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
+
+    # version = "map_v1.0.0_rc_joint"
+    # cversion = "v1.0.0_rc"
+
+    version = "map_v1.1.0_joint"
+    cversion = "v1.1.0"
+
+
+    fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
+    cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
 
     bw = 20
     bin_edges = np.arange(20,10000,bw)

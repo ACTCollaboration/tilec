@@ -20,8 +20,13 @@ for comp in ['cmb','comptony']:
 
     region = "deep56"
     qids = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
-    version = "map_v1.0.0_rc_joint"
-    cversion = "v1.0.0_rc"
+
+    #version = "map_v1.0.0_rc_joint"
+    #cversion = "v1.0.0_rc"
+
+    version = "map_v1.1.0_joint"
+    cversion = "v1.1.0"
+
 
     bw = 20
     bin_edges = np.arange(20,10000,bw)

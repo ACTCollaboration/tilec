@@ -6,8 +6,8 @@ import os,sys,shutil
 from soapack import interfaces as sints
 import healpy as hp
 
-version = "map_v1.0.0_rc_joint"
-cversion = "v1.0.0_rc"
+version = "map_v1.1.0_joint"
+cversion = "v1.1.0"
 
 down = 6
     
@@ -22,16 +22,16 @@ t = {'deep56': 2, 'boss':4}
 sels = {'deep56':np.s_[...,220:-220,300:-300] , 'boss':np.s_[...,450:-450,500:-500]}
 
 for region in ['boss','deep56']:
-    yname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_comptony_%s.fits" % (version,region,region,version)
-    ybname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_comptony_%s_beam.txt" % (version,region,region,version)
+    yname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_comptony_%s.fits" % (version,region,region,version)
+    ybname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_comptony_%s_beam.txt" % (version,region,region,version)
 
-    cname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s.fits" % (version,region,region,version)
-    cbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s_beam.txt" % (version,region,region,version)
+    cname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s.fits" % (version,region,region,version)
+    cbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s_beam.txt" % (version,region,region,version)
 
-    sname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_cmb_%s.fits" % (version,region,region,version)
-    sbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_single_tile_%s_cmb_%s_beam.txt" % (version,region,region,version)
+    sname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_%s.fits" % (version,region,region,version)
+    sbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_%s_beam.txt" % (version,region,region,version)
 
-    mname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/%s_%s/tilec_mask.fits" % (version,region)
+    mname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_mask.fits" % (version,region)
 
     # shutil.copy(yname,"/scratch/r/rbond/msyriac/data/for_sigurd/")
     # shutil.copy(sname,"/scratch/r/rbond/msyriac/data/for_sigurd/")
@@ -70,8 +70,8 @@ for region in ['boss','deep56']:
 
 
 
-    dm = sints.PlanckHybrid(region=mask)
-    pmap = dm.get_splits(season=None,patch=None,arrays=['545'],ncomp=1,srcfree=False)[0,0,0]
+    # dm = sints.PlanckHybrid(region=mask)
+    # pmap = dm.get_splits(season=None,patch=None,arrays=['545'],ncomp=1,srcfree=False)[0,0,0]
 
     ymap = enmap.read_map(yname)*mask
     smap = enmap.read_map(sname)*mask
@@ -89,6 +89,6 @@ for region in ['boss','deep56']:
     #          annotate=annot,min=-1.25e-5,max=3.0e-5,ticks=t[region],mask=0,downgrade=down,mask_tol=1e-14,font_size=fontsize)
     io.hplot(ymap[sels[region]],'fig_full_ymap_%s' % region,color='gray',grid=True,colorbar=True,
              annotate=annot,min=-0.7e-5,max=2.0e-5,ticks=t[region],mask=0,downgrade=down,mask_tol=1e-14,font_size=fontsize)
-    # io.hplot(smap[sels[region]],'fig_full_smap_%s' % region,color='planck',grid=True,colorbar=True,
-    #          range=300,ticks=t[region],mask=0,downgrade=down,mask_tol=1e-14,font_size=fontsize)
+    io.hplot(smap[sels[region]],'fig_full_smap_%s' % region,color='planck',grid=True,colorbar=True,
+             range=300,ticks=t[region],mask=0,downgrade=down,mask_tol=1e-14,font_size=fontsize)
 
