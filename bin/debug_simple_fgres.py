@@ -11,12 +11,12 @@ aspecs = tutils.ASpecs().get_specs
 # qids = "d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 # rads = [0.5,0.4,0.3,0.6,0.65,0.6,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9]
 # fs = [146,147,148,149,150,93,30,44,70,100,143,217,353,545]
-# fpath = "/scratch/r/rbond/msyriac/data/depot/actsims/fg_res/fgfit_deep56"
+# fpath = "/scratch/r/rbond/msyriac/data/depot/actsims/fg_res/fgfit_v2_deep56"
 
 qids = "boss_01,boss_02,boss_03,boss_04,p01,p02,p03,p04,p05,p06,p07,p08".split(',')
 rads = [0.5,0.4,0.3,0.6,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9]
 fs = [146,147,150,93,30,44,70,100,143,217,353,545]
-fpath = "/scratch/r/rbond/msyriac/data/depot/actsims/fg_res/fgfit_boss"
+fpath = "/scratch/r/rbond/msyriac/data/depot/actsims/fg_res/fgfit_v2_boss"
 
 
 narrays = len(qids)

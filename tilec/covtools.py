@@ -295,7 +295,7 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     return outcov,nfitted,nparams
 
 
-def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True,**kwargs):
+def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True,return_bins=False,**kwargs):
     """
     dcov = cov * ellfact
     bin dcov in annuli
@@ -321,8 +321,9 @@ def signal_average(cov,bin_edges=None,bin_width=40,kind=3,lmin=None,dlspace=True
     with np.errstate(invalid='ignore'): outcov = outcov / modlmap**2. if dlspace else outcov
     outcov[modlmap<2] = 0
     assert np.all(np.isfinite(outcov))
-    
-    return outcov
+
+    if return_bins: return cents,c1d,outcov
+    else: return outcov 
 
 
 

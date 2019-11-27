@@ -70,8 +70,12 @@ bin_edges = np.arange(20,6000,20)
 #versions = ['test_sim_galtest_nofg','test_sim_galtest_withfg_fgfit','test_sim_galtest_withfg_test']
 #seeds = [11,12]
 
-versions = ['test_sim_galtest_sim_updates','test_sim_galtest_rc_commit']
-seeds = [12]
+# versions = ['test_sim_galtest_sim_updates','test_sim_galtest_rc_commit']
+# seeds = [12]
+
+versions = ['test_sim_galtest_final']
+seeds = [12,13]
+
 
 
 for version in versions:
@@ -82,6 +86,7 @@ for version in versions:
         modlmap = imap.modlmap()
         k = enmap.fft(imap,normalize='phys')
         p2d = p(k)
+        io.power_crop(p2d,300,f"cp2d_{version}.png")
         binner = stats.bin2D(modlmap,bin_edges)
         cents,p1d = binner.bin(p2d)
         pl.add(cents,p1d,lw=1,alpha=0.8,label=f'{seed}')

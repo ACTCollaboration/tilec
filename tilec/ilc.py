@@ -109,7 +109,8 @@ class HILC(object):
                     print(ells[np.isnan(self.cov[...,i,j])])
             raise ValueError
         if invert:
-            self.cinv = np.linalg.inv(self.cov) #utils.eigpow(np.nan_to_num(self.cov),-1,alim=0,rlim=0)
+            self.cinv = np.linalg.inv(self.cov)
+            #self.cinv = utils.eigpow(self.cov,-1)#,alim=0,rlim=0) # !!!! removing neg eigenvalues now
             self.cinv[self.ells<2] = 0
         else: self.cinv = None
         if np.any(np.isnan(self.cinv)): 
@@ -413,7 +414,7 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                            rfit_bin_width=None,
                            verbose=True,
                            debug_plots_loc=None,separate_masks=False,theory_signal="none",
-                           maxval=None,scratch_dir=None,isotropic_override=False):
+                           maxval=None,scratch_dir=None,isotropic_override=False,save_extra=False,wins=None):
 
     """
 
@@ -501,7 +502,22 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             m2 = get_mask(a2)
             kc1 = _load_map(kcoadds[a1])
             kc2 = _load_map(kcoadds[a2]) if a2!=a1 else kc1
+            if wins is not None:
+                win1 = _load_map(wins[a1])
+                win2 = _load_map(wins[a2]) if a2!=a1 else win1
+                w1 = win1/win1.sum(axis=0)
+                w2 = win2/win2.sum(axis=0)
+                w1[~np.isfinite(w1)] = 0
+                w2[~np.isfinite(w2)] = 0
+            else:
+                w1 = 1
+                w2 = 1
+            
             ccov = np.real(kc1*kc2.conj())/np.mean(m1*m2)
+
+            if save_extra:
+                np.save(scratch_fname(scratch_dir,"coadd_cov",a1,a2),ccov)
+
 
             # If off-diagonals that are not correlated, only calculate coadd cross for signal
             if (a1 != a2) and (not ((a1,a2) in anisotropic_pairs or (a2,a1) in anisotropic_pairs)): 
@@ -519,9 +535,13 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                 assert nsplits==nsplits2
                 assert nsplits in [2,4], "Only two or four splits supported."
                 with bench.show("noise power"):
-                    ncov = simnoise.noise_power(kd1,m1,
-                                                kmaps2=kd2,weights2=m2,
+                    ncov = simnoise.noise_power(kd1,m1*w1,
+                                                kmaps2=kd2,weights2=m2*w2,
                                                 coadd_estimator=True)
+
+                if save_extra:
+                    np.save(scratch_fname(scratch_dir,"unsmoothed_noise_cov",a1,a2),ncov)
+
 
                 # Smoothed noise power
                 drfit = do_radial_fit[a1]
@@ -545,7 +565,9 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
                         dncov = covtools.signal_average(ncov,bin_width=signal_bin_width,
                                                         kind=signal_interp_order,
                                                         lmin=slmin,
-                                                        dlspace=False)
+                                                        dlspace=True)  # switched
+
+
 
                         nparams = None
                         
@@ -596,6 +618,8 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             else:
                 np.save(scratch_fname(scratch_dir,"scovs",a1,a2),scov)
 
+
+
                 
 
     fscovs = {}
@@ -616,30 +640,63 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
             except:
                 fws[(f1,f2)] = 0.
 
+
+            """
+            The old method of signal coaddition was:
+            numer = weight_ij * Power_ij / Beam_i / Beam_j
+            denom = weight_ij
+            weight_ij = 1 / (c11*c22 + c12**2)
+            c11 = theory + noise1 / beam1**2
+            c22 = theory + noise2 / beam2**2
+            c12 = theory
+            coadd = sum_ij numer / sum_ij denom
+
+            That method was unstable due to beam deconvolutions.
+            We re-write it as:
+
+            numer = weight_ij * Power_ij * Beam_i * Beam_j
+            denom = weight_ij * (Beam_i * Beam_j) ^ 2
+            weight_ij = 1 / (c11*c22 + c12**2)
+            c11 = theory* beam1**2 + noise1 
+            c22 = theory* beam2**2 + noise2 
+            c12 = theory * beam1 * beam2
+            coadd = sum_ij numer / sum_ij denom
+
+            You can show these are identical formally, but no
+            divisions by the beam appear in the new one.
+
+
+            """
+
             c11 = ctheory.get_theory_cls(f1,f1)
             c22 = ctheory.get_theory_cls(f2,f2)
             c12 = ctheory.get_theory_cls(f1,f2)
-            with np.errstate(divide='ignore'): cl_11 = c11 + n1ds[a1]/fbeam(names[a1],ells)**2.
-            with np.errstate(divide='ignore'): cl_22 = c22 + n1ds[a2]/fbeam(names[a2],ells)**2.
-            cl_12 = c12
+            cl_11 = c11*fbeam(names[a1],ells)**2. + n1ds[a1]
+            cl_22 = c22*fbeam(names[a2],ells)**2. + n1ds[a2]
+            cl_12 = c12*fbeam(names[a1],ells)*fbeam(names[a2],ells)
             cl_11[~np.isfinite(cl_11)] = 0
             cl_22[~np.isfinite(cl_22)] = 0
             cl_12[~np.isfinite(cl_12)] = 0
-            with np.errstate(divide='ignore'): w = 1./((cl_11 * cl_22)+cl_12**2) 
-            weight = maps.interp(ells,w)(modlmap)
+            with np.errstate(divide='ignore'): w1 = 1./((cl_11 * cl_22)+cl_12**2) 
+            with np.errstate(divide='ignore'): w2 = ((fbeam(names[a1],ells)*fbeam(names[a2],ells))**2)/((cl_11 * cl_22)+cl_12**2) 
+            weight1 = maps.interp(ells,w1)(modlmap)
+            weight2 = maps.interp(ells,w2)(modlmap)
 
-
-            weight[modlmap<max(lmins[a1],lmins[a2])] = 0
-            weight[modlmap>min(min(lmaxs[a1],lmaxs[a2]),modlmap.max())] = 0
-            fws[(f1,f2)] = fws[(f1,f2)] + weight
+            weight1[modlmap<max(lmins[a1],lmins[a2])] = 0
+            weight1[modlmap>min(min(lmaxs[a1],lmaxs[a2]),modlmap.max())] = 0
+            weight2[modlmap<max(lmins[a1],lmins[a2])] = 0
+            weight2[modlmap>min(min(lmaxs[a1],lmaxs[a2]),modlmap.max())] = 0
+            fws[(f1,f2)] = fws[(f1,f2)] + weight2
             if scratch_dir is None:
                 lscov = scovs[(a1,a2)]
             else:
                 lscov = enmap.enmap(np.load(scratch_fname(scratch_dir,"scovs",a1,a2)),wcs)
             with np.errstate(divide='ignore',invalid='ignore'): 
-                scov = lscov * weight / fbeam(names[a1],modlmap) / fbeam(names[a2],modlmap)
+                scov = lscov * weight1 * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap)
             scov[~np.isfinite(scov)] = 0
             fscovs[(f1,f2)] = fscovs[(f1,f2)] + scov
+
+
 
     slmin = min(lmins)
 
@@ -665,7 +722,13 @@ def build_cov_hybrid_coadd(names,kdiffs,kcoadds,fbeam,mask,
 
             osel = np.isfinite(nscov)
             nscov[~osel] = 0
-            smsig = covtools.signal_average(nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap),bin_width=signal_bin_width,
+            
+            fcov = nscov * fbeam(names[a1],modlmap) * fbeam(names[a2],modlmap)
+
+            #fcov = enmap.enmap(np.load(scratch_fname(scratch_dir,"scovs",a1,a2)),wcs) # !!!!! THIS DISABLES SIGNAL COADDING
+
+
+            smsig = covtools.signal_average(fcov,bin_width=signal_bin_width,
                                            kind=signal_interp_order,
                                            lmin=slmin,
                                            dlspace=True)

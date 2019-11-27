@@ -23,15 +23,22 @@ parser.add_argument("region", type=str,help='Region name.')
 parser.add_argument("arrays", type=str,help='Comma separated list of array names. Array names map to a data specification in data.yml')
 parser.add_argument("solutions", type=str,help='Comma separated list of solutions. Each solution is of the form x-y-... where x is solved for and the optionally provided y-,... are deprojected. The x can belong to any of CMB,tSZ and y,z,... can belong to any of CMB,tSZ,CIB.')
 parser.add_argument("beams", type=str,help='Comma separated list of beams. Each beam is either a float for FWHM in arcminutes or the name of an array whose beam will be used.')
+parser.add_argument("beams_planck", type=str,help='Comma separated list of beams. Each beam is either a float for FWHM in arcminutes or the name of an array whose beam will be used.')
 parser.add_argument("-N", "--nsims",     type=int,  default=1,help="A description.")
 parser.add_argument("--start-index",     type=int,  default=0,help="A description.")
 parser.add_argument("--skip-inpainting", action='store_true',help='Do not inpaint.')
+parser.add_argument("--use-cached-sims", action='store_true',help='Use cached sims.')
 parser.add_argument("--fft-beam", action='store_true',help='Apply the beam and healpix-pixwin with FFTs instead of SHTs.')
 parser.add_argument("--exclude-tsz", action='store_true',help='Do not include tsz.')
 parser.add_argument("--save-all", action='store_true',help='Do not delete anything intermediate.')
+parser.add_argument("--isotropize", action='store_true',help='Isotropize at ilc step.')
+parser.add_argument("--isotropic-override", action='store_true',help='Isotropize at cov step.')
 parser.add_argument("--skip-fg", action='store_true',help='Skip fg res.')
+parser.add_argument("--skip-only", action='store_true',help='Skip ACT/Planck-only.')
+parser.add_argument("--save-extra", action='store_true',help='Save extra.')
+parser.add_argument("--do-weights", action='store_true',help='Do weights.')
 parser.add_argument("--theory",     type=str,  default="none",help="A description.")
-parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='fgfit')
+parser.add_argument("--fg-res-version", type=str,help='Version name for residual foreground powers.',default='fgfit_v2')
 parser.add_argument("--sim-version", type=str,help='Region name.',default='v6.2.0_calibrated_mask_version_padded_v1')
 parser.add_argument("--mask-version", type=str,  default="padded_v1",help='Mask version')
 parser.add_argument("-o", "--overwrite", action='store_true',help='Ignore existing version directory.')
@@ -55,6 +62,7 @@ args = parser.parse_args()
 
 print("Command line arguments are %s." % args)
 tutils.validate_args(args.solutions,args.beams)
+tutils.validate_args(args.solutions,args.beams_planck)
 
 # Prepare act-only and planck-only jobs
 qids = args.arrays.split(',')
@@ -64,8 +72,8 @@ for qid in qids:
         planck_arrays.append(qid)
     else: 
         act_arrays.append(qid)
-do_act_only = len(act_arrays)>0
-do_planck_only = len(planck_arrays)>0
+do_act_only = (len(act_arrays)>0) and not(args.skip_only)
+do_planck_only = (len(planck_arrays)>0) and not(args.skip_only)
 act_arrays = ','.join(act_arrays)
 planck_arrays = ','.join(planck_arrays)
 print("Starting simulation for arrays %s of which %s are ACT and %s are Planck." % (args.arrays,act_arrays,planck_arrays))
@@ -119,55 +127,58 @@ for task in my_tasks:
     sim_splits = []
     for aindex in range(narrays):
         qid = arrays[aindex]
-        dmname = sints.arrays(qid,'data_model')
-        dm = sints.models[dmname](region=mask,calibrated=not(args.uncalibrated))
-        patch = args.region
-
-        if dm.name=='act_mr3':
-            season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
-            arrayname = array1 + "_" + array2
-        elif dm.name=='planck_hybrid':
-            season,arrayname = None,sints.arrays(qid,'freq')
-
-
-        with bench.show("signal"):
-            # (npol,Ny,Nx)
-            signal = jsim.compute_map(mask.shape,mask.wcs,qid,
-                                      include_cmb=True,include_tsz=not(args.exclude_tsz),
-                                      include_fgres=not(args.skip_fg),sht_beam=not(args.fft_beam))
-
-
-        # Special treatment for pa3
-        farray = arrayname.split('_')[0]
-        if farray=='pa3':
-            try:
-                noise,ivars = pa3_cache[arrayname]
-                genmap = False
-            except:
-                genmap = True
-        else:
-            genmap = True
-
-        if genmap:
-            # (ncomp,nsplits,npol,Ny,Nx)
-            noise_seed = seed_tracker.get_noise_seed(set_id, sim_index, ngen[dmname].dm, season, patch, farray, None)
-            fnoise,fivars = ngen[dmname].generate_sim(season=season,patch=patch,array=farray,seed=noise_seed,apply_ivar=False)
-            print(fnoise.shape,fivars.shape)
-            if farray=='pa3': 
-                ind150 = dm.array_freqs['pa3'].index('pa3_f150')
-                ind090 = dm.array_freqs['pa3'].index('pa3_f090')
-                pa3_cache['pa3_f150'] = (fnoise[ind150].copy(),fivars[ind150].copy())
-                pa3_cache['pa3_f090'] = (fnoise[ind090].copy(),fivars[ind090].copy())
-                ind = dm.array_freqs['pa3'].index(arrayname)
-            else:
-                ind = 0
-            noise = fnoise[ind]
-            ivars = fivars[ind]
-
-        splits = actnoise.apply_ivar_window(signal[None,None]+noise[None],ivars[None])
         fname = tutils.get_temp_split_fname(qid,args.region,sim_version)
-        assert splits.shape[0]==1
-        enmap.write_map(fname,splits[0])
+
+        if not(args.use_cached_sims):
+            dmname = sints.arrays(qid,'data_model')
+            dm = sints.models[dmname](region=mask,calibrated=not(args.uncalibrated))
+            patch = args.region
+
+            if dm.name=='act_mr3':
+                season,array1,array2 = sints.arrays(qid,'season'),sints.arrays(qid,'array'),sints.arrays(qid,'freq')
+                arrayname = array1 + "_" + array2
+            elif dm.name=='planck_hybrid':
+                season,arrayname = None,sints.arrays(qid,'freq')
+
+
+            with bench.show("signal"):
+                # (npol,Ny,Nx)
+                signal = jsim.compute_map(mask.shape,mask.wcs,qid,
+                                          include_cmb=True,include_tsz=not(args.exclude_tsz),
+                                          include_fgres=not(args.skip_fg),sht_beam=not(args.fft_beam))
+
+
+            # Special treatment for pa3
+            farray = arrayname.split('_')[0]
+            if farray=='pa3':
+                try:
+                    noise,ivars = pa3_cache[arrayname]
+                    genmap = False
+                except:
+                    genmap = True
+            else:
+                genmap = True
+
+            if genmap:
+                # (ncomp,nsplits,npol,Ny,Nx)
+                noise_seed = seed_tracker.get_noise_seed(set_id, sim_index, ngen[dmname].dm, season, patch, farray, None)
+                fnoise,fivars = ngen[dmname].generate_sim(season=season,patch=patch,array=farray,seed=noise_seed,apply_ivar=False)
+                print(fnoise.shape,fivars.shape)
+                if farray=='pa3': 
+                    ind150 = dm.array_freqs['pa3'].index('pa3_f150')
+                    ind090 = dm.array_freqs['pa3'].index('pa3_f090')
+                    pa3_cache['pa3_f150'] = (fnoise[ind150].copy(),fivars[ind150].copy())
+                    pa3_cache['pa3_f090'] = (fnoise[ind090].copy(),fivars[ind090].copy())
+                    ind = dm.array_freqs['pa3'].index(arrayname)
+                else:
+                    ind = 0
+                noise = fnoise[ind]
+                ivars = fivars[ind]
+
+            splits = actnoise.apply_ivar_window(signal[None,None]+noise[None],ivars[None])
+            assert splits.shape[0]==1
+            enmap.write_map(fname,splits[0])
+
         sim_splits.append(fname)
 
     
@@ -188,7 +199,8 @@ for task in my_tasks:
                                     args.overwrite,args.memory_intensive,args.uncalibrated,
                                     sim_splits=sim_splits,skip_inpainting=args.skip_inpainting,
                                     theory_signal=args.theory,unsanitized_beam=args.unsanitized_beam,
-                                    save_all=args.save_all,plot_inpaint=False)
+                                    save_all=args.save_all,plot_inpaint=False,save_extra=args.save_extra,
+                                    isotropic_override=args.isotropic_override)
 
 
 
@@ -203,8 +215,9 @@ for task in my_tasks:
         pipeline.build_and_save_ilc(args.arrays,args.region,ilc_version,sim_version,args.beam_version,
                                     args.solutions,args.beams,args.chunk_size,
                                     args.effective_freq,args.overwrite,args.maxval,
-                                    unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                    no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
+                                    unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights,
+                                    no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp,
+                                    isotropize=args.isotropize)
 
 
     if do_act_only:
@@ -214,8 +227,9 @@ for task in my_tasks:
             pipeline.build_and_save_ilc(act_arrays,args.region,ilc_version,sim_version,args.beam_version,
                                         args.solutions,args.beams,args.chunk_size,
                                         args.effective_freq,args.overwrite,args.maxval,
-                                        unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
+                                        unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights,
+                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp,
+                                        isotropize=args.isotropize)
 
 
     if do_planck_only:
@@ -223,10 +237,12 @@ for task in my_tasks:
         ilc_version = "map_planck_only_%s_%s" % (args.version,ind_str)
         with bench.show("sim ilc"):
             pipeline.build_and_save_ilc(planck_arrays,args.region,ilc_version,sim_version,args.beam_version,
-                                        args.solutions,args.beams,args.chunk_size,
+                                        args.solutions,args.beams_planck,args.chunk_size,
                                         args.effective_freq,args.overwrite,args.maxval,
-                                        unsanitized_beam=args.unsanitized_beam,do_weights=False,
-                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp)
+                                        unsanitized_beam=args.unsanitized_beam,do_weights=args.do_weights,
+                                        no_act_color_correction=args.no_act_color_correction,ccor_exp=args.ccor_exp,
+                                        isotropize=args.isotropize)
+
 
 
 

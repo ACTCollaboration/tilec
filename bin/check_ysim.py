@@ -5,7 +5,7 @@ import numpy as np
 import os,sys
 from tilec import utils as tutils
 
-region = 'boss'
+region = 'deep56'
 #region = 'boss'
 solution = 'comptony'
 tdir = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919"
@@ -15,13 +15,13 @@ dfile = tutils.get_generic_fname(tdir,region,solution,deproject=None,data_comb=d
 dbeam = tutils.get_generic_fname(tdir,region,solution,deproject=None,data_comb=dcomb,version=None,sim_index=None,beam=True)
 sfile = tutils.get_generic_fname(tdir,region,solution,deproject=None,data_comb=dcomb,version=None,sim_index=0)
 sbeam = tutils.get_generic_fname(tdir,region,solution,deproject=None,data_comb=dcomb,version=None,sim_index=0,beam=True)
-tfile = tutils.get_generic_fname(tdir+"/..",region,solution,deproject=None,data_comb=dcomb,version="test_sim_galtest",sim_index=0)
+tfile = tutils.get_generic_fname(tdir+"/..",region,solution,deproject=None,data_comb=dcomb,version="test_sim_galtest_final",sim_index=12)
 
 cdfile = tutils.get_generic_fname(tdir,region,"cmb",deproject=None,data_comb=dcomb,version=None,sim_index=None)
 cdbeam = tutils.get_generic_fname(tdir,region,"cmb",deproject=None,data_comb=dcomb,version=None,sim_index=None,beam=True)
 csfile = tutils.get_generic_fname(tdir,region,'cmb',deproject=None,data_comb=dcomb,version=None,sim_index=0)
 csbeam = tutils.get_generic_fname(tdir,region,'cmb',deproject=None,data_comb=dcomb,version=None,sim_index=0,beam=True)
-ctfile = tutils.get_generic_fname(tdir+"/..",region,'cmb',deproject=None,data_comb=dcomb,version="test_sim_galtest",sim_index=0)
+ctfile = tutils.get_generic_fname(tdir+"/..",region,'cmb',deproject=None,data_comb=dcomb,version="test_sim_galtest_final",sim_index=12)
 
 
 dmap = enmap.read_map(dfile)

@@ -146,8 +146,13 @@ for task in my_tasks:
         scov = ccov
         n1d = ncents * 0
     else:
-        ncov = simnoise.noise_power(kdiffs[0],mask,
-                                    kmaps2=kdiffs[1],weights2=mask,
+
+        w1 = wins[0]/wins[0].sum(axis=0)
+        w1[~np.isfinite(w1)] = 0 
+        w2 = wins[1]/wins[1].sum(axis=0)
+        w2[~np.isfinite(w2)] = 0 
+        ncov = simnoise.noise_power(kdiffs[0],mask*w1,
+                                    kmaps2=kdiffs[1],weights2=mask*w2,
                                     coadd_estimator=True)
         scov = ccov - ncov
         ncents,n1d = nbinner.bin(ncov)
