@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams["font.family"] = "serif"
-plt.rcParams["mathtext.fontset"] = "stix"
+plt.rcParams["mathtext.fontset"] = "cm"
 from orphics import maps,io,cosmology,catalogs,stats
 from pixell import enmap,reproject
 import numpy as np
@@ -14,13 +14,21 @@ import tilec.utils as tutils
 
 random = False
 cversion = 'joint'
-region = 'deep56'
+#region = 'deep56'
+region = 'boss'
 lmin = 2000
+do_images = True
 
-cols = catalogs.load_fits("AdvACT.fits",['RAdeg','DECdeg','SNR'])
+cols = catalogs.load_fits("AdvACT_S18dn_confirmed_clusters.fits",['RAdeg','DECdeg','SNR'])
+#cols = catalogs.load_fits("AdvACT_S18dn_all_clusters.fits",['RAdeg','DECdeg','SNR'])
+#cols = catalogs.load_fits("AdvACT_all_clusters.fits",['RAdeg','DECdeg','SNR'])
 ras = cols['RAdeg']
 decs = cols['DECdeg']
 sns = cols['SNR']
+
+print(len(ras))
+print(len(ras[sns>5]))
+#sys.exit()
 
 
 # fname = os.environ['WORK'] + "/data/boss/eboss_dr14/data_DR14_QSO_S.fits"
@@ -30,10 +38,11 @@ sns = cols['SNR']
 # sns = np.array(ras)*0 + 6
 
 
-array = "pa3_f150"
-#array = "pa3_f090"
+#array = "pa2_f150"
+#array = "pa3_f150"
+array = "pa3_f090"
 
-freqs = {"pa3_f090":93, "pa3_f150":148}
+freqs = {"pa3_f090":97, "pa3_f150":149}
 
 mask = sints.get_act_mr3_crosslinked_mask(region)
 bmask = mask.copy()
@@ -45,14 +54,14 @@ modlmap = mask.modlmap()
 ells = np.arange(0,modlmap.max())
 kbeam = dm.get_beam(modlmap, "s15",region,array,sanitize=True)
 lbeam = dm.get_beam(ells, "s15",region,array,sanitize=True)
-bfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_comptony_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
-yfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_comptony_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
+bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
+yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
 
-bfile2 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
-yfile2 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
+bfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
+yfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
 
-bfile3 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,cversion)
-yfile3 = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.0.0_rc_%s.fits" % (cversion,region,region,cversion)
+bfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
+yfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
 
 
 ls,obells = np.loadtxt(bfile,unpack=True)
@@ -144,10 +153,19 @@ cstack = cstack / i
 # io.plot_img(cstack,"cstack.png")#,lim=[-5,25])
 
 _,nwcs = enmap.geometry(pos=(0,0),shape=istack.shape,res=np.deg2rad(0.5/60.))
-io.hplot(enmap.enmap(istack,nwcs),"istack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-5,max=25)
-io.hplot(enmap.enmap(ystack,nwcs),"ystack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-5,max=25)
-io.hplot(enmap.enmap(sstack,nwcs),"fig_sstack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
-io.hplot(enmap.enmap(cstack,nwcs),"fig_cstack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
+
+
+if do_images:
+    io.hplot(enmap.enmap(istack,nwcs),"istack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-5,max=25)
+    io.hplot(enmap.enmap(ystack,nwcs),"ystack",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-5,max=25)
+
+    if region=='deep56':
+        io.hplot(enmap.enmap(sstack,nwcs),"fig_sstack_%s" % region,ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
+        io.hplot(enmap.enmap(cstack,nwcs),"fig_cstack_%s" % region,ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
+    elif region=='boss':
+        io.hplot(enmap.enmap(sstack,nwcs),"fig_sstack_%s" % region,ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-50,max=17)
+        io.hplot(enmap.enmap(cstack,nwcs),"fig_cstack_%s" % region,ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-50,max=17)
+
 
 # io.plot_img(enmap.enmap(istack,nwcs),"istack.png",cmap='gray',lim=[-5,25])
 # io.plot_img(enmap.enmap(ystack,nwcs),"ystack.png",cmap='gray',lim=[-5,25])
@@ -165,11 +183,22 @@ ei1d = s.stats['i1d']['errmean']
 y1d = s.stats['y1d']['mean']
 ey1d = s.stats['y1d']['errmean']
 
-pl = io.Plotter(xlabel='$\\theta$ (arcmin)',ylabel='Filtered $Y  (\\times 10^6)$')
-pl.add_err(cents,i1d,yerr=ei1d,label="Single frequency ACT_06",ls="none",marker="_",markersize=8,elinewidth=2,mew=2)
-pl.add_err(cents+0.1,y1d,yerr=ey1d,label='Compton-Y map',ls="none",marker="x",markersize=8,elinewidth=2,mew=2)
+pl = io.Plotter(xlabel='$\\theta$ (arcmin)',ylabel='Filtered $y~(\\times 10^6)$',ftsize=16,labsize=14)
+pl.add_err(cents,i1d,yerr=ei1d,label="Single-frequency D56_5_097 map",marker="_",markersize=8,elinewidth=2,mew=2,ls='none')#-')
+pl.add_err(cents+0.1,y1d,yerr=ey1d,label='Compton-$y$ map',ls="none",marker="x",markersize=8,elinewidth=2,mew=2)
 pl.hline(y=0)
-pl.done('fig_yprofile.pdf')
+
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                               AutoMinorLocator)
+
+pl._ax.yaxis.set_minor_locator(AutoMinorLocator())
+pl._ax.xaxis.set_minor_locator(AutoMinorLocator())
+pl._ax.tick_params(axis='x',which='both', width=1)
+pl._ax.tick_params(axis='y',which='both', width=1)
+pl._ax.xaxis.grid(True, which='both',alpha=0.3)
+pl._ax.yaxis.grid(True, which='both',alpha=0.3)
+
+pl.done('fig_yprofile_%s.pdf' % region)
 
 print((i1d-y1d)/y1d*100.)
 

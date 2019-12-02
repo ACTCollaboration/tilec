@@ -116,3 +116,12 @@ ENV/
 debug.py
 .ipynb*
 *.sh
+*.pdf
+*.fits
+*private*
+*temp*
+paper/*.csv
+paper/*.txt
+weights*txt
+ypower*txt
+cl_K*txt

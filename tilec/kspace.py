@@ -88,7 +88,9 @@ def process_splits(splits,wins,mask,skip_splits=False,do_fft_splits=False,pixwin
     else: pwin = 1
     kcoadd = kcoadd / pwin
     if not(skip_splits):
-        data = (splits-coadd)*mask # !!!! wins removed, was (splits-coadd)*wins*mask earlier
+        #data = (splits-coadd)*mask # !!!! wins removed, was (splits-coadd)*wins*mask earlier
+        data = (splits-coadd)*mask*wins/wins.sum(axis=0) # !!!! wins removed, was (splits-coadd)*wins*mask earlier
+        data[~np.isfinite(data)] = 0
         kdiffs = enmap.fft(data,normalize='phys')
         kdiffs = kdiffs / pwin
     else:

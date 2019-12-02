@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.rcParams["font.family"] = "serif"
-plt.rcParams["mathtext.fontset"] = "stix"
+plt.rcParams["mathtext.fontset"] = "cm"
 from orphics import maps,io,cosmology
 from pixell import enmap
 import numpy as np
@@ -36,17 +36,17 @@ for qid in qids:
     nu,bp = np.loadtxt(fname,unpack=True,usecols=[0,1])
     
     if tutils.is_lfi(qid):
-        col = 'C0'
+        col = 'black'
         if not(lfi_done): label = 'LFI'
         else: label = None
         lfi_done = True
     elif tutils.is_hfi(qid):
-        col = 'C1'
+        col = 'red'
         if not(hfi_done): label = 'HFI'
         else: label = None
         hfi_done = True
     else:
-        col = 'C2'
+        col = 'blue'
         if not(act_done): label = 'ACT'
         else: label = None
         act_done = True
@@ -54,13 +54,34 @@ for qid in qids:
 
     bnp = bp/bp.max()
     bnp[bnp<5e-4] = np.nan
-    pl.add(nu,bnp,color=col,lw=2,label=label)
-pl._ax.set_xlim(20,800)
+    ls = '--' if sints.arrays(qid,'array')=='pa3' else '-'
+    #pl.add(nu,bnp,color=col,lw=1,label=label,alpha=0.6 if label=='ACT' else 1,ls=ls)
+    pl.add(nu,bnp,color=col,lw=1,alpha=0.6 if label=='ACT' else 1,ls=ls)
+    pl.add(nu+10000,bnp,color=col,lw=2,alpha=1,ls=ls,label=label)
+#pl._ax.set_xlim(20,800)
+pl._ax.set_xlim(20,1000)
 pl.hline()
-pl._ax.set_xticks([30,44,70,100,150, 217, 353,545])
-pl._ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                               AutoMinorLocator)
+
+#pl._ax.xaxis.set_minor_locator(AutoMinorLocator())
+pl._ax.yaxis.set_minor_locator(AutoMinorLocator())
+pl._ax.tick_params(which='both', width=1)
+pl._ax.xaxis.grid(True, which='both',alpha=0.3)
+pl._ax.yaxis.grid(True, which='major',alpha=0.3)
+
+font = {'family': 'serif',
+        'color':  'darkred',
+        'weight': 'bold',
+        'size': 16,
+        }
+freqs = [30,44,70,100,143, 217, 353,545]
+for f in freqs:
+    pl._ax.text(f*0.9, 0.02, "%d" % f,fontdict = font)
+
+# pl._ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 #pl._ax.get_xaxis().get_major_formatter().labelOnlyBase = False
-pl.legend(loc='lower right',labsize=ftsize)
+pl.legend(loc='upper right',labsize=ftsize)
 pl.done("fig_bandpass.pdf")
 
 sys.exit()

@@ -100,23 +100,27 @@ class JointSim(object):
         self.cyy = fgs.power_y(ells)[None,None]
         self.cyy[0,0][ells<2] = 0
 
+        narrays = len(qids)
         if fg_res_version is not None:
             fpath = sints.dconfig['actsims']['fg_res_path'] + "/" + fg_res_version + "/"
-            narrays = len(qids)
             self.cfgres = np.zeros((narrays,narrays,ellmax))
             for i in range(narrays):
                 for j in range(i,narrays):
                     qid1 = qids[i]
                     qid2 = qids[j]
-                    clfilename = "%sfgcov_%s_%s.txt" % (fpath,qid1,qid2)
-                    clfilename_alt = "%sfgcov_%s_%s.txt" % (fpath,qid2,qid1)
+                    clfilename = "%shfgcov_%s_%s.txt" % (fpath,qid1,qid2) #!!!! Changed fgcov to hfgcov # !!!!
+                    clfilename_alt = "%shfgcov_%s_%s.txt" % (fpath,qid2,qid1) #!!!! Changed fgcov to hfgcov
                     try:
                         ls,cls = np.loadtxt(clfilename,unpack=True)
                     except:
                         ls,cls = np.loadtxt(clfilename_alt,unpack=True)
                     assert np.all(np.isclose(ls,ells))
                     self.cfgres[i,j] = cls.copy() 
-                    if i!=j: self.cfgres[j,i] = cls.copy() 
+                    if i!=j: 
+                        self.cfgres[j,i] = cls.copy() 
+                        # self.cfgres[j,i] = self.cfgres[i,j] = cls.copy()*0 # !!!! REMOVED CORR
+                    #if (qid1 in ['p01','p02']) or (qid2 in ['p01','p02']): self.cfgres[j,i] = self.cfgres[i,j] = 0 # !!!! 
+                    # self.cfgres[j,i][ls<300] = self.cfgres[i,j][ls<300] = 0 # !!!!
             
         else:
             self.cfgres = None
@@ -172,9 +176,10 @@ class JointSim(object):
         fgres_seed = seed_tracker.get_fg_seed(set_idx, sim_idx, 'srcfree')
         #self.alms['comptony'] = curvedsky.rand_alm_healpy(self.cyy, seed = comptony_seed)
         self.alms['comptony'] = curvedsky.rand_alm(self.cyy, lmax=self.ellmax, seed = comptony_seed) #!!!!
+        #self.alms['comptony'] = curvedsky.rand_alm(self.cyy, lmax=self.ellmax, seed = 1) #!!!! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         if self.cfgres is not None: 
-            #self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed)
-            self.alms['fgres'] = curvedsky.rand_alm(self.cfgres, lmax=self.ellmax, seed = fgres_seed)
+            self.alms['fgres'] = curvedsky.rand_alm_healpy(self.cfgres, seed = fgres_seed) # SWITCHED BACK!!!
+            #self.alms['fgres'] = curvedsky.rand_alm(self.cfgres, lmax=self.ellmax, seed = fgres_seed)
 
 
         # 1. convert to maximum ellmax
@@ -288,7 +293,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                        overwrite,memory_intensive,uncalibrated,
                        sim_splits=None,skip_inpainting=False,theory_signal="none",
                        unsanitized_beam=False,save_all=False,plot_inpaint=False,
-                       isotropic_override=False,split_set=None):
+                       isotropic_override=False,split_set=None,save_extra=False):
 
 
     save_scratch = not(memory_intensive)
@@ -335,6 +340,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
         for i,qid in enumerate(arrays.split(',')):
             dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
             lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
+            print(f"{qid} lmin {lmin} lmax {lmax}")
             assert isinstance(radial,bool)
             do_radial_fit.append(radial)
             friends[qid] = friend
@@ -399,7 +405,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
                       verbose=True,
                       debug_plots_loc=False,
                       separate_masks=False,theory_signal=theory_signal,scratch_dir=covscratch,
-                      isotropic_override=isotropic_override)
+                      isotropic_override=isotropic_override,save_extra=save_extra,wins=wins)
 
 
     if not(save_all): shutil.rmtree(scratch)
@@ -413,7 +419,8 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
                        pa2_shift = None,
                        pa3_150_shift = None,
                        pa3_090_shift = None,
-                       no_act_color_correction=False, ccor_exp = -1):
+                       no_act_color_correction=False, ccor_exp = -1, 
+                       isotropize=False, isotropize_width=20):
 
     print("Chunk size is ", chunk_size*64./8./1024./1024./1024., " GB.")
     def warn(): print("WARNING: no bandpass file found. Assuming array ",dm.c['id']," has no response to CMB, tSZ and CIB.")
@@ -511,6 +518,12 @@ def build_and_save_ilc(arrays,region,version,cov_version,beam_version,
     for aindex1 in range(narrays):
         for aindex2 in range(aindex1,narrays):
             icov = enmap.enmap(np.load(covdir+"tilec_hybrid_covariance_%s_%s.npy" % (names[aindex1],names[aindex2])),wcs)
+            if isotropize:
+                bin_edges = np.append([0.],np.arange(min(lmins),modlmap.max(),isotropize_width))
+                binner = stats.bin2D(modlmap,bin_edges)
+                ls,c1d = binner.bin(icov)
+                icov = maps.interp(ls,c1d)(modlmap)
+                
             if aindex1==aindex2: 
                 icov[modlmap<lmins[aindex1]] = maxval
                 icov[modlmap>lmaxs[aindex1]] = maxval
