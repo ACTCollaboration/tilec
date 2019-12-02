@@ -35,8 +35,8 @@ for method,methodp in zip(['','_deprojects_comptony'],['sz','nosz']):
             mask = sints.get_act_mr3_crosslinked_mask(region)
             shape,wcs = mask.shape,mask.wcs
 
-            bfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.0.0_rc_%s_beam.txt" % (cversion,region,region,method,cversion)
-            yfile = os.environ["WORK"] + "/data/depot/tilec/v1.0.0_rc_20190919/map_v1.0.0_rc_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.0.0_rc_%s.fits" % (cversion,region,region,method,cversion)
+            bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.1.0_%s_beam.txt" % (cversion,region,region,method,cversion)
+            yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.1.0_%s.fits" % (cversion,region,region,method,cversion)
             w2 = np.mean(mask**2.)
 
             als,bells = np.loadtxt(bfile,unpack=True)
