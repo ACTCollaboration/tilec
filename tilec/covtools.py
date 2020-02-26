@@ -55,7 +55,7 @@ def rednoise(ells,rms_noise,lknee=0.,alpha=1.):
 
 
 def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lknee_guess=3000,alpha_guess=-4,
-                 lknee_min=0,lknee_max=9000,alpha_min=-5,alpha_max=1):
+                 lknee_min=0,lknee_max=9000,alpha_min=-5,alpha_max=1,allow_low_wnoise=False):
     """Obtain a white noise + lknee + alpha fit to a 2D noise power spectrum
     The white noise part is inferred from the mean of lmax-wnoise_annulus < ells < lmax
     
@@ -66,19 +66,40 @@ def fit_noise_1d(npower,lmin=300,lmax=10000,wnoise_annulus=500,bin_annulus=20,lk
     fbinner = stats.bin2D(modlmap,fbin_edges)
     cents,dn1d = fbinner.bin(npower)
     w2 = dn1d[np.logical_and(cents>=(lmax-wnoise_annulus),cents<lmax)].mean()
-    assert w2>0
+    try:
+        # print(w2)
+        assert w2>0
+        # pl = io.Plotter('Dell')
+        # pl.add(cents,dn1d)
+        # pl.add(cents,cents*0+w2)
+        # pl.done(os.environ['WORK']+"/nonpos_white_works.png")
+
+    except:
+        print("White noise level not positive")
+        print(w2)
+        if not(allow_low_wnoise):
+            pl = io.Plotter('Dell')
+            pl.add(cents,dn1d)
+            pl.done(os.environ['WORK']+"/nonpos_white.png")
+            raise
+        else:
+            w2 = np.abs(w2)
+            print("Setting to ",w2)
+            
+
     wnoise = np.sqrt(w2)*180.*60./np.pi
     ntemplatefunc = lambda x,lknee,alpha: fbinner.bin(rednoise(modlmap,wnoise,lknee=lknee,alpha=alpha))[1]
     #ntemplatefunc = lambda x,lknee,alpha: rednoise(x,wnoise,lknee=lknee,alpha=alpha) # FIXME: This switch needs testing !!!!
     res,_ = curve_fit(ntemplatefunc,cents,dn1d,p0=[lknee_guess,alpha_guess],bounds=([lknee_min,alpha_min],[lknee_max,alpha_max]))
     lknee_fit,alpha_fit = res
 
-    # from orphics import io
-    # # print(lknee_fit,alpha_fit,wnoise)
+    # print(lknee_fit,alpha_fit,wnoise)
     # pl = io.Plotter(xyscale='linlog',xlabel='l',ylabel='D',scalefn=lambda x: x**2./2./np.pi)
     # pl.add(cents,dn1d)
-    # # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
-    # # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_guess,alpha=alpha_guess),ls="-.")
+    # pl.add(cents,cents*0+w2)
+    # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_fit,alpha=alpha_fit),ls="--")
+    # pl.add(cents,rednoise(cents,wnoise,lknee=lknee_guess,alpha=alpha_guess),ls="-.")
+    # pl._ax.set_ylim(1e-1,1e4)
     # pl.done(os.environ['WORK']+"/fitnoise_pre.png")
     # sys.exit()
 
@@ -189,7 +210,8 @@ def smooth_ps_grid(ps, res, alpha=4, log=False, ndof=2):
 
 def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=500,bin_annulus=20,
                         lknee_guess=3000,alpha_guess=-4,nparams=None,
-                        verbose=False,radial_fit=True,fill_lmax=None,fill_lmax_width=100,log=True,isotropic_low_ell=True):
+                        verbose=False,radial_fit=True,fill_lmax=None,fill_lmax_width=100,log=True,
+                        isotropic_low_ell=True,allow_low_wnoise=False):
     """Find the empirical mean noise binned in blocks of dfact[0] x dfact[1] . Preserves noise anisotropy.
     Most arguments are for the radial fitting part.
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
@@ -207,7 +229,8 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
             if nparams is None:
                 if verbose: print("Radial fitting...")
                 nparams = fit_noise_1d(n2d,lmin=lmin,lmax=lmax,wnoise_annulus=wnoise_annulus,
-                                    bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess)
+                                       bin_annulus=bin_annulus,lknee_guess=lknee_guess,alpha_guess=alpha_guess,
+                                       allow_low_wnoise=allow_low_wnoise)
             wfit,lfit,afit = nparams
             nfitted = rednoise(modlmap,wfit,lfit,afit)
     else:
@@ -288,6 +311,7 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     # pl.vline(x=500)
     # # pl.add(cents,dn1d2,ls="-.")
     # t = "000"
+    # pl._ax.set_ylim(1e1,1e5)
     # pl.done(os.environ['WORK']+"/fitnoise2_%s.png" % t)
     # sys.exit()
 

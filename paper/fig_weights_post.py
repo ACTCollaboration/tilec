@@ -24,8 +24,8 @@ for comp in ['cmb','comptony']:
     #version = "map_v1.0.0_rc_joint"
     #cversion = "v1.0.0_rc"
 
-    version = "map_v1.1.0_joint"
-    cversion = "v1.1.0"
+    version = "map_v1.1.1_joint"
+    cversion = "v1.1.1"
 
 
     bw = 20
@@ -43,7 +43,8 @@ for comp in ['cmb','comptony']:
     else:
         wstr = '$W$ (dimensionless)'
 
-    pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel=wstr,ftsize=16)
+    #pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel=wstr,ftsize=16)
+    pl = io.Plotter(xyscale='linlin',xlabel='$\\ell$',ylabel=wstr,ftsize=16) # !!!
     for i in range(len(qids)):
         col = cols[i]
         qid = qids[i]
@@ -66,6 +67,7 @@ for comp in ['cmb','comptony']:
         pl.add(cents,w1d*mul,label=lab if comp=='comptony' else None,ls=ls,color=col)
     pl._ax.set_xlim(20+bw/2.,10000)
 
+    if comp=='cmb': pl._ax.set_ylim(-0.5,1.) # !!!!
 
 
     pl._ax.yaxis.set_minor_locator(AutoMinorLocator())
@@ -87,6 +89,7 @@ for comp in ['cmb','comptony']:
         pl.legend(loc='upper right', bbox_to_anchor=(1.45, 1),labsize=12)
         pl._ax.text(600, 3, "Compton-$y$ weights",fontdict = font)
     elif comp=='cmb': 
-        pl._ax.text(600, 4, "CMB+kSZ weights",fontdict = font)
+        #pl._ax.text(600, 4, "CMB+kSZ weights",fontdict = font)
+        pl._ax.text(600, 0.8, "CMB+kSZ weights",fontdict = font) # !!!
 
     pl.done(("%s/fig_weight1d_%s_%s" % (os.environ['WORK'],comp,version)).replace('.','_')+".pdf")

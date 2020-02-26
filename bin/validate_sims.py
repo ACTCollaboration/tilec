@@ -73,7 +73,8 @@ for i,task in enumerate(my_tasks):
     version = "map_joint_%s_%s" % (args.version,ind_str)
     savedir = tutils.get_save_path(version,args.region,rversion)
     print(savedir)
-    assert os.path.exists(savedir)
+    assert os.path.exists(savedir), savedir
+    
 
     # Load mask
     if i==0:

@@ -6,8 +6,8 @@ import os,sys,shutil
 from soapack import interfaces as sints
 import healpy as hp
 
-version = "map_v1.1.0_joint"
-cversion = "v1.1.0"
+version = "map_v1.1.1_joint"
+cversion = "v1.1.1"
 
 down = 6
     

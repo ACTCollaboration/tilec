@@ -13,11 +13,20 @@ import tilec.fg as tfg
 import tilec.utils as tutils
 
 depdict = {'cmb':[None,'tsz','cib'],'tsz':[None,'cmb','cib']}
-tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/']
-versions = ['v1.1.0','v1.0.0_rc']
+
+#tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/']
+#versions = ['v1.1.0','v1.0.0_rc']
+#regions = ['boss','deep56']
+#vmin = -0.2 ; vmax = 0.2
+
+tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.1.0_20191127/']
+versions = ['v1.1.1','v1.1.0']
+regions = ['boss','deep56']
+vmin = -0.01 ; vmax = 0.01
+
 bin_edges = np.arange(20,6000,20)
 
-for region in ['deep56','boss']:
+for region in regions:
 
     mask = sints.get_act_mr3_crosslinked_mask(region)
     modlmap = mask.modlmap()
@@ -51,6 +60,6 @@ for region in ['deep56','boss']:
             pl = io.Plotter('rCell')
             pl.add(cents,r,lw=1)
             pl.hline(y=0)
-            pl._ax.set_ylim(-0.2,0.2)
+            pl._ax.set_ylim(vmin,vmax)
             pl.done(f"vcompdiff_{region}_{component}_{str(deproj)}.png")
             
