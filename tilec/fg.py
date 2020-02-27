@@ -4,7 +4,7 @@ import yaml
 import os
 """
 Utilities for unit conversions and foreground SED modeling, including Planck and ACT bandpasses.
-SEDs included: CMB, kSZ, tSZ, rSZ, mu, CIB
+SEDs included: CMB, kSZ, tSZ, rSZ, mu, CIB, radio
 """
 ######################################
 # global constants
@@ -114,6 +114,7 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None): #nu_g
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
     elif (comp == 'CIB'):
+        # CIB = modified blackbody here
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
         p = _setp()
@@ -124,7 +125,7 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None): #nu_g
         resp = (nu/nu0_CIB)**(3.0+(p['beta_CIB'])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0)) * (ItoDeltaT(np.asarray(nu_ghz).astype(float))/ItoDeltaT(p['nu0_CIB_ghz']))
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
-    elif (comp == 'CIB_Jysr'): #same as CIB above but in Jy/sr instead of uK_CMB
+    elif (comp == 'CIB_Jysr'): #same as CIB above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
         # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
         p = _setp()
@@ -135,6 +136,29 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None): #nu_g
         resp = (nu/nu0_CIB)**(3.0+(p['beta_CIB'])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0))
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
+    elif (comp == 'radio'):
+        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr), here converted to uK_CMB)
+        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+        p = _setp()
+        nu = 1.e9*np.asarray(nu_ghz).astype(float)
+        nu0_radio = p['nu0_radio_ghz']*1.e9
+        resp = (nu/nu0_radio)**(p['beta_radio']) * (ItoDeltaT(np.asarray(nu_ghz).astype(float))/ItoDeltaT(p['nu0_radio_ghz']))
+        # TODO: the line below may be wrong for radio maps!
+        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
+        return resp
+    elif (comp == 'radio_Jysr'): #same as radio above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
+        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr))
+        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+        p = _setp()
+        nu = 1.e9*np.asarray(nu_ghz).astype(float)
+        nu0_radio = p['nu0_radio_ghz']*1.e9
+        resp = (nu/nu0_radio)**(p['beta_radio'])
+        # TODO: the line below may be wrong for radio maps!
+        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
+        return resp
+
     else:
         print("unknown component specified")
         raise NotImplementedError
@@ -206,7 +230,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
     comp : string
         a string specifying the component whose mixing is requested. Currently, the following are
         supported (1) CMB or kSZ (considered identical, and always returns ones) 
-        (2) tSZ (3) mu (4) rSZ (5) CIB
+        (2) tSZ (3) mu (4) rSZ (5) CIB (6) radio
 
 
     param_dict_file : string, optional
@@ -275,7 +299,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         shape = N_freqs
 
 
-    if (comp == 'CIB'):
+    if (comp == 'CIB' or comp == 'rSZ' or comp == 'radio'):
         if param_dict_file is None:
             p = default_dict
         else:
@@ -333,6 +357,10 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                     # in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in 
                     # those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).  
                     # The resulting cancellation leaves this simple expression which has no dependence on nu_c.
+                elif (comp == 'radio'):
+                    # same logic/formalism as used for CIB component immediately above this
+                    # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+                    val = (np.trapz(trans * get_mix(nu_ghz, 'radio_Jysr', param_dict_file=param_dict_file,param_dict_override=param_dict_override) * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
                 else:
                     print("unknown component specified")
                     raise NotImplementedError
@@ -346,9 +374,9 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                 output[i] = 0.        
 
 
-        if (comp == 'CIB') and normalize_cib:        
+        if (comp == 'CIB' or comp == 'radio') and normalize_cib:
             #overall amplitude not meaningful, so divide by max to get numbers of order unity; 
-            # output gives the relative conversion between CIB at different frequencies, for maps in uK_CMB
+            # output gives the relative conversion between CIB (or radio) at different frequencies, for maps in uK_CMB
             omax = output.max(axis=0)
             ret = output / omax
             if (ccor_cen_nus is not None): ret[:,omax==0] = 0
@@ -366,7 +394,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
 def get_test_fdict():
     import glob
     nus = np.geomspace(10,1000,100)
-    comps = ['CMB','kSZ','tSZ','mu','rSZ','CIB','CIB_Jysr']
+    comps = ['CMB','kSZ','tSZ','mu','rSZ','CIB','CIB_Jysr','radio','radio_Jysr']
     dirname = os.path.dirname(os.path.abspath(__file__))
     bp_list = glob.glob(dirname+"/../data/*.txt") + [None]
 
