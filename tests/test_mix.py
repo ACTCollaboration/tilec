@@ -5,7 +5,7 @@ import pickle
 import os
 dirname = os.path.dirname(os.path.abspath(__file__))
 
-version = dirname + "/data/MM_20190903"
+version = dirname + "/data/MM_20200307"
 
 
 def load_pickle(pickle_file):
