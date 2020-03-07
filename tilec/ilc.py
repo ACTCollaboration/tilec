@@ -107,6 +107,7 @@ class HILC(object):
             for i in range(self.cov.shape[-1]):
                 for j in range(i,self.cov.shape[-1]):
                     print(ells[np.isnan(self.cov[...,i,j])])
+            print("Cov has nans")
             raise ValueError
         if invert:
             self.cinv = np.linalg.inv(self.cov)
@@ -120,10 +121,11 @@ class HILC(object):
                 for j in range(i,self.cinv.shape[-1]):
                     print(ells[np.isnan(self.cinv[...,i,j])])
             print(self.cov[ells[np.isnan(self.cinv[...,i,j])].astype(np.int),...])
+            print("Cinv has nans")
             raise ValueError
         self.responses = {}
         if responses is None: responses = {}
-        if "CMB" not in responses.keys(): responses['CMB'] = np.ones((1,nmap))
+        if "CMB" not in responses.keys(): responses['CMB'] = np.ones((nmap,))
         for key in responses.keys():
             self.add_response(key,responses[key])
                 
@@ -371,29 +373,30 @@ def _is_correlated(a1,a2,aids,carrays):
 
 
 class CTheory(object):
-    def __init__(self,ells,cfile="input/cosmo2017_10K_acc3"):
+    def __init__(self,ells,cfile="input/cosmo2017_10K_acc3",silence=True):
 
         theory = cosmology.loadTheorySpectraFromCAMB(cfile,
                                                      unlensedEqualsLensed=False,
                                                      useTotal=False,
                                                      TCMB = 2.7255e6,
                                                      lpad=9000,get_dimensionless=False)
-        self.ksz = szfg.power_ksz_reion(ells) + szfg.power_ksz_late(ells)
+        self.ksz = szfg.power_ksz_reion(ells,silence=silence) + szfg.power_ksz_late(ells,silence=silence)
         self.cltt = theory.lCl('TT',ells)
-        self.yy = szfg.power_y(ells)
+        self.yy = szfg.power_y(ells,silence=silence)
         self.ells = ells
         with np.errstate(divide='ignore'): self.dlscale = 2.*np.pi/self.ells/(self.ells+1.)
         self.dlscale[~np.isfinite(self.dlscale)] = 0
 
 
-    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0,exp_gal=-0.7,a_cibp=1,a_cibc=1,a_radps=1,a_ksz=1,a_tsz=1,al_ps=None):
+    def get_theory_cls(self,f1,f2,a_cmb=1,a_gal=0,exp_gal=-0.7,a_cibp=1,a_cibc=1,a_radps=1,a_ksz=1,a_tsz=1,al_ps=None,silence=True):
         gf = lambda x: tfg.ItoDeltaT(x)
-        clfg = a_tsz*szfg.power_tsz(self.ells,f1,f2,yy=self.yy) + \
+        clfg = a_tsz*szfg.power_tsz(self.ells,f1,f2,yy=self.yy,silence=silence) + \
                a_cibp*szfg.power_cibp(self.ells,f1,f2) + a_cibc*szfg.power_cibc(self.ells,f1,f2) + \
                a_radps*szfg.power_radps(self.ells,f1,f2,al_ps=al_ps) + a_ksz*self.ksz
 
-        if np.abs(a_gal)>0: clfg = clfg + a_gal * (self.ells/500.)**(exp_gal) * \
-           self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
+        with np.errstate(divide='ignore',invalid='ignore'): 
+            if np.abs(a_gal)>0: clfg = clfg + a_gal * (self.ells/500.)**(exp_gal) * \
+               self.dlscale * (f1*f2/150./150.)**(3.8) * (gf(f1)*gf(f2)/gf(150.)**2.)
         return (a_cmb * self.cltt) + clfg
 
         

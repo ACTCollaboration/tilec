@@ -31,7 +31,7 @@ class ASpecs(object):
     def __init__(self,pref="./"):
         cfile = "%sinput/array_specs.csv" % pref
         self.adf = pandas.read_csv(cfile)
-        self.aspecs = lambda qid,att : self.adf[self.adf['#qid']==qid][att].item()
+        self.aspecs = lambda qid,att : self.adf[self.adf['#qid']==qid][att].iloc[0]
 
     def get_specs(self,aid):
         aspecs = self.aspecs
@@ -40,9 +40,9 @@ class ASpecs(object):
         assert 0 <= lmin < 50000
         assert 0 <= lmax < 50000
         hybrid = aspecs(aid,'hybrid')
-        assert type(hybrid)==bool
+        assert (type(hybrid) is bool) or (type(hybrid) is np.bool_)
         radial = aspecs(aid,'radial')
-        assert type(radial)==bool
+        assert (type(radial)==bool) or (type(radial)==np.bool_)
         friend = aspecs(aid,'friends')
         try: friend = friend.split(',')
         except: friend = None
@@ -235,12 +235,12 @@ def get_generic_fname(tdir,region,solution,deproject=None,data_comb='joint',vers
     if sim_index is not None:
         data_comb = {'joint':'joint','act':'act_only','act_only':'act_only','planck':'planck_only','planck_only':'planck_only'}[data_comb]
         if version is None:
-            version = "v1.1.0_sim_baseline_00_%s" % str(sim_index).zfill(4)
+            version = "v1.1.1_sim_baseline_00_%s" % str(sim_index).zfill(4)
         else:
             version = "%s_00_%s" % (version,str(sim_index).zfill(4))
     else:
         data_comb = {'joint':'joint','act':'act','act_only':'act','planck':'planck','planck_only':'planck'}[data_comb]
-        if version is None: version = "v1.1.0"
+        if version is None: version = "v1.1.1"
     
     solution = {'cmb':'cmb','ksz':'cmb','tsz':'comptony','comptony':'comptony'}[solution]
     if deproject is None:

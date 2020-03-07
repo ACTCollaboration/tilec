@@ -5,8 +5,8 @@ import numpy as np
 import os,sys
 from tilec import utils as tutils
 
-#region = 'deep56'
-region = 'boss'
+region = 'deep56'
+#region = 'boss'
 solution = 'comptony'
 tdir = "/scratch/r/rbond/msyriac/data/depot/tilec/"
 dcomb = 'joint'

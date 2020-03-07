@@ -14,8 +14,8 @@ import tilec.utils as tutils
 
 random = False
 cversion = 'joint'
-#region = 'deep56'
-region = 'boss'
+region = 'deep56'
+#region = 'boss'
 lmin = 2000
 do_images = True
 
@@ -54,14 +54,14 @@ modlmap = mask.modlmap()
 ells = np.arange(0,modlmap.max())
 kbeam = dm.get_beam(modlmap, "s15",region,array,sanitize=True)
 lbeam = dm.get_beam(ells, "s15",region,array,sanitize=True)
-bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
-yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
+bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.1_%s_beam.txt" % (cversion,region,region,cversion)
+yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.1_%s.fits" % (cversion,region,region,cversion)
 
-bfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
-yfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
+bfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.1_%s_beam.txt" % (cversion,region,region,cversion)
+yfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.1_%s.fits" % (cversion,region,region,cversion)
 
-bfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
-yfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
+bfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.1_%s_beam.txt" % (cversion,region,region,cversion)
+yfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.1_%s.fits" % (cversion,region,region,cversion)
 
 
 ls,obells = np.loadtxt(bfile,unpack=True)
@@ -185,7 +185,7 @@ ey1d = s.stats['y1d']['errmean']
 
 pl = io.Plotter(xlabel='$\\theta$ (arcmin)',ylabel='Filtered $y~(\\times 10^6)$',ftsize=16,labsize=14)
 pl.add_err(cents,i1d,yerr=ei1d,label="Single-frequency D56_5_097 map",marker="_",markersize=8,elinewidth=2,mew=2,ls='none')#-')
-pl.add_err(cents+0.1,y1d,yerr=ey1d,label='Compton-$y$ map',ls="none",marker="x",markersize=8,elinewidth=2,mew=2)
+pl.add_err(cents,y1d,yerr=ey1d,label='Compton-$y$ map',ls="none",marker="x",markersize=8,elinewidth=2,mew=2,addx=0.1)
 pl.hline(y=0)
 
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
