@@ -12,10 +12,10 @@ Nrows = data.shape[0]
 Nells = '|'.join(['l']*Ncols)
 
 output = \
-    """\\begin{table}[ht]
+    """\\begin{table*}[ht]
 \\label{tab:maps}
 \\centering
-\\caption{Maps used for component separation. The central frequencies are not intended to be precise; we use the full bandpass in our analysis. While the beam FWHM for Planck reflects what we assume in our analysis, for ACT, only rough estimates are shown in this table; we use the appropriate harmonic transfer function in our analysis.}
+\\caption{Maps used for component separation. The central frequencies are not intended to be precise; we use the full bandpass in our analysis. While the beam FWHM for Planck reflects what we assume in our analysis, for ACT, only rough estimates are shown in this table; we use the appropriate harmonic transfer function in our analysis. The noise sensitivities are those reported by Planck for LFI \\cite{LFIMaps} and HFI \\cite{HFIMaps} and those for ACT estimated from the multipole region $5000 < \\ell < 5500$.}
 \\begin{tabular}[t]{%s} 
 """ % Nells
 
@@ -29,7 +29,7 @@ for i,line in enumerate(data):
     
 output = output + \
     """\end{tabular}
-\end{table}
+\end{table*}
 """
 
 print(output)

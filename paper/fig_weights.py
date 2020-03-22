@@ -24,8 +24,8 @@ for comp in ['cmb','comptony']:
     # version = "map_v1.0.0_rc_joint"
     # cversion = "v1.0.0_rc"
 
-    version = "map_v1.1.0_joint"
-    cversion = "v1.1.0"
+    version = "map_v1.1.1_joint"
+    cversion = "v1.1.1"
 
 
     fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
