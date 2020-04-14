@@ -24,12 +24,15 @@ for comp in ['cmb','comptony']:
     # version = "map_v1.0.0_rc_joint"
     # cversion = "v1.0.0_rc"
 
-    version = "map_v1.1.1_joint"
-    cversion = "v1.1.1"
+    # version = "map_v1.1.1_joint"
+    # cversion = "v1.1.1"
+
+    version = "map_v1.2.0_joint"
+    cversion = "v1.2.0"
 
 
-    fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
-    cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
+    fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
+    cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
 
     bw = 20
     bin_edges = np.arange(20,10000,bw)

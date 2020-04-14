@@ -111,8 +111,11 @@ for comp in ['cmb','comptony']:
     #version = "map_v1.0.0_rc_joint"
     #cversion = "v1.0.0_rc"
 
-    version = "map_v1.1.1_joint"
-    cversion = "v1.1.1"
+    # version = "map_v1.1.1_joint"
+    # cversion = "v1.1.1"
+
+    version = "map_v1.2.0_joint"
+    cversion = "v1.2.0"
 
 
     bw = 20
@@ -131,7 +134,8 @@ for comp in ['cmb','comptony']:
         wstr = '$W$ (dimensionless)'
 
     #pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel=wstr,ftsize=16)
-    pl = io.Plotter(xlabel='$\\ell$',ylabel=wstr,ftsize=16,xscale='linear',yscale='symlog',labsize=8) # !!!
+    #pl = io.Plotter(xlabel='$\\ell$',ylabel=wstr,ftsize=16,xscale='linear',yscale='symlog',labsize=8) # !!!
+    pl = io.Plotter(xlabel='$\\ell$',ylabel=wstr,ftsize=16,xscale='linear',yscale='linear',labsize=8) # !!!
     for i in range(len(qids)):
         col = cols[i]
         qid = qids[i]

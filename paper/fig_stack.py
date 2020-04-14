@@ -14,8 +14,8 @@ import tilec.utils as tutils
 
 random = False
 cversion = 'joint'
-region = 'deep56'
-#region = 'boss'
+#region = 'deep56'
+region = 'boss'
 lmin = 2000
 do_images = True
 
@@ -54,14 +54,14 @@ modlmap = mask.modlmap()
 ells = np.arange(0,modlmap.max())
 kbeam = dm.get_beam(modlmap, "s15",region,array,sanitize=True)
 lbeam = dm.get_beam(ells, "s15",region,array,sanitize=True)
-bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.1_%s_beam.txt" % (cversion,region,region,cversion)
-yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.1_%s.fits" % (cversion,region,region,cversion)
+bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.2.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.2.0_%s_beam.txt" % (cversion,region,region,cversion)
+yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.2.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.2.0_%s.fits" % (cversion,region,region,cversion)
 
-bfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.1_%s_beam.txt" % (cversion,region,region,cversion)
-yfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_map_v1.1.1_%s.fits" % (cversion,region,region,cversion)
+bfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.2.0_%s_%s/tilec_single_tile_%s_cmb_map_v1.2.0_%s_beam.txt" % (cversion,region,region,cversion)
+yfile2 = os.environ["WORK"] + "/data/depot/tilec/map_v1.2.0_%s_%s/tilec_single_tile_%s_cmb_map_v1.2.0_%s.fits" % (cversion,region,region,cversion)
 
-bfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.1_%s_beam.txt" % (cversion,region,region,cversion)
-yfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.1_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.1.1_%s.fits" % (cversion,region,region,cversion)
+bfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.2.0_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.2.0_%s_beam.txt" % (cversion,region,region,cversion)
+yfile3 = os.environ["WORK"] + "/data/depot/tilec/map_v1.2.0_%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_map_v1.2.0_%s.fits" % (cversion,region,region,cversion)
 
 
 ls,obells = np.loadtxt(bfile,unpack=True)
