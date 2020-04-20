@@ -60,7 +60,7 @@ for comp in ['cmb','comptony']:
             binner = stats.bin2D(modlmap,bin_edges)
         Ny,Nx = weight.shape[-2:]
         M = maps.crop_center(np.fft.fftshift(modlmap),N,int(N*Nx/Ny))
-        print(M.max())
+        # print(M.max())
 
 
 

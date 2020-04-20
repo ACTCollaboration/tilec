@@ -6,8 +6,8 @@ import os,sys,shutil
 from soapack import interfaces as sints
 import healpy as hp
 
-version = "map_v1.1.1_joint"
-cversion = "v1.1.1"
+version = "map_v1.2.0_joint"
+cversion = "v1.2.0"
 
 down = 6
     
@@ -22,16 +22,16 @@ t = {'deep56': 2, 'boss':4}
 sels = {'deep56':np.s_[...,220:-220,300:-300] , 'boss':np.s_[...,450:-450,500:-500]}
 
 for region in ['boss','deep56']:
-    yname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_comptony_%s.fits" % (version,region,region,version)
-    ybname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_comptony_%s_beam.txt" % (version,region,region,version)
+    yname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_single_tile_%s_comptony_%s.fits" % (version,region,region,version)
+    ybname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_single_tile_%s_comptony_%s_beam.txt" % (version,region,region,version)
 
-    cname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s.fits" % (version,region,region,version)
-    cbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s_beam.txt" % (version,region,region,version)
+    cname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s.fits" % (version,region,region,version)
+    cbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s_beam.txt" % (version,region,region,version)
 
-    sname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_%s.fits" % (version,region,region,version)
-    sbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_%s_beam.txt" % (version,region,region,version)
+    sname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_single_tile_%s_cmb_%s.fits" % (version,region,region,version)
+    sbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_single_tile_%s_cmb_%s_beam.txt" % (version,region,region,version)
 
-    mname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_mask.fits" % (version,region)
+    mname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324//%s_%s/tilec_mask.fits" % (version,region)
 
     # shutil.copy(yname,"/scratch/r/rbond/msyriac/data/for_sigurd/")
     # shutil.copy(sname,"/scratch/r/rbond/msyriac/data/for_sigurd/")

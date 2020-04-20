@@ -22,9 +22,10 @@ depdict = {'cmb':[None,'tsz','cib'],'tsz':[None,'cmb','cib']}
 #tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.1.0_20191127/']
 #versions = ['v1.1.1','v1.1.0']
 
-tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.1.1_20200220/']
-versions = ['v1.2.0','v1.1.1']
-#versions = ['testv1.2.0','v1.1.1']
+#tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.1.1_20200220/']
+tdirs = ['/scratch/r/rbond/msyriac/data/depot/tilec/','/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/']
+#versions = ['v1.2.0','v1.1.1']
+versions = ['test2v1.2.0','v1.2.0']
 regions = ['boss','deep56']
 #regions = ['deep56']
 #vmin = -0.01 ; vmax = 0.01

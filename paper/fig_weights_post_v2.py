@@ -103,6 +103,8 @@ mscale.register_scale(OPointSixScale)
 
 cols = ["C%d" % i for i in range(30)]
 cols.remove('C8')
+#cols.remove('C4')
+#cols.remove('C5')
 for comp in ['cmb','comptony']:
 
     region = "deep56"
@@ -136,6 +138,7 @@ for comp in ['cmb','comptony']:
     #pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel=wstr,ftsize=16)
     #pl = io.Plotter(xlabel='$\\ell$',ylabel=wstr,ftsize=16,xscale='linear',yscale='symlog',labsize=8) # !!!
     pl = io.Plotter(xlabel='$\\ell$',ylabel=wstr,ftsize=16,xscale='linear',yscale='linear',labsize=8) # !!!
+    #pl = io.Plotter(xlabel='$\\ell$',ylabel=wstr,ftsize=16,xscale='log',yscale='linear',labsize=8) # !!!
     for i in range(len(qids)):
         col = cols[i]
         qid = qids[i]
@@ -164,8 +167,13 @@ for comp in ['cmb','comptony']:
 
     #if comp=='cmb': pl._ax.set_ylim(-1,1.5) # !!!!
 
+    if comp=='cmb': pl._ax.set_ylim(-1.5,1.5) # !!!!
+
+    from matplotlib.ticker import FormatStrFormatter,LogFormatter
 
     pl._ax.yaxis.set_minor_locator(AutoMinorLocator())
+    #pl._ax.yaxis.set_minor_formatter(LogFormatter())
+
     #pl._ax.xaxis.set_minor_locator(AutoMinorLocator())
     pl._ax.tick_params(axis='x',which='both', width=1)
     pl._ax.tick_params(axis='y',which='both', width=1)
@@ -185,7 +193,8 @@ for comp in ['cmb','comptony']:
         pl._ax.text(600, 3, "Compton-$y$ weights",fontdict = font)
     elif comp=='cmb': 
         #pl._ax.text(600, 4, "CMB+kSZ weights",fontdict = font)
-        pl._ax.text(600, 0.8, "CMB+kSZ weights",fontdict = font) # !!!
+        #pl._ax.text(600, 0.8, "CMB+kSZ weights",fontdict = font) # !!!
+        pl._ax.text(2000, -0.4, "CMB+kSZ weights",fontdict = font) # !!!
 
     pl._ax.set_xscale('opointsix')
     pl.done(("%s/fig_weight1d_%s_%s" % (os.environ['WORK'],comp,version)).replace('.','_')+".pdf")
