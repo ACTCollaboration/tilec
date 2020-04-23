@@ -184,7 +184,7 @@ y1d = s.stats['y1d']['mean']
 ey1d = s.stats['y1d']['errmean']
 
 pl = io.Plotter(xlabel='$\\theta$ (arcmin)',ylabel='Filtered $y~(\\times 10^6)$',ftsize=16,labsize=14)
-pl.add_err(cents,i1d,yerr=ei1d,label="Single-frequency D56_5_097 map",marker="_",markersize=8,elinewidth=2,mew=2,ls='none')#-')
+pl.add_err(cents,i1d,yerr=ei1d,label="Single-frequency D56_5_098 map",marker="_",markersize=8,elinewidth=2,mew=2,ls='none')#-')
 pl.add_err(cents,y1d,yerr=ey1d,label='Compton-$y$ map',ls="none",marker="x",markersize=8,elinewidth=2,mew=2,addx=0.1)
 pl.hline(y=0)
 
