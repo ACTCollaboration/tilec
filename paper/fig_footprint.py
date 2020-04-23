@@ -23,7 +23,7 @@ m1s = enmap.shift(enmap.downgrade(m1,10), off)
 m2s = enmap.shift(enmap.downgrade(m2,10), off)
 
 p1 = enplot.plot(m1s, min=500, max=1e4, color="cooltowarm", ticks="10", layers=True,font_size=50,contour_color='ffffff')
-p2 = enplot.plot(m2s, min=0, max=1, ticks="10", layers=True, contours="0.5,", contour_width=6, annotate="paper/annot.txt",font_size=50,contour_color='ffffff') # yes, yes, I know
+p2 = enplot.plot(m2s, min=0, max=1, ticks="10", layers=True, contours="0.5,", contour_width=6, annotate="paper/annot.txt",font_size=50,contour_color='ffffff') 
 
 ptot = enplot.merge_plots(p1 + p2[1:3])
 enplot.write("fig_footprint.png", ptot)

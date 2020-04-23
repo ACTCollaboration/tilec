@@ -341,7 +341,7 @@ def build_and_save_cov(arrays,region,version,mask_version,
             dm = sints.models[sints.arrays(qid,'data_model')](region=mask,calibrated=not(uncalibrated))
             lmin,lmax,hybrid,radial,friend,cfreq,fgroup,wrfit = aspecs(qid)
             print(f"{qid} lmin {lmin} lmax {lmax}")
-            assert isinstance(radial,bool)
+            assert (type(radial)==bool) or (type(radial)==np.bool_)
             do_radial_fit.append(radial)
             friends[qid] = friend
             hybrids.append(hybrid)

@@ -22,7 +22,7 @@ invbeam = lambda x: np.piecewise(x, [x<1,x>=1], [lambda y: y*0 , lambda y: 1./ma
 
 dfwhm = 0.0001
 
-region_map = {'boss':'BOSS-N','deep56':'D56'}
+region_map = {'boss':'BN','deep56':'D56'}
 
 #for method,methodp in zip(['_deprojects_comptony'],['nosz']):
 for method,methodp in zip(['','_deprojects_comptony'],['sz','nosz']):
@@ -35,8 +35,8 @@ for method,methodp in zip(['','_deprojects_comptony'],['sz','nosz']):
             mask = sints.get_act_mr3_crosslinked_mask(region)
             shape,wcs = mask.shape,mask.wcs
 
-            bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.1.0_%s_beam.txt" % (cversion,region,region,method,cversion)
-            yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.1.0_%s.fits" % (cversion,region,region,method,cversion)
+            bfile = os.environ["WORK"] + "/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.2.0_%s_beam.txt" % (cversion,region,region,method,cversion)
+            yfile = os.environ["WORK"] + "/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_%s_%s/tilec_single_tile_%s_cmb%s_map_v1.2.0_%s.fits" % (cversion,region,region,method,cversion)
             w2 = np.mean(mask**2.)
 
             als,bells = np.loadtxt(bfile,unpack=True)

@@ -24,12 +24,15 @@ for comp in ['cmb','comptony']:
     # version = "map_v1.0.0_rc_joint"
     # cversion = "v1.0.0_rc"
 
-    version = "map_v1.1.1_joint"
-    cversion = "v1.1.1"
+    # version = "map_v1.1.1_joint"
+    # cversion = "v1.1.1"
+
+    version = "map_v1.2.0_joint"
+    cversion = "v1.2.0"
 
 
-    fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
-    cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
+    fname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_%s_%s_%s_weight.fits" % (version,region,region,comp,version,qid)
+    cname = lambda qid: "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_hybrid_covariance_%s_%s.npy" % (cversion,region,qid,qid)
 
     bw = 20
     bin_edges = np.arange(20,10000,bw)
@@ -57,7 +60,7 @@ for comp in ['cmb','comptony']:
             binner = stats.bin2D(modlmap,bin_edges)
         Ny,Nx = weight.shape[-2:]
         M = maps.crop_center(np.fft.fftshift(modlmap),N,int(N*Nx/Ny))
-        print(M.max())
+        # print(M.max())
 
 
 
@@ -70,7 +73,7 @@ for comp in ['cmb','comptony']:
         w1ds.append(w1d)
 
 
-    actmap = {"d56_01":"D56_1_149","d56_02":"D56_2_149","d56_03":"D56_3_149","d56_04":"D56_4_149","d56_05":"D56_5_097","d56_06":"D56_6_149"}
+    actmap = {"d56_01":"D56_1_150","d56_02":"D56_2_150","d56_03":"D56_3_150","d56_04":"D56_4_150","d56_05":"D56_5_098","d56_06":"D56_6_150"}
 
     #pl = io.Plotter(xyscale='loglin',xlabel='$\\ell$',ylabel='$W$')
     if comp=='comptony':

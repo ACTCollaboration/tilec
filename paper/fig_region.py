@@ -8,16 +8,16 @@ do_reconvolve = True
 
 #region = "boss"
 region = "deep56"
-version = "map_v1.1.1_joint"
-cversion = "v1.1.1"
-yname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_comptony_%s.fits" % (version,region,region,version)
-ybname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_comptony_%s_beam.txt" % (version,region,region,version)
+version = "map_v1.2.0_joint"
+cversion = "v1.2.0"
+yname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_comptony_%s.fits" % (version,region,region,version)
+ybname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_comptony_%s_beam.txt" % (version,region,region,version)
 
-cname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s.fits" % (version,region,region,version)
-cbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s_beam.txt" % (version,region,region,version)
+cname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s.fits" % (version,region,region,version)
+cbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_cmb_deprojects_comptony_%s_beam.txt" % (version,region,region,version)
 
-sname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_%s.fits" % (version,region,region,version)
-sbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.0.0_rc_20190919/../%s_%s/tilec_single_tile_%s_cmb_%s_beam.txt" % (version,region,region,version)
+sname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_cmb_%s.fits" % (version,region,region,version)
+sbname = "/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/%s_%s/tilec_single_tile_%s_cmb_%s_beam.txt" % (version,region,region,version)
 
 ymap = enmap.read_map(yname)
 modlmap = ymap.modlmap()
