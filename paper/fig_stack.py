@@ -12,6 +12,10 @@ from soapack import interfaces as sints # simonsobs/soapack ; README
 import tilec.fg as tfg # ACTCollaboration/tilec ; pip install -e . --user
 import tilec.utils as tutils
 
+"""
+Fig 8 and Fig 10 of arxiv 1911.05717
+"""
+
 # Whether to stack on random locations
 random = False
 
