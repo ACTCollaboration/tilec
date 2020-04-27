@@ -15,39 +15,20 @@ import tilec.utils as tutils
 random = False
 cversion = 'joint'
 region = 'deep56'
-#region = 'boss'
+array = "pa3_f090"
 lmin = 2000
 do_images = True
 
 cols = catalogs.load_fits("AdvACT_S18dn_confirmed_clusters.fits",['RAdeg','DECdeg','SNR'])
-#cols = catalogs.load_fits("AdvACT_S18dn_all_clusters.fits",['RAdeg','DECdeg','SNR'])
-#cols = catalogs.load_fits("AdvACT_all_clusters.fits",['RAdeg','DECdeg','SNR'])
 ras = cols['RAdeg']
 decs = cols['DECdeg']
 sns = cols['SNR']
-
-print(len(ras))
-print(len(ras[sns>5]))
-#sys.exit()
-
-
-# fname = os.environ['WORK'] + "/data/boss/eboss_dr14/data_DR14_QSO_S.fits"
-# cols = catalogs.load_fits(fname,['RA','DEC'])
-# ras = cols['RA']
-# decs = cols['DEC']
-# sns = np.array(ras)*0 + 6
-
-
-#array = "pa2_f150"
-#array = "pa3_f150"
-array = "pa3_f090"
 
 freqs = {"pa3_f090":97, "pa3_f150":149}
 
 mask = sints.get_act_mr3_crosslinked_mask(region)
 bmask = mask.copy()
 bmask[bmask<0.99] = 0
-#io.hplot(bmask,"bmask")
 
 dm = sints.ACTmr3(region=mask,calibrated=True)
 modlmap = mask.modlmap()
@@ -74,8 +55,6 @@ pwin = tutils.get_pixwin(mask.shape[-2:])
 bpfile = "data/"+dm.get_bandpass_file_name(array)
 f = tfg.get_mix_bandpassed([bpfile], 'tSZ',ccor_cen_nus=[freqs[array]], ccor_beams=[lbeam])[0]
 f2d = maps.interp(ells,f)(modlmap)
-#f = tfg.get_mix_bandpassed([bpfile], 'tSZ')#,ccor_cen_nus=[freqs[array]], ccor_beams=[lbeam])[0]
-#f2d = f * (modlmap*0 + 1)
 filt = kmask/pwin/f2d
 filt[~np.isfinite(filt)] = 0
 imap = enmap.ifft(kmap*filt).real
@@ -113,7 +92,6 @@ for ra,dec,sn in zip(ras,decs,sns):
     if mcut is None: 
         continue
     if np.any(mcut)<=0: 
-        #print("skipping since in mask")
         continue
 
     
@@ -142,15 +120,10 @@ for ra,dec,sn in zip(ras,decs,sns):
     if i>5000: break
 
 s.get_stats()
-print(i)
 istack = istack / i * 1e6
 ystack = ystack / i * 1e6
 sstack = sstack / i
 cstack = cstack / i
-# io.plot_img(istack,"istack.png",lim=[-5,25])
-# io.plot_img(ystack,"ystack.png",lim=[-5,25])
-# io.plot_img(sstack,"sstack.png")#,lim=[-5,25])
-# io.plot_img(cstack,"cstack.png")#,lim=[-5,25])
 
 _,nwcs = enmap.geometry(pos=(0,0),shape=istack.shape,res=np.deg2rad(0.5/60.))
 
@@ -167,15 +140,6 @@ if do_images:
         io.hplot(enmap.enmap(cstack,nwcs),"fig_cstack_%s" % region,ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-50,max=17)
 
 
-# io.plot_img(enmap.enmap(istack,nwcs),"istack.png",cmap='gray',lim=[-5,25])
-# io.plot_img(enmap.enmap(ystack,nwcs),"ystack.png",cmap='gray',lim=[-5,25])
-# io.plot_img(enmap.enmap(sstack,nwcs),"fig_sstack.png",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
-# io.plot_img(enmap.enmap(cstack,nwcs),"fig_cstack.png",ticks=5,tick_unit='arcmin',grid=True,colorbar=True,color='gray',upgrade=4,min=-10,max=30)
-
-
-
-#cents,i1d = binner.bin(istack)
-#cents,y1d = binner.bin(ystack)
 
 i1d = s.stats['i1d']['mean']
 ei1d = s.stats['i1d']['errmean']
@@ -199,12 +163,3 @@ pl._ax.xaxis.grid(True, which='both',alpha=0.3)
 pl._ax.yaxis.grid(True, which='both',alpha=0.3)
 
 pl.done('fig_yprofile_%s.pdf' % region)
-
-print((i1d-y1d)/y1d*100.)
-
-    
-#ycut = reproject.cutout(ymap, ra=np.deg2rad(ra), dec=np.deg2rad(dec),npix=pix)
-
-    
-
-
