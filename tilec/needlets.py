@@ -2,14 +2,17 @@ import healpy as hp
 import numpy as np
 
 """
-1. we start with maps of Nobs arrays ~ 30 indexed by a,b
+1. we start with maps of Nobs arrays ~ 20 (Planck and ACT) indexed by a,b
 2. we apply an apodized mask to these
-3. we define Ns spectral windows ~ 14 indexed by j
-4. we filter the maps with these to obtain Nobs*Ns ~ 900 maps
-5. for each j in Ns, we obtain Ma(x)*Mb(x) and smooth it with a Gaussian with width sigma_cov
+3. we define Ns~14 spectral windows indexed by j
+4. we filter the maps with these to obtain Nobs*Ns ~  maps
+5. for each j in Ns, we obtain Ma(x)*Mb(x) and smooth it with a Gaussian with width sigma_cov_j
 6. We save these Ns*Nobs(Nobs+1)/2 product/covariance maps ~ 6510 maps
 
+30,44,70,100,143,217,353,545 = 8
+ar1,ar2,ar3,PA1,PA2,PA3a,PA3b,PA4a,PA4b,PA5a,PA5b,PA6a,PA6b = 13
 
+How do we enforce ell space weighting?
 """
 
 
