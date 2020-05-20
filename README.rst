@@ -22,14 +22,15 @@ used to make the products presented in Madhavacheril, Hill, Naess at. al. 2019
 Dependencies
 ------------
 
-* Python>=2.7 or Python>=3.4
+* Python>=3.6
 * numpy, scipy, matplotlib
+* orphics_ (can be git cloned and installed with ``pip install -e . --user``)
 * pixell_, soapack_
 
 Development and Contributing
 ----------------------------
 
-This code is currently being developed by Mathew Madhavacheril, Colin Hill and
+This code is maintained by Mathew Madhavacheril, Colin Hill and
 Sigurd Naess. Contributions are welcome and encouraged through pull requests.
 
 
@@ -97,6 +98,7 @@ MHN19:
 
 
 .. _pixell: https://github.com/simonsobs/pixell/
+.. _orphics: https://github.com/msyriac/orphics/
 .. _soapack: https://github.com/simonsobs/soapack/
 .. _arxiv: https://arxiv.org/abs/1911.05717
 
