@@ -10,22 +10,21 @@ tILe-C
 
 
 
-`tILe-C` is ILC in tiles. It is both a library for CMB foregrounds and harmonic
+``tILe-C`` is ILC in tiles. It is both a library for CMB foregrounds and harmonic
 ILC as well as a set of pipeline scripts designed primarily for component
 separation of high-resolution ground-based CMB maps that might have
 inhomogenous, anisotropic and inhomogenously anisotropic noise. This code was
 used to make the products presented in Madhavacheril, Hill, Naess at. al. 2019
-(arxiv_).
+(MHN19, arxiv_).
 
 * Free software: BSD license
-* Documentation: in the works
 
 Dependencies
 ------------
 
 * Python>=2.7 or Python>=3.4
 * numpy, scipy, matplotlib
-* pixell, soapack
+* pixell_, soapack_
 
 Development and Contributing
 ----------------------------
@@ -41,8 +40,8 @@ The main non-trivial dependencies are pixell_ and soapack_. The latter must be
 set up with a config file that points to relevant data directories for the input
 maps and beams. See the instructions in soapack README.
 
-Following this, edit your ~/.soapack.yml to include a section named `tilec' that
-has keywords `save_path' and `scratch_path' that point to new directories where
+Following this, edit your ~/.soapack.yml to include a section named ``tilec`` that
+has keywords ``save_path`` and ``scratch_path`` that point to new directories where
 you would like to store tilec related files. The former is where the ILC
 products are stored and the latter is where temporary files are stored.
 
@@ -63,11 +62,11 @@ Running ILC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first step is to generate an empirical covariance matrix. The pipeline
-script for this is ``bin/make_cov.py''. The command line arguments and their
-descriptions can be obtained by running ``python bin/make_cov.py -h''.
+script for this is ``bin/make_cov.py``. The command line arguments and their
+descriptions can be obtained by running ``python bin/make_cov.py -h``.
 
 The following commands were run to produce the final versions of maps in
-Madhavacheril et. al. 2019:
+MHN19:
 
 .. code-block:: console
 
@@ -84,11 +83,11 @@ covariance matrix and save these to disk.
 The second step is to derive ILC weights from the above covariance matrices and
 responses to desired components and use these to co-add the input arrays in 2D
 Fourier space. The pipeline
-script for this is ``bin/make_ilc.py''. The command line arguments and their
-descriptions can be obtained by running ``python bin/make_ilc.py -h''.
+script for this is ``bin/make_ilc.py``. The command line arguments and their
+descriptions can be obtained by running ``python bin/make_ilc.py -h``.
 
 The following commands were run to produce the final versions of maps in
-Madhavacheril et. al. 2019:
+MHN19:
 
 .. code-block:: console
 
