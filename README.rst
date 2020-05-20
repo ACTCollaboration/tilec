@@ -13,7 +13,9 @@ tILe-C
 `tILe-C` is ILC in tiles. It is both a library for CMB foregrounds and harmonic
 ILC as well as a set of pipeline scripts designed primarily for component
 separation of high-resolution ground-based CMB maps that might have
-inhomogenous, anisotropic and inhomogenously anisotropic noise.
+inhomogenous, anisotropic and inhomogenously anisotropic noise. This code was
+used to make the products presented in Madhavacheril, Hill, Naess at. al. 2019
+(arxiv_).
 
 * Free software: BSD license
 * Documentation: in the works
@@ -23,7 +25,7 @@ Dependencies
 
 * Python>=2.7 or Python>=3.4
 * numpy, scipy, matplotlib
-* pixell
+* pixell, soapack
 
 Development and Contributing
 ----------------------------
@@ -35,90 +37,67 @@ Sigurd Naess. Contributions are welcome and encouraged through pull requests.
 Installation
 ------------
 
-Clone this repository and install with symbolic links as follows
+The main non-trivial dependencies are pixell_ and soapack_. The latter must be
+set up with a config file that points to relevant data directories for the input
+maps and beams. See the instructions in soapack README.
+
+Following this, edit your ~/.soapack.yml to include a section named `tilec' that
+has keywords `save_path' and `scratch_path' that point to new directories where
+you would like to store tilec related files. The former is where the ILC
+products are stored and the latter is where temporary files are stored.
+
+
+Once those are set up, clone this repository and install with symbolic links as follows
 so that changes you make to the code are immediately reflected.
 
 
 .. code-block:: console
 
-   pip install -e . --user
-
-
-Pointing to data
-----------------
-
-You can start running the pipeline scripts as soon as you set up a configuration
-file that tells these scripts where relevant data products are stored. To do
-this, copy the template in `input/paths_template.yml` to `paths.yml`. The former
-is version controlled and the latter is not. Edit the latter to conform to where
-you have stored the relevant data on the system you have just cloned this
-repository to.
-
-The data model itself is implemented in `tilec/datamodel.py`. To interface with
-the data products of a new experiment (or version), you are encouraged to modify
-that module and submit your changes as a pull request to be incorporated into
-the master branch here. Modifications are preferred to be in the form of
-subclasses of `tilec.datamodel.DataModel`. See the ACT and Planck examples
-there.
-
-You can then add descriptions of ``arrays'' to `data.yml' that point to
-implemented data models. The overall analysis is tied to a `mask' whose
-WCS geometry specifies what pixel regions of the maps in each array
-are loaded and coadded together. The mask is also assumed to be apodized
-and is applied right before any FFT is performed.
+				pip install -e . --user
 
 
 Running ILC
 -----------
 
-1. Covariance
-~~~~~~~~~~~~~
+1. Covariance in 2D Fourier space
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The first step is to generate an empirical covariance matrix. The pipeline
-script for this is ``bin/cov.py''. The call options are:
+script for this is ``bin/make_cov.py''. The command line arguments and their
+descriptions can be obtained by running ``python bin/make_cov.py -h''.
+
+The following commands were run to produce the final versions of maps in
+Madhavacheril et. al. 2019:
 
 .. code-block:: console
 
-   python bin/cov.py <version> <region>
-   <comma,separated,list,of,array,short,names>
-   [--signal-bin-width I] [--signal-interp-order I] [--dfact I]
-   [--rfit-bin-width I] [--rfit-wnoise-width I] [--rfit-lmin I]
+				python bin/make_cov.py v1.2.0 deep56 d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08 -o
+				python bin/make_cov.py v1.2.0 boss boss_01,boss_02,boss_03,boss_04,p01,p02,p03,p04,p05,p06,p07,p08 --o
 
+This will make a directory in the default save location, use masks corresponding
+to deep56 and boss, generate the non-redundant parts of a TILe-C hybrid
+covariance matrix and save these to disk.
 
-An example call is:
+2. Linear Co-Addition in 2D Fourier space
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+The second step is to derive ILC weights from the above covariance matrices and
+responses to desired components and use these to co-add the input arrays in 2D
+Fourier space. The pipeline
+script for this is ``bin/make_ilc.py''. The command line arguments and their
+descriptions can be obtained by running ``python bin/make_ilc.py -h''.
 
-.. code-block:: console
-
-   python bin/cov.py v0.1 deep56 a1,a2,p1,p2
-
-This will make a directory named v0.1 in the default save location, a
-sub-directory named deep56, use masks corresponding to deep56, generate
-the non-redundant parts of a TILe-C hybrid covariance matrix involving
-arrays with short names a1,a2,p1,p2 and save it to that sub-directory along
-with a copy of the configuration options.
-
-2. Coadd
-~~~~~~~~
-
+The following commands were run to produce the final versions of maps in
+Madhavacheril et. al. 2019:
 
 .. code-block:: console
 
-   python bin/ilc.py <version> <region>
-   <comma,separated,list,of,array,short,names>
-   <comma,separated,list,of,solutions>
+				python bin/make_ilc.py map_v1.2.0_joint v1.2.0 deep56 d56_01,d56_02,d56_03,d56_04,d56_05,d56_06,p01,p02,p03,p04,p05,p06,p07,p08 CMB,tSZ,CMB-tSZ,CMB-CIB,tSZ-CMB,tSZ-CIB 1.6,1.6,2.4,2.4,2.4,2.4
+				python bin/make_ilc.py map_v1.2.0_joint v1.2.0 boss boss_01,boss_02,boss_03,boss_04,p01,p02,p03,p04,p05,p06,p07,p08 CMB,tSZ,CMB-tSZ,tSZ-CMB,tSZ-CIB,CMB-CIB 1.6,1.6,2.4,2.4,2.4,2.4
 
 
-Each solution is of the form x-y-... where x is solved for and the optionally
-provided y-,... are deprojected. The x,y,z,... can be belong to any of
-cmb,tsz,cib.
 
-e.g.
+.. _pixell: https://github.com/simonsobs/pixell/
+.. _soapack: https://github.com/simonsobs/soapack/
+.. _arxiv: https://arxiv.org/abs/1911.05717
 
-.. code-block:: console
-
-   python bin/ilc.py v0.1 deep56 a1,p1
-   cmb,cmb-tsz,cmb-cib,cmb-tsz-cib,tsz,tsz-cmb,tsz-cib
-
-
-In the above example, only 2 of the arrays in the original covariance matrix are used.

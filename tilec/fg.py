@@ -453,19 +453,22 @@ class ArraySED(object):
             self.bps[array] = {}
             self.bps[array]['cfreq'] = cfreq_dict[array] 
             self.bps[array]['nus'], self.bps[array]['trans'] = np.loadtxt(bp_file_dict[array], usecols=(0,1), unpack=True)
-            ls,bells = np.loadtxt(beam_file_dict[array], usecols=(0,1), unpack=True)
-            assert ls[0]==0,ls[0]==1
-            bells = bells/bells[0]
-            self.bps[array]['lbeam'] = bells.copy()
+            if beam_file_dict[array] is not None:
+                ls,bells = np.loadtxt(beam_file_dict[array], usecols=(0,1), unpack=True)
+                assert ls[0]==0,ls[0]==1
+                bells = bells/bells[0]
+                self.bps[array]['lbeam'] = bells.copy()
 
-            lbeam = self.bps[array]['lbeam']
-            ells = np.arange(lbeam.size)
-            cen_nu_ghz = cfreq_dict[array] 
-            nu_ghz = self.bps[array]['nus']
-            bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nu_ghz,ccor_exp=cexp).swapaxes(0,1)
-            assert np.all(np.isfinite(bnus))
-            self.bps[array]['obnu'] = (lbeam,bnus)
-
+                lbeam = self.bps[array]['lbeam']
+                ells = np.arange(lbeam.size)
+                cen_nu_ghz = cfreq_dict[array] 
+                nu_ghz = self.bps[array]['nus']
+                bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nu_ghz,ccor_exp=cexp).swapaxes(0,1)
+                assert np.all(np.isfinite(bnus))
+                self.bps[array]['obnu'] = (lbeam,bnus)
+            else:
+                self.bps[array]['obnu'] = None
+                
         
     def get_response(self,comp,array=None,norm_freq_ghz=None,eff_freq_ghz=None,params=None,
                      dust_beta_param_name='beta_CIB',
@@ -515,7 +518,10 @@ class ArraySED(object):
             fnorm = 1.
 
         if lmax is not None:
-            ret = ret[0][:lmax]
+            if ret.ndim==2:
+                ret = ret[0][:lmax]
+            else:
+                ret = ret[0]
         rval = ret/fnorm
         if comp in self.cache.keys() and (array is not None):
             self.cache[comp][array] = rval

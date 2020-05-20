@@ -289,7 +289,7 @@ def get_aniso_pairs(aids,hybrids,friends):
 
 def build_and_save_cov(arrays,region,version,mask_version,
                        signal_bin_width,signal_interp_order,delta_ell,
-                       rfit_wnoise_width,rfit_lmin,
+                       rfit_lmin,
                        overwrite,memory_intensive,uncalibrated,
                        sim_splits=None,skip_inpainting=False,theory_signal="none",
                        unsanitized_beam=False,save_all=False,plot_inpaint=False,

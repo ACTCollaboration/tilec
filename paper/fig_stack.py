@@ -23,7 +23,7 @@ random = False
 cversion = 'joint'
 
 # deep56 vs boss-n
-region = 'deep56'
+region = 'boss'
 
 # array to compare to fig 8
 array = "pa3_f090"
