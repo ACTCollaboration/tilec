@@ -5,7 +5,7 @@ from pixell import enmap,utils
 import numpy as np
 import os,sys
 
-dfact = 4
+dfact = 1
 # #area = 500.. * utils.degree**2
 # beam = 1.5 * utils.arcmin
 # beam_area = 2* np.pi * (1-np.cos(beam))
@@ -17,17 +17,29 @@ dfact = 4
 # sys.exit()
 
 lmax = 30000
-fwhms = np.array([600., 300., 120., 60., 30., 15., 10., 7.5, 5.,4.,3.,2.,1.0])
-nspect = fwhms.size + 1
-filters = needlets.gaussian_needlets(lmax,fwhms)
 
-# ls = np.arange(filters.shape[1])
-# pl = io.Plotter(xyscale='loglin',xlabel='l',ylabel='f')
-# for i in range(filters.shape[0]): pl.add(ls[2:],filters[i,2:],label=str(i))
-# pl.add(ls[2:],(filters[:,2:]**2.).sum(axis=0),color='k')
-# pl.legend(loc='center left',bbox_to_anchor=(1,0.5))
-# pl.done('filters.png')
+# fwhms = np.array([600., 300., 120., 60., 30., 15., 10., 7.5, 5.,4.,3.,2.,1.0])
+# nspect = fwhms.size + 1
+# filters = needlets.gaussian_needlets(lmax,fwhms)
 
+ells = np.arange(lmax)
+#lmaxs = [100,200,300,400,600,800,1000,1400,1800,2200,2800,3400,4000,4600,5200,6000,6800,7600,8400,9400,10400,11400,12400,14400,16400,18400,20400,25400,30000]
+lmaxs = [200,300,400,600,800,1000,1400,1800,2200,2800,3400,4000,4600,5200,6000,6800,7600,8400,9400,10400,11400,12400,14400,16400,18400,20400,25400,30000]
+lpeaks = [0] + lmaxs[:-1]
+lmins = [0] + lpeaks[:-1]
+filters = needlets.bandlim_needlets(ells,lmins,lpeaks,lmaxs,tol=1e-8)
+nspect = filters.shape[0]
+print(nspect)
+
+ls = np.arange(filters.shape[1])
+pl = io.Plotter(xyscale='loglin',xlabel='l',ylabel='f')
+for i in range(filters.shape[0]): pl.add(ls[2:],filters[i,2:],label=str(i))
+pl.add(ls[2:],(filters[:,2:]**2.).sum(axis=0),color='k')
+pl.legend(loc='center left',bbox_to_anchor=(1,0.5))
+#pl._ax.set_xlim(2,4000)
+pl.done('filters.png')
+
+#sys.exit()
 
 bshape,bwcs = enmap.read_map_geometry('/home/msyriac/data/act/maps/mr3/s13_deep5_pa1_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits')
 m2 = enmap.read_map('/home/msyriac/data/act/maps/mr3/s14_deep56_pa1_f150_nohwp_night_3pass_4way_coadd_map_srcfree.fits',sel=np.s_[0,...])
@@ -130,7 +142,8 @@ for i in range(nspect):
 
 
 omap = 0
-r = np.asarray([fg.get_mix(143, 'tSZ')[0]] * nmaps)
+#r = np.asarray([fg.get_mix(143, 'tSZ')[0]] * nmaps)
+r = np.asarray([1] * nmaps)
 for i in range(nspect):
     cinv = cinvs[i]
     idenom = 1./np.einsum('ijl,l->ij',np.einsum('k,ijkl->ijl',r,cinv),r)

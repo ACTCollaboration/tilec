@@ -16,6 +16,23 @@ How do we enforce ell space weighting?
 """
 
 
+def bandlim_needlets(ells,lmins,lpeaks,lmaxs,tol=1e-8):
+    filters = []
+    ells = np.asarray(ells,dtype=np.float)
+    lmins = np.asarray(lmins,dtype=np.float)
+    lpeaks = np.asarray(lpeaks,dtype=np.float)
+    lmaxs = np.asarray(lmaxs,dtype=np.float)
+    for lmin,lpeak,lmax in zip(lmins,lpeaks,lmaxs):
+        f = ells*0
+        sel = np.logical_and(ells>=lmin,ells<=lpeak)
+        f[sel] = np.cos( (lpeak-ells[sel]) / (lpeak-lmin) * np.pi / 2.)
+        sel = np.logical_and(ells>lpeak,ells<=lmax)
+        f[sel] = np.cos( (-lpeak+ells[sel]) / (lmax-lpeak) * np.pi / 2.)
+        f[ells<2] = 0
+        filters.append(f.copy())
+    filters = np.asarray(filters)
+    # assert (np.absolute( np.sum( filters**2., axis=0 ) - (ells*0 + 1)) < tol).all(), "wavelet filter transmission check failed"
+    return filters
 
 def gaussian_needlets(lmax,fwhm_arcmins=np.array([600., 300., 120., 60., 30., 15., 10., 7.5, 5.]),tol=1e-8):
     """
