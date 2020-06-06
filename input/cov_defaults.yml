@@ -6,8 +6,6 @@ cov:
   signal_bin_width: 160
   signal_interp_order: 1
   delta_ell: 400
-  rfit_bin_width: 80
-  rfit_wnoise_width: 250
   rfit_lmin: 400
   fit_physical: 0
 
