@@ -16,7 +16,7 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                AutoMinorLocator)
 
 cversion = 'joint'
-redo = False
+redo = True
 ppath = "/scratch/r/rbond/msyriac/data/planck/data/pr2/"
 fwhm = 10.
 invbeam = lambda x: np.piecewise(x, [x<1,x>=1], [lambda y: y*0 , lambda y: 1./maps.gauss_beam(y,fwhm)])
@@ -24,7 +24,7 @@ invbeam = lambda x: np.piecewise(x, [x<1,x>=1], [lambda y: y*0 , lambda y: 1./ma
 
 dfwhm = 0.0001
 
-region_map = {'boss':'BOSS-N','deep56':'D56'}
+region_map = {'boss':'BN','deep56':'D56'}
 
 
 pl = io.Plotter(xyscale='linlog',xlabel='$\\ell$',
@@ -36,8 +36,8 @@ for col,region in zip(['red','blue'],['deep56','boss']):
         mask = sints.get_act_mr3_crosslinked_mask(region)
         shape,wcs = mask.shape,mask.wcs
 
-        bfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.0_%s_beam.txt" % (cversion,region,region,cversion)
-        yfile = os.environ["WORK"] + "/data/depot/tilec/map_v1.1.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.1.0_%s.fits" % (cversion,region,region,cversion)
+        bfile = os.environ["WORK"] + "/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.2.0_%s_beam.txt" % (cversion,region,region,cversion)
+        yfile = os.environ["WORK"] + "/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_%s_%s/tilec_single_tile_%s_comptony_map_v1.2.0_%s.fits" % (cversion,region,region,cversion)
         w2 = np.mean(mask**2.)
 
         ls,bells = np.loadtxt(bfile,unpack=True)
