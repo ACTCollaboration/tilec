@@ -1,5 +1,6 @@
 import healpy as hp
 import numpy as np
+from pixell import curvedsky as cs
 
 """
 1. we start with maps of Nobs arrays ~ 20 (Planck and ACT) indexed by a,b
@@ -15,24 +16,80 @@ ar1,ar2,ar3,PA1,PA2,PA3a,PA3b,PA4a,PA4b,PA5a,PA5b,PA6a,PA6b = 13
 How do we enforce ell space weighting?
 """
 
+class BandLimNeedlet(object):
+    """
+    A class for book-keeping of memory/disk efficient representation
+    of needlet coefficient maps.
+    """
+    def __init__(self,ells,lmaxs,dir_path,debug_plots=False):
+        lmins,lpeaks,self.filters = bandlim_needlets(ells,lmaxs)
+        if debug_plots: plot_filters(ells,self.filters,dir_path,'linlin')
+        self.ells = ells
+        self.lmins = lmins
+        self.lmaxs = lmaxs
+        self.dpath = dir_path
+        self.pcache = {}
 
-def bandlim_needlets(ells,lmins,lpeaks,lmaxs,tol=1e-8):
+    def get_part_alms(self,alms,ellmin,ellmax,mlmax):
+        if mlmax in self.pcache.keys():
+            ellarray = self.pcache[mlmax]
+        else:
+            ls = np.arange(mlmax+1)
+            ellarray = hp.almxfl(alms*0 + 1,ls)
+            self.pcache[mlmax] = ellarray
+        sel = np.logical_and(ellarray>=ellmin,ellarray<ellmax)
+        return alms[sel]
+
+    def transform(self,tag,ellmin,ellmax,mlmax,imap=None,alm=None):
+        if ellmin is None: ellmin = 0
+        if ellmax is None: ellmax = np.inf
+        assert ellmax>ellmin
+        if alm is None: alm = cs.map2alm(imap,lmax=mlmax)
+        for i,(flmin,flmax) in enumerate(zip(self.lmins,self.lmaxs)):
+            outside = ((ellmax<flmin) or (ellmin>=flmax))
+            if outside: continue
+            beta_alm = self.get_part_alms(transform(self.filters[i][None],alm=alm)[0],flmin,flmax,mlmax)
+            # Switch to hdf5?
+            np.save(f'{self.dpath}/beta_alms_findex_{i}_{tag}_flmin_{flmin}_flmax_{flmax}_ellmin_{ellmin}_ellmax_{ellmax}_mlmax_{mlmax}.npy',beta_alm)
+        
+
+def transform(filters,imap=None,alm=None,lmax=None):
+    """
+    Given an (nscale,nells) filters array of needlet spectral windows,
+    produces nscale filtered needlet coefficient maps. This really
+    is just an almxfl operation.
+    """
+    if alm is None:
+        alm = cs.map2alm(imap,lmax=lmax)
+    betas = []
+    for fl in filters:
+        res = hp.almxfl(alm,fl)
+        if imap is not None: res = cs.alm2map(res,enmap.empty(imap.shape,imap.wcs,dtype=imap.dtype))
+        betas.append(res)
+    betas = np.asarray(betas)
+    if imap is not None: betas = enmap.enmap(betas,imap.wcs)
+    return betas
+    
+
+def bandlim_needlets(ells,lmaxs,tol=1e-8):
     filters = []
-    ells = np.asarray(ells,dtype=np.float)
-    lmins = np.asarray(lmins,dtype=np.float)
-    lpeaks = np.asarray(lpeaks,dtype=np.float)
-    lmaxs = np.asarray(lmaxs,dtype=np.float)
+    ells = np.asarray(ells,dtype=np.float32)
+    lmaxs = np.asarray(lmaxs,dtype=np.float32)
+    lpeaks = np.append([0] , lmaxs[:-1])
+    lmins = np.append([0], lpeaks[:-1])
     for lmin,lpeak,lmax in zip(lmins,lpeaks,lmaxs):
+        assert lpeak>=lmin
+        assert lmax>lpeak
         f = ells*0
         sel = np.logical_and(ells>=lmin,ells<=lpeak)
         f[sel] = np.cos( (lpeak-ells[sel]) / (lpeak-lmin) * np.pi / 2.)
-        sel = np.logical_and(ells>lpeak,ells<=lmax)
+        sel = np.logical_and(ells>lpeak,ells<lmax)
         f[sel] = np.cos( (-lpeak+ells[sel]) / (lmax-lpeak) * np.pi / 2.)
         f[ells<2] = 0
         filters.append(f.copy())
-    filters = np.asarray(filters)
+    filters = np.asarray(filters,dtype=np.float32)
     # assert (np.absolute( np.sum( filters**2., axis=0 ) - (ells*0 + 1)) < tol).all(), "wavelet filter transmission check failed"
-    return filters
+    return lmins,lpeaks,filters
 
 def gaussian_needlets(lmax,fwhm_arcmins=np.array([600., 300., 120., 60., 30., 15., 10., 7.5, 5.]),tol=1e-8):
     """
@@ -64,3 +121,15 @@ def gaussian_needlets(lmax,fwhm_arcmins=np.array([600., 300., 120., 60., 30., 15
     filters[N_scales-1] = np.sqrt(1. - Gaussians[N_scales-2]**2.)
     assert (np.absolute( np.sum( filters**2., axis=0 ) - np.ones(lmax+1,dtype=float)) < tol).all(), "wavelet filter transmission check failed"
     return filters
+
+
+def plot_filters(ells,filters,dir_path,xyscale='linlin'):
+    from orphics import io
+    pl = io.Plotter(xyscale=xyscale,xlabel='l',ylabel='f')
+    for i in range(filters.shape[0]): pl.add(ls[2:],filters[i,2:],label=str(i))
+    trans = (filters[:,2:]**2.).sum(axis=0)
+    print(ls[2:][trans<1-1e-5])
+    pl.add(ls[2:],trans,color='k')
+    pl.legend(loc='center left',bbox_to_anchor=(1,0.5))
+    pl.done(f'{dir_path}filters.png')
+

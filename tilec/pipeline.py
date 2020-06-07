@@ -899,3 +899,70 @@ def calculate_yy(bin_edges,arrays,region,version,cov_versions,beam_version,
 
 
     return binner.centers,ypowers,y_bsamples,y_bsamples_cmb
+
+
+def get_qids(exps=['act','planck'],daynight='daynight'):
+    dm = sints.DR5()
+    if ('planck' in exps) and ('act' not in exps):
+        df = dm.adf[dm.adf['season']=='planck']
+    elif ('planck' not in exps) and ('act' in exps):
+        df = dm.adf[dm.adf['season']!='planck']
+    else:
+        df = dm.adf
+    if daynight=='night':
+        df = df[df['daynight']=='night']
+    else:
+        assert daynight=='daynight'
+    return df['#qid'].to_list()
+
+
+def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,region_shape,region_wcs,dfact=None):
+    """
+    1. inpaint
+    2. apodize
+    3. deconvolve pixwin
+    4. T,E,B transform
+    5. reconvolve and low-pass
+    6. needlet transform -> save
+    6. product and smooth -> save
+
+    When saving, all ACT arrays are saved as maps in their
+    corresponding patches, and all Planck arrays are saved
+    as alms up to its ellmax.
+    """
+    from tilec import needlets as nd
+
+    lmaxs = np.loadtxt(f"data/needlet_lmaxs_{mode}.txt",delimiter=',')
+
+    dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
+    ells = np.arange(lmaxs.max()+1)
+    bandlt = nd.BandLimNeedlet(ells,lmaxs,dpath)
+    dm = sints.DR5(region_shape=region_shape,region_wcs=region_wcs)
+    for qid in qids:
+        if qid[0]=='p': continue
+        ivars = dm.get_ivars(qid,calibrated=True)
+        beam_fn = dm.get_beam_func(qid)
+        print(qid,f'{(1-dm.get_gain(qid))*100:.2f} %')
+        continue
+        splits = dm.get_splits(qid,calibrated=True)
+
+        # If debugging, we speed up by downsampling
+        if (dfact is not None) and (dfact!=1):
+            splits = enmap.downgrade(splits,dfact)
+            ivars = enmap.downgrade(ivars,dfact,op=np.sum)
+        imap,_ = sints.get_coadd(splits,ivars,axis=0)
+        alm_T,alm_E,alm_B = curvedsky.map2alm(imap*mask,lmax=mlmax,spin=[0,2])
+        bandlt.transform(f'T_{qid}',ellmin,ellmax,mlmax,alm=alm_T)
+        bandlt.transform(f'E_{qid}',ellmin,ellmax,mlmax,alm=alm_E)
+        bandlt.transform(f'B_{qid}',ellmin,ellmax,mlmax,alm=alm_B)
+
+
+def make_needlet_ilc(version,cov_version,qids):
+    """
+    1. load all needlet transforms and apply small response ell correction -> save
+    2. loop over tiles
+       3. load covmat in tile, calculate weights
+       4. apply weights to needlet transform tile, find solution and save tile
+
+    """
+    pass
