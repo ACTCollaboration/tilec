@@ -9,6 +9,8 @@ from soapack import interfaces as sints
 from szar import foregrounds as fgs
 import healpy as hp
 from actsims.util import seed_tracker
+import pandas as pd
+import warnings
 
 """
 
@@ -915,8 +917,62 @@ def get_qids(exps=['act','planck'],daynight='daynight'):
         assert daynight=='daynight'
     return df['#qid'].to_list()
 
+def validate_shapes(dm,qid,splits,ivars):
+    assert splits.ndim == ivars.ndim == 4
+    snsplits,sncomp,sNy,sNx = splits.shape
+    insplits,incomp,iNy,iNx = ivars.shape
+    assert snsplits==insplits
+    assert snsplits in [2,4]
+    assert incomp==1
+    assert sNy==iNy
+    assert sNx==iNx
+    if (qid in dm.planck_qids) or 'mbac' in qid: assert sncomp==1
+    else: assert sncomp==3
 
-def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,region_shape,region_wcs,dfact=None):
+def get_bounds(dm,qid,df_bounds):
+    adf = df_bounds
+    if qid not in dm.planck_qids: qid = 'act'
+    ellmin = adf[adf['#qid']==qid]['ellmin'].iloc[0]
+    ellmax = adf[adf['#qid']==qid]['ellmax'].iloc[0]
+    mlmax = adf[adf['#qid']==qid]['mlmax'].iloc[0]
+    return ellmin,ellmax,mlmax
+
+
+def save_needlets(version,qids,mode,region_shape,region_wcs,dfact=None,
+                  mask_fn=None):
+    from tilec import needlets as nd
+    lmaxs = np.loadtxt(f"data/needlet_lmaxs_{mode}.txt",delimiter=',')
+    df_bounds = pd.read_csv(f"data/needlet_bounds_{mode}.txt")
+    dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
+    ells = np.arange(lmaxs.max()+1)
+    bandlt = nd.BandLimNeedlet(ells,lmaxs,dpath)
+    dm = sints.DR5(region_shape=region_shape,region_wcs=region_wcs)
+    for qid in qids:
+        splits = dm.get_splits(qid,calibrated=True,
+                               ncomp=1 if (qid in dm.planck_qids) else None)
+        ivars = dm.get_ivars(qid,calibrated=True,
+                             ncomp=1 if (qid in dm.planck_qids) else None)
+        validate_shapes(dm,qid,splits,ivars)
+        beam_fn = dm.get_beam_func(qid)
+        # If debugging, we speed up by downsampling
+        if (dfact is not None) and (dfact!=1):
+            splits = enmap.downgrade(splits,dfact)
+            ivars = enmap.downgrade(ivars,dfact,op=np.sum)
+        imap,_ = sints.get_coadd(splits,ivars,axis=0)
+        if mask_fn is None:
+            warnings.warn("Assuming a mask of ones.")
+            mask = enmap.ones(imap.shape[-2:],imap.wcs,dtype=np.float32)
+        else:
+            mask = mask_fn(qid)
+        ellmin,ellmax,mlmax = get_bounds(dm,qid,df_bounds)
+        alms = curvedsky.map2alm(imap*mask,lmax=mlmax,spin=[0,2])
+        bandlt.transform(f'T_{qid}',ellmin,ellmax,mlmax,alm=alms[0])
+        if alms.shape[0]>1:
+            bandlt.transform(f'E_{qid}',ellmin,ellmax,mlmax,alm=alms[1])
+            bandlt.transform(f'B_{qid}',ellmin,ellmax,mlmax,alm=alms[2])
+
+def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,
+                     region_shape,region_wcs,dfact=None,mask_fn=None):
     """
     1. inpaint
     2. apodize
@@ -930,32 +986,9 @@ def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,region_shape,region_wc
     corresponding patches, and all Planck arrays are saved
     as alms up to its ellmax.
     """
-    from tilec import needlets as nd
-
-    lmaxs = np.loadtxt(f"data/needlet_lmaxs_{mode}.txt",delimiter=',')
-
-    dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
-    ells = np.arange(lmaxs.max()+1)
-    bandlt = nd.BandLimNeedlet(ells,lmaxs,dpath)
-    dm = sints.DR5(region_shape=region_shape,region_wcs=region_wcs)
-    for qid in qids:
-        if qid[0]=='p': continue
-        ivars = dm.get_ivars(qid,calibrated=True)
-        beam_fn = dm.get_beam_func(qid)
-        print(qid,f'{(1-dm.get_gain(qid))*100:.2f} %')
-        continue
-        splits = dm.get_splits(qid,calibrated=True)
-
-        # If debugging, we speed up by downsampling
-        if (dfact is not None) and (dfact!=1):
-            splits = enmap.downgrade(splits,dfact)
-            ivars = enmap.downgrade(ivars,dfact,op=np.sum)
-        imap,_ = sints.get_coadd(splits,ivars,axis=0)
-        alm_T,alm_E,alm_B = curvedsky.map2alm(imap*mask,lmax=mlmax,spin=[0,2])
-        bandlt.transform(f'T_{qid}',ellmin,ellmax,mlmax,alm=alm_T)
-        bandlt.transform(f'E_{qid}',ellmin,ellmax,mlmax,alm=alm_E)
-        bandlt.transform(f'B_{qid}',ellmin,ellmax,mlmax,alm=alm_B)
-
+    # Save the needlet map alms to disk
+    save_needlets(version,qids,mode,region_shape,region_wcs,dfact=dfact,
+                  mask_fn=mask_fn)
 
 def make_needlet_ilc(version,cov_version,qids):
     """

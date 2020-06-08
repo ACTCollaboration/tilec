@@ -1,6 +1,7 @@
 import healpy as hp
 import numpy as np
 from pixell import curvedsky as cs
+import h5py
 
 """
 1. we start with maps of Nobs arrays ~ 20 (Planck and ACT) indexed by a,b
@@ -34,8 +35,8 @@ class BandLimNeedlet(object):
         if mlmax in self.pcache.keys():
             ellarray = self.pcache[mlmax]
         else:
-            ls = np.arange(mlmax+1)
-            ellarray = hp.almxfl(alms*0 + 1,ls)
+            ls = np.arange(mlmax+1.0,dtype=np.float32)
+            ellarray = cs.almxfl(alms*0 + 1.0,fl=ls)
             self.pcache[mlmax] = ellarray
         sel = np.logical_and(ellarray>=ellmin,ellarray<ellmax)
         return alms[sel]
@@ -45,12 +46,13 @@ class BandLimNeedlet(object):
         if ellmax is None: ellmax = np.inf
         assert ellmax>ellmin
         if alm is None: alm = cs.map2alm(imap,lmax=mlmax)
-        for i,(flmin,flmax) in enumerate(zip(self.lmins,self.lmaxs)):
-            outside = ((ellmax<flmin) or (ellmin>=flmax))
-            if outside: continue
-            beta_alm = self.get_part_alms(transform(self.filters[i][None],alm=alm)[0],flmin,flmax,mlmax)
-            # Switch to hdf5?
-            np.save(f'{self.dpath}/beta_alms_findex_{i}_{tag}_flmin_{flmin}_flmax_{flmax}_ellmin_{ellmin}_ellmax_{ellmax}_mlmax_{mlmax}.npy',beta_alm)
+        fname = f'{self.dpath}/beta_alms_{tag}.h5'
+        with h5py.File(fname, 'w') as f:
+            for i,(flmin,flmax) in enumerate(zip(self.lmins,self.lmaxs)):
+                outside = ((ellmax<flmin) or (ellmin>=flmax))
+                if outside: continue
+                beta_alm = self.get_part_alms(transform(self.filters[i][None],alm=alm)[0],flmin,flmax,mlmax)
+                f.create_dataset(f'findex_{i}_flmin_{flmin}_flmax_{flmax}_ellmin_{ellmin}_ellmax_{ellmax}_mlmax_{mlmax}',data=beta_alm)
         
 
 def transform(filters,imap=None,alm=None,lmax=None):
@@ -63,7 +65,7 @@ def transform(filters,imap=None,alm=None,lmax=None):
         alm = cs.map2alm(imap,lmax=lmax)
     betas = []
     for fl in filters:
-        res = hp.almxfl(alm,fl)
+        res = cs.almxfl(alm,fl=fl)
         if imap is not None: res = cs.alm2map(res,enmap.empty(imap.shape,imap.wcs,dtype=imap.dtype))
         betas.append(res)
     betas = np.asarray(betas)
@@ -81,8 +83,9 @@ def bandlim_needlets(ells,lmaxs,tol=1e-8):
         assert lpeak>=lmin
         assert lmax>lpeak
         f = ells*0
-        sel = np.logical_and(ells>=lmin,ells<=lpeak)
+        sel = np.logical_and(ells>=lmin,ells<lpeak)
         f[sel] = np.cos( (lpeak-ells[sel]) / (lpeak-lmin) * np.pi / 2.)
+        f[np.isclose(ells,lpeak)] = 1.
         sel = np.logical_and(ells>lpeak,ells<lmax)
         f[sel] = np.cos( (-lpeak+ells[sel]) / (lmax-lpeak) * np.pi / 2.)
         f[ells<2] = 0
