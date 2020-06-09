@@ -1,7 +1,10 @@
 import healpy as hp
 import numpy as np
-from pixell import curvedsky as cs
+from pixell import curvedsky as cs, enmap, utils,bunch
 import h5py
+import pandas as pd
+from enlib import bench
+from orphics import maps
 
 """
 1. we start with maps of Nobs arrays ~ 20 (Planck and ACT) indexed by a,b
@@ -17,60 +20,102 @@ ar1,ar2,ar3,PA1,PA2,PA3a,PA3b,PA4a,PA4b,PA5a,PA5b,PA6a,PA6b = 13
 How do we enforce ell space weighting?
 """
 
+def get_needlet_map_geometries(dm,df_bounds,qids,pxres,lmins,lmaxs,mask_geometries):
+    geometries = {}
+    bounds = {}
+    for qid in qids:
+        ellmin,ellmax,mlmax = get_bounds(dm,qid,df_bounds)
+        bounds[qid] = bunch.Bunch({})
+        bounds[qid].ellmin = ellmin
+        bounds[qid].ellmax = ellmax
+        bounds[qid].mlmax = mlmax
+
+    for i,(flmin,flmax,px) in enumerate(zip(lmins,lmaxs,pxres)):
+        geometries[i] = {}
+        for qid in qids:
+            ellmin,ellmax,mlmax = bounds[qid].ellmin,bounds[qid].ellmax,bounds[qid].mlmax
+            outside = ((ellmax<flmin) or (ellmin>=flmax))
+            if outside: continue
+            
+            bshape,bwcs = enmap.fullsky_geometry(res=px * utils.arcmin)
+            oshape,owcs = mask_geometries[qid]
+            box = enmap.box(oshape,owcs)
+            # FIXME: This is really clunky, ugly and unnecessary, but I couldn't find a better way
+            # that doesn't require writing a new enmap function
+            omap = enmap.empty(bshape,bwcs,dtype=np.int).submap(box)
+            
+            geometries[i][qid] = bunch.Bunch({})
+            geometries[i][qid].shape = omap.shape
+            geometries[i][qid].wcs = omap.wcs
+    return geometries,bounds
+
+def get_bounds(dm,qid,df_bounds):
+    adf = df_bounds
+    if qid not in dm.planck_qids: qid = 'act'
+    ellmin = adf[adf['#qid']==qid]['ellmin'].iloc[0]
+    ellmax = adf[adf['#qid']==qid]['ellmax'].iloc[0]
+    mlmax = adf[adf['#qid']==qid]['mlmax'].iloc[0]
+    return ellmin,ellmax,mlmax
+
+
 class BandLimNeedlet(object):
     """
     A class for book-keeping of memory/disk efficient representation
     of needlet coefficient maps.
     """
-    def __init__(self,ells,lmaxs,dir_path,debug_plots=False):
+    def __init__(self,mode,qids,dm,dir_path,mask_geometries,debug_plots=False):
+        lmaxs,pxres = np.loadtxt(f"data/needlet_lmaxs_{mode}.txt",delimiter=',',unpack=True)
+        ells = np.arange(lmaxs.max()+1)
+        df_bounds = pd.read_csv(f"data/needlet_bounds_{mode}.txt")
         lmins,lpeaks,self.filters = bandlim_needlets(ells,lmaxs)
+        self.geometries,self.bounds = get_needlet_map_geometries(dm,df_bounds,qids,pxres,lmins,lmaxs,mask_geometries)
+        print(self.geometries[0].keys())
         if debug_plots: plot_filters(ells,self.filters,dir_path,'linlin')
+        self.dm = dm
         self.ells = ells
         self.lmins = lmins
         self.lmaxs = lmaxs
         self.dpath = dir_path
+        self.pxres = pxres
         self.pcache = {}
+        self.nfilters = self.filters.shape[0]
+        assert len(lmins) == len(lmaxs) == self.nfilters
+        self.fqids = [list(self.geometries[i].keys()) for i in range(self.nfilters)]
 
-    def get_part_alms(self,alms,ellmin,ellmax,mlmax):
-        if mlmax in self.pcache.keys():
-            ellarray = self.pcache[mlmax]
-        else:
-            ls = np.arange(mlmax+1.0,dtype=np.float32)
-            ellarray = cs.almxfl(alms*0 + 1.0,fl=ls)
-            self.pcache[mlmax] = ellarray
-        sel = np.logical_and(ellarray>=ellmin,ellarray<ellmax)
-        return alms[sel]
-
-    def transform(self,tag,ellmin,ellmax,mlmax,imap=None,alm=None):
+    def transform(self,qid,tag,imap=None,alm=None,forward=True,target_fwhm_arcmin=None):
+        ellmin,ellmax,mlmax = self.bounds[qid].ellmin, self.bounds[qid].ellmax, self.bounds[qid].mlmax
         if ellmin is None: ellmin = 0
         if ellmax is None: ellmax = np.inf
         assert ellmax>ellmin
         if alm is None: alm = cs.map2alm(imap,lmax=mlmax)
-        fname = f'{self.dpath}/beta_alms_{tag}.h5'
+        if forward:
+            # beam_recon_filt = 1 # FIXME: turn this off !!!!
+            # Only the forward transform does a beam reconvolution
+            beam_fn = self.dm.get_beam_func(qid,sanitize=True)
+            beam_recon_filt = maps.gauss_beam(self.ells,target_fwhm_arcmin)/beam_fn(self.ells)
+            beam_recon_filt[self.ells<2] = 0
+        else:
+            beam_recon_filt = 1
+
+        fname = f'{self.dpath}/beta_maps_{qid}_{tag}.h5'
         with h5py.File(fname, 'w') as f:
             for i,(flmin,flmax) in enumerate(zip(self.lmins,self.lmaxs)):
                 outside = ((ellmax<flmin) or (ellmin>=flmax))
                 if outside: continue
-                beta_alm = self.get_part_alms(transform(self.filters[i][None],alm=alm)[0],flmin,flmax,mlmax)
-                f.create_dataset(f'findex_{i}_flmin_{flmin}_flmax_{flmax}_ellmin_{ellmin}_ellmax_{ellmax}_mlmax_{mlmax}',data=beta_alm)
+                fl = self.filters[i]*beam_recon_filt
+                fl[self.ells>=flmax] = 0
+                beta_alm = cs.almxfl(alm,fl=fl)
+                shape,wcs = self.geometries[i][qid].shape, self.geometries[i][qid].wcs
+                beta = cs.alm2map(beta_alm,enmap.empty(shape,wcs,dtype=np.float32))
+                f.create_dataset(f'findex_{i}',data=beta)
         
-
-def transform(filters,imap=None,alm=None,lmax=None):
-    """
-    Given an (nscale,nells) filters array of needlet spectral windows,
-    produces nscale filtered needlet coefficient maps. This really
-    is just an almxfl operation.
-    """
-    if alm is None:
-        alm = cs.map2alm(imap,lmax=lmax)
-    betas = []
-    for fl in filters:
-        res = cs.almxfl(alm,fl=fl)
-        if imap is not None: res = cs.alm2map(res,enmap.empty(imap.shape,imap.wcs,dtype=imap.dtype))
-        betas.append(res)
-    betas = np.asarray(betas)
-    if imap is not None: betas = enmap.enmap(betas,imap.wcs)
-    return betas
+    def load_beta(self,findex,qid,tag):
+        fname = f'{self.dpath}/beta_maps_{qid}_{tag}.h5'
+        with h5py.File(fname, 'r') as f:
+            data = f[f'findex_{findex}'][:]
+        shape,wcs = self.geometries[findex][qid].shape, self.geometries[findex][qid].wcs
+        assert np.all(data.shape==shape)
+        return enmap.enmap(data,wcs)
     
 
 def bandlim_needlets(ells,lmaxs,tol=1e-8):
@@ -127,6 +172,7 @@ def gaussian_needlets(lmax,fwhm_arcmins=np.array([600., 300., 120., 60., 30., 15
 
 
 def plot_filters(ells,filters,dir_path,xyscale='linlin'):
+    ls = ells
     from orphics import io
     pl = io.Plotter(xyscale=xyscale,xlabel='l',ylabel='f')
     for i in range(filters.shape[0]): pl.add(ls[2:],filters[i,2:],label=str(i))

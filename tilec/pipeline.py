@@ -1,6 +1,6 @@
 from __future__ import print_function
 from orphics import maps,io,cosmology,stats,mpi
-from pixell import enmap,curvedsky
+from pixell import enmap,curvedsky,wcsutils
 from enlib import bench
 import numpy as np
 import os,sys,shutil
@@ -10,6 +10,7 @@ from szar import foregrounds as fgs
 import healpy as hp
 from actsims.util import seed_tracker
 import pandas as pd
+import h5py
 import warnings
 
 """
@@ -929,31 +930,23 @@ def validate_shapes(dm,qid,splits,ivars):
     if (qid in dm.planck_qids) or 'mbac' in qid: assert sncomp==1
     else: assert sncomp==3
 
-def get_bounds(dm,qid,df_bounds):
-    adf = df_bounds
-    if qid not in dm.planck_qids: qid = 'act'
-    ellmin = adf[adf['#qid']==qid]['ellmin'].iloc[0]
-    ellmax = adf[adf['#qid']==qid]['ellmax'].iloc[0]
-    mlmax = adf[adf['#qid']==qid]['mlmax'].iloc[0]
-    return ellmin,ellmax,mlmax
 
-
-def save_needlets(version,qids,mode,region_shape,region_wcs,dfact=None,
-                  mask_fn=None):
+def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,mask_fn,mask_geometries,dfact=None):
     from tilec import needlets as nd
-    lmaxs = np.loadtxt(f"data/needlet_lmaxs_{mode}.txt",delimiter=',')
-    df_bounds = pd.read_csv(f"data/needlet_bounds_{mode}.txt")
     dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
-    ells = np.arange(lmaxs.max()+1)
-    bandlt = nd.BandLimNeedlet(ells,lmaxs,dpath)
     dm = sints.DR5(region_shape=region_shape,region_wcs=region_wcs)
+    bandlt = nd.BandLimNeedlet(mode,qids,dm,dpath,mask_geometries)
+
+    """
+    Load maps and calculate their needlet transforms
+    """
     for qid in qids:
+        print(f"Calculating needlet transform maps for {qid}...")
         splits = dm.get_splits(qid,calibrated=True,
                                ncomp=1 if (qid in dm.planck_qids) else None)
         ivars = dm.get_ivars(qid,calibrated=True,
                              ncomp=1 if (qid in dm.planck_qids) else None)
         validate_shapes(dm,qid,splits,ivars)
-        beam_fn = dm.get_beam_func(qid)
         # If debugging, we speed up by downsampling
         if (dfact is not None) and (dfact!=1):
             splits = enmap.downgrade(splits,dfact)
@@ -964,15 +957,65 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,dfact=None,
             mask = enmap.ones(imap.shape[-2:],imap.wcs,dtype=np.float32)
         else:
             mask = mask_fn(qid)
-        ellmin,ellmax,mlmax = get_bounds(dm,qid,df_bounds)
-        alms = curvedsky.map2alm(imap*mask,lmax=mlmax,spin=[0,2])
-        bandlt.transform(f'T_{qid}',ellmin,ellmax,mlmax,alm=alms[0])
+        if (dfact is not None) and (dfact!=1):
+            mask = enmap.downgrade(mask,dfact)
+        alms = curvedsky.map2alm(imap*mask,lmax=bandlt.bounds[qid].mlmax,spin=[0,2])
+        bandlt.transform(qid,'T',alm=alms[0],forward=True,target_fwhm_arcmin=target_fwhm_arcmin)
         if alms.shape[0]>1:
-            bandlt.transform(f'E_{qid}',ellmin,ellmax,mlmax,alm=alms[1])
-            bandlt.transform(f'B_{qid}',ellmin,ellmax,mlmax,alm=alms[2])
+            bandlt.transform(qid,'E',alm=alms[1])
+            bandlt.transform(qid,'B',alm=alms[2])
+
+    """
+    Take products of maps
+    Smooth them
+    That will be our covmat
+    """
+    fname = f"{dpath}cov.h5"
+    with h5py.File(fname, 'w') as f:
+        for findex in range(bandlt.nfilters):
+            fqids = bandlt.fqids[findex] # the qids in this filter
+            nqids = len(fqids)
+            for i in range(nqids):
+                for j in range(i,nqids):
+                    qid1 = fqids[i]
+                    qid2 = fqids[j]
+
+                    beta1 = bandlt.load_beta(findex,qid1,'T')
+                    if i!=j:
+                        beta2 = bandlt.load_beta(findex,qid2,'T')
+                        if not(np.all(beta1.shape==beta2.shape)):
+                            # we will interpret this as one map being inside the other
+                            # This sets a requirement on the map geometries.
+                            # FIXME: this needs to be in an assert
+                            # which one is the larger one?
+                            # we will run extract on it
+                            if beta1.size>beta2.size:
+                                beta1 = enmap.extract(beta1,beta2.shape,beta2.wcs)
+                            elif beta2.size>beta1.size:
+                                beta2 = enmap.extract(beta2,beta1.shape,beta1.wcs)
+                            else:
+                                raise ValueError
+                        assert np.all(beta1.shape==beta2.shape)
+                        assert wcsutils.equal(beta1.wcs,beta2.wcs)
+                        oshape = beta2.shape
+                        owcs = beta2.wcs
+                    else:
+                        beta2 = beta1
+                        oshape = beta2.shape
+                        owcs = beta2.wcs
+
+                    # FIXME: For now we use a smoothing scale 20x the pixel scale 
+                    sm_fwhm = 20 * bandlt.pxres[findex]
+                    sm_filt = maps.gauss_beam(bandlt.ells,sm_fwhm)
+                    sht_filter_map = lambda x,fl,mlmax: curvedsky.alm2map(curvedsky.almxfl(curvedsky.map2alm(x,lmax=mlmax),fl=fl),enmap.empty(oshape,owcs))
+                    cov = sht_filter_map(beta1 * beta2,fl=sm_filt,mlmax=max(bandlt.bounds[qid1].mlmax,bandlt.bounds[qid2].mlmax))
+                    enmap.write_map_geometry(f'{dpath}cov_geometry_findex_{findex}_{qid1}_{qid2}.fits',oshape,owcs)
+                    f.create_dataset(f'findex_{findex}_{qid1}_{qid2}',data=cov)
+                    # io.hplot(cov,f'{dpath}cov_{qid1}_{qid2}_findex_{findex}',mask=0,grid=True,ticks=10)
+            
 
 def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,
-                     region_shape,region_wcs,dfact=None,mask_fn=None):
+                     region_shape,region_wcs,mask_fn,mask_geometries,dfact=None):
     """
     1. inpaint
     2. apodize
@@ -987,8 +1030,8 @@ def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,
     as alms up to its ellmax.
     """
     # Save the needlet map alms to disk
-    save_needlets(version,qids,mode,region_shape,region_wcs,dfact=dfact,
-                  mask_fn=mask_fn)
+    save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,dfact=dfact,
+                  mask_fn=mask_fn,mask_geometries=mask_geometries)
 
 def make_needlet_ilc(version,cov_version,qids):
     """
@@ -998,4 +1041,22 @@ def make_needlet_ilc(version,cov_version,qids):
        4. apply weights to needlet transform tile, find solution and save tile
 
     """
+
+
+    # Response correction goes here, but ignored now.
+    #
+    #
+    #####
+
+
+    """
+    We have a bunch of needlet coefficient maps stored at arbitrary resolution
+    We have covmat element maps for pairs of these, stored in the smaller of the two regions
+    We want the output map to be in the same geometry as specified originally
+
+    We loop through tiles
+       We loop through needlet windows
+          
+    """
+
     pass
