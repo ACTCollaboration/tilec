@@ -1,6 +1,6 @@
 from __future__ import print_function
 from orphics import maps,io,cosmology,stats,mpi
-from pixell import enmap,curvedsky,wcsutils
+from pixell import enmap,curvedsky,wcsutils,utils as putils
 from enlib import bench
 import numpy as np
 import os,sys,shutil
@@ -931,17 +931,32 @@ def validate_shapes(dm,qid,splits,ivars):
     else: assert sncomp==3
 
 
+def get_smoothing_fwhm_arcmin(lmin,lmax,nsample=20.):
+    Nmodes = 2 * ((lmax+1)*lmax - (lmin+1)*lmin)
+    if lmax<=300:
+        M = 36. * nsample
+    elif lmax<=600:
+        M = 21. * nsample
+    else:
+        M = 85. * nsample
+    return 2 * np.arccos(1. - 2.*(M/Nmodes)) / putils.arcmin
+
+
 def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,mask_fn,mask_geometries,dfact=None):
     from tilec import needlets as nd
     dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
-    dm = sints.DR5(region_shape=region_shape,region_wcs=region_wcs)
-    bandlt = nd.BandLimNeedlet(mode,qids,dm,dpath,mask_geometries)
+    dm0 = sints.DR5()
+    bandlt = nd.BandLimNeedlet(mode,qids,dm0,dpath,mask_geometries)
 
     """
     Load maps and calculate their needlet transforms
     """
     for qid in qids:
-        print(f"Calculating needlet transform maps for {qid}...")
+        mask = mask_fn(qid)
+        dm = sints.DR5(region_shape=mask.shape,region_wcs=mask.wcs)
+        if (dfact is not None) and (dfact!=1):
+            mask = enmap.downgrade(mask,dfact)
+        # io.hplot(mask,f'{dpath}mask_{qid}',grid=True,ticks=10)
         splits = dm.get_splits(qid,calibrated=True,
                                ncomp=1 if (qid in dm.planck_qids) else None)
         ivars = dm.get_ivars(qid,calibrated=True,
@@ -952,18 +967,12 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,m
             splits = enmap.downgrade(splits,dfact)
             ivars = enmap.downgrade(ivars,dfact,op=np.sum)
         imap,_ = sints.get_coadd(splits,ivars,axis=0)
-        if mask_fn is None:
-            warnings.warn("Assuming a mask of ones.")
-            mask = enmap.ones(imap.shape[-2:],imap.wcs,dtype=np.float32)
-        else:
-            mask = mask_fn(qid)
-        if (dfact is not None) and (dfact!=1):
-            mask = enmap.downgrade(mask,dfact)
+        # io.hplot(imap*mask,f'{dpath}imap_{qid}',mask=0,grid=True,ticks=10)
         alms = curvedsky.map2alm(imap*mask,lmax=bandlt.bounds[qid].mlmax,spin=[0,2])
         bandlt.transform(qid,'T',alm=alms[0],forward=True,target_fwhm_arcmin=target_fwhm_arcmin)
         if alms.shape[0]>1:
-            bandlt.transform(qid,'E',alm=alms[1])
-            bandlt.transform(qid,'B',alm=alms[2])
+            bandlt.transform(qid,'E',alm=alms[1],forward=True,target_fwhm_arcmin=target_fwhm_arcmin)
+            bandlt.transform(qid,'B',alm=alms[2],forward=True,target_fwhm_arcmin=target_fwhm_arcmin)
 
     """
     Take products of maps
@@ -1004,14 +1013,19 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,m
                         oshape = beta2.shape
                         owcs = beta2.wcs
 
-                    # FIXME: For now we use a smoothing scale 20x the pixel scale 
-                    sm_fwhm = 20 * bandlt.pxres[findex]
-                    sm_filt = maps.gauss_beam(bandlt.ells,sm_fwhm)
-                    sht_filter_map = lambda x,fl,mlmax: curvedsky.alm2map(curvedsky.almxfl(curvedsky.map2alm(x,lmax=mlmax),fl=fl),enmap.empty(oshape,owcs))
-                    cov = sht_filter_map(beta1 * beta2,fl=sm_filt,mlmax=max(bandlt.bounds[qid1].mlmax,bandlt.bounds[qid2].mlmax))
+                    lmin = bandlt.lmins[findex]
+                    lmax = bandlt.lmaxs[findex]
+                    sm_fwhm = get_smoothing_fwhm_arcmin(lmin,lmax)
+                    if sm_fwhm < 900:
+                        sm_filt = maps.gauss_beam(bandlt.ells,sm_fwhm)
+                        sht_filter_map = lambda x,fl,mlmax: curvedsky.alm2map(curvedsky.almxfl(curvedsky.map2alm(x,lmax=mlmax),fl=fl),enmap.empty(oshape,owcs))
+                        cov = sht_filter_map(beta1 * beta2,fl=sm_filt,mlmax=max(bandlt.bounds[qid1].mlmax,bandlt.bounds[qid2].mlmax))
+                    else:
+                        cov = beta1*0 + np.mean(beta1*beta2) / np.mean(mask**2.) # save in a compressed form instead
+
                     enmap.write_map_geometry(f'{dpath}cov_geometry_findex_{findex}_{qid1}_{qid2}.fits',oshape,owcs)
                     f.create_dataset(f'findex_{findex}_{qid1}_{qid2}',data=cov)
-                    # io.hplot(cov,f'{dpath}cov_{qid1}_{qid2}_findex_{findex}',mask=0,grid=True,ticks=10)
+                    io.hplot(cov,f'{dpath}cov_{qid1}_{qid2}_findex_{findex:02d}',mask=0,grid=True,ticks=10)
             
 
 def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,

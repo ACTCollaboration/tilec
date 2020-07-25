@@ -8,18 +8,26 @@ from soapack import interfaces as sints
 
 dfact = 4
 version = 'test_needlets'
-#qids =  sints.get_all_dr5_qids() #['p04','p05','p06','d6','d56_05','d56_06','s18_02']
-qids = ['p04','p05','p08']#,'p06','p07','p08']
-#shape,wcs = sints.get_geometry('d56_05')
-shape,wcs = sints.get_geometry('d56_01')
-mode = 'lensmode'
+dm = sints.DR5()
+#qids = [f'boss_0{i}' for i in range(1,5)] + dm.s14_dpatches + dm.s15_dpatches + dm.s16_dpatches + dm.wide_patches
+qids = dm.s14_dpatches + dm.s15_dpatches + dm.s16_dpatches + dm.wide_patches
+shape,wcs = sints.get_geometry('boss_d01')
+mode = 'szmode'
 target_fwhm = 1.5
-omask = sints.get_act_mr3_crosslinked_mask('deep56')
-mask = enmap.extract(omask,shape,wcs)
-mask_fn = lambda x: mask
+wmask,_ = maps.get_taper_deg(shape,wcs,3.)
+
+def mask_fn(qid,geom=False):
+    if qid in dm.wide_patches:
+        if geom: return shape,wcs
+        else: return wmask
+    else:
+        if geom: return enmap.read_map_geometry(dm.get_binary_apodized_mask_fname(qid))
+        else: return dm.get_binary_apodized_mask(qid)
+
+    
 mgeos = {}
 for qid in qids:
-    mgeos[qid] = (mask.shape,mask.wcs)
+    mgeos[qid] = mask_fn(qid,geom=True)
 pipeline.make_needlet_cov(version,qids,target_fwhm,mode,shape,wcs,mask_fn=mask_fn,mask_geometries=mgeos,dfact=dfact)
 
 

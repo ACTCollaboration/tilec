@@ -14,10 +14,39 @@ from orphics import maps
 5. for each j in Ns, we obtain Ma(x)*Mb(x) and smooth it with a Gaussian with width sigma_cov_j
 6. We save these Ns*Nobs(Nobs+1)/2 product/covariance maps ~ 6510 maps
 
-30,44,70,100,143,217,353,545 = 8
-ar1,ar2,ar3,PA1,PA2,PA3a,PA3b,PA4a,PA4b,PA5a,PA5b,PA6a,PA6b = 13
+We use bandlimited needlets, so excluding ell regions is straightforward.
 
-How do we enforce ell space weighting?
+At the cost of having to write some C code, we are going to have adaptive
+covmats, i.e. the covmat for each needlet scale and pixel will be different in size
+because it includes a different subset of datasets.
+
+The covmat size will depend on both needlet scale and pixel, but we
+can determine the maximum covmat size (based on number of datasets) for each needlet scale
+and use that to determine the smoothing required.
+
+Scales up to lmax of 300 : Nobs ~ 8 (all Planck)
+Scales up to lmax of 600 : Nobs ~ 6 (some Planck)
+Beyond ell of 600 : Nobs ~ 18-50 (some Planck and some ACT)
+
+So the covmats typically have ~36 and ~1300 independent elements respectively.
+Let's require that we have at least 100 samples per covmat element.
+So we need a total of 3600 samples for ell<600 and 130,000 samples for ell>600.
+
+Recall that Nmodes ~ 2(Lmax(Lmax+1) - Lmin(Lmin+1)) * fsky
+
+
+With 50 arrays, one would think that the number of unknown parameters of the covmat
+is 1300. But, there are only ~5-6 frequency bands. So if we were able to impose priors
+that force the signal power to be the same within a band, we have 21 unknown parameters for the
+signal, along with 50 for the diagonal part of the noise, and a handful (~16) for the
+inter-array noise covariance, totaling to ~85 parameters. This is a >10x reduction in the number of unknowns.
+
+We can achieve this parameter reduction in a simple way as follows.
+We first build the ~50 diagonals of the covmat.
+We loop through needlet transforms of each of the 50 maps, square it and smooth it by the pre-determined FWHM.
+
+
+
 """
 
 def get_needlet_map_geometries(dm,df_bounds,qids,pxres,lmins,lmaxs,mask_geometries):
@@ -89,7 +118,6 @@ class BandLimNeedlet(object):
         assert ellmax>ellmin
         if alm is None: alm = cs.map2alm(imap,lmax=mlmax)
         if forward:
-            # beam_recon_filt = 1 # FIXME: turn this off !!!!
             # Only the forward transform does a beam reconvolution
             beam_fn = self.dm.get_beam_func(qid,sanitize=True)
             beam_recon_filt = maps.gauss_beam(self.ells,target_fwhm_arcmin)/beam_fn(self.ells)
@@ -102,6 +130,7 @@ class BandLimNeedlet(object):
             for i,(flmin,flmax) in enumerate(zip(self.lmins,self.lmaxs)):
                 outside = ((ellmax<flmin) or (ellmin>=flmax))
                 if outside: continue
+                print(f"Calculating needlet transform maps for {qid}:{tag}:{i:02d}... ellmin {ellmin} ellmax {ellmax} flmin {flmin} flmax {flmax}.")
                 fl = self.filters[i]*beam_recon_filt
                 fl[self.ells>=flmax] = 0
                 beta_alm = cs.almxfl(alm,fl=fl)
