@@ -946,7 +946,9 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,m
     from tilec import needlets as nd
     dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
     dm0 = sints.DR5()
-    bandlt = nd.BandLimNeedlet(mode,qids,dm0,dpath,mask_geometries)
+    lmax_file = f"data/needlet_lmaxs_{mode}.txt"
+    bound_file = f"data/needlet_bounds_{mode}.txt"
+    bandlt = nd.BandLimNeedlet(lmax_file,bound_file,qids,dm0,dpath,mask_geometries)
 
     """
     Load maps and calculate their needlet transforms
@@ -1021,6 +1023,7 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,m
                         sht_filter_map = lambda x,fl,mlmax: curvedsky.alm2map(curvedsky.almxfl(curvedsky.map2alm(x,lmax=mlmax),fl=fl),enmap.empty(oshape,owcs))
                         cov = sht_filter_map(beta1 * beta2,fl=sm_filt,mlmax=max(bandlt.bounds[qid1].mlmax,bandlt.bounds[qid2].mlmax))
                     else:
+                        # this isn't quite right ; mask has to be recalculated, what does the mean mean
                         cov = beta1*0 + np.mean(beta1*beta2) / np.mean(mask**2.) # save in a compressed form instead
 
                     enmap.write_map_geometry(f'{dpath}cov_geometry_findex_{findex}_{qid1}_{qid2}.fits',oshape,owcs)

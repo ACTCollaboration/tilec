@@ -92,10 +92,10 @@ class BandLimNeedlet(object):
     A class for book-keeping of memory/disk efficient representation
     of needlet coefficient maps.
     """
-    def __init__(self,mode,qids,dm,dir_path,mask_geometries,debug_plots=False):
-        lmaxs,pxres = np.loadtxt(f"data/needlet_lmaxs_{mode}.txt",delimiter=',',unpack=True)
+    def __init__(self,lmax_file,bound_file,qids,dm,dir_path,mask_geometries,debug_plots=False):
+        lmaxs,pxres = np.loadtxt(lmax_file,delimiter=',',unpack=True)
         ells = np.arange(lmaxs.max()+1)
-        df_bounds = pd.read_csv(f"data/needlet_bounds_{mode}.txt")
+        df_bounds = pd.read_csv(bound_file)
         lmins,lpeaks,self.filters = bandlim_needlets(ells,lmaxs)
         self.geometries,self.bounds = get_needlet_map_geometries(dm,df_bounds,qids,pxres,lmins,lmaxs,mask_geometries)
         print(self.geometries[0].keys())
@@ -111,7 +111,7 @@ class BandLimNeedlet(object):
         assert len(lmins) == len(lmaxs) == self.nfilters
         self.fqids = [list(self.geometries[i].keys()) for i in range(self.nfilters)]
 
-    def transform(self,qid,tag,imap=None,alm=None,forward=True,target_fwhm_arcmin=None):
+    def transform(self,qid,tag,imap=None,alm=None,forward=True,target_fwhm_arcmin=None,oshape=None,owcs=None):
         ellmin,ellmax,mlmax = self.bounds[qid].ellmin, self.bounds[qid].ellmax, self.bounds[qid].mlmax
         if ellmin is None: ellmin = 0
         if ellmax is None: ellmax = np.inf
@@ -125,7 +125,11 @@ class BandLimNeedlet(object):
         else:
             beam_recon_filt = 1
 
-        fname = f'{self.dpath}/beta_maps_{qid}_{tag}.h5'
+        if forward:
+            fname = f'{self.dpath}/beta_maps_{qid}_{tag}.h5'
+        else:
+            fname = f'{self.dpath}/backward_beta_maps_{qid}_{tag}.h5'
+            
         with h5py.File(fname, 'w') as f:
             for i,(flmin,flmax) in enumerate(zip(self.lmins,self.lmaxs)):
                 outside = ((ellmax<flmin) or (ellmin>=flmax))
@@ -133,8 +137,12 @@ class BandLimNeedlet(object):
                 print(f"Calculating needlet transform maps for {qid}:{tag}:{i:02d}... ellmin {ellmin} ellmax {ellmax} flmin {flmin} flmax {flmax}.")
                 fl = self.filters[i]*beam_recon_filt
                 fl[self.ells>=flmax] = 0
-                beta_alm = cs.almxfl(alm,fl=fl)
-                shape,wcs = self.geometries[i][qid].shape, self.geometries[i][qid].wcs
+                beta_alm = hp.almxfl(alm,fl=fl)
+                if forward:
+                    shape,wcs = self.geometries[i][qid].shape, self.geometries[i][qid].wcs
+                else:
+                    shape = oshape
+                    wcs = owcs
                 beta = cs.alm2map(beta_alm,enmap.empty(shape,wcs,dtype=np.float32))
                 f.create_dataset(f'findex_{i}',data=beta)
         
