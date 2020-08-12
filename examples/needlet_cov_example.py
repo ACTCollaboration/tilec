@@ -6,6 +6,25 @@ import os,sys
 from tilec import pipeline
 from soapack import interfaces as sints
 
+"""
+
+qids are short names that identify map/arrays in soapack/soapack/data/all_arrays_dr5.csv
+
+I have added qids corresponding to Sigurd's coadds.
+
+The following notes are not relevant for filtering/simulation, but are for component separation:
+For each needlet scale,
+there are a subset of qids that get involved.
+So for each scale and involved qid, we need to define a geometry for the ILC.
+
+We start with a full sky geometry with a resolution matched for each needlet scale.
+Then for each qid, we extract a sub-geometry that roughly falls in the bounding box
+of that qid. We save these geometries.
+
+
+"""
+
+
 dfact = 4
 version = 'test_needlets'
 dm = sints.DR5()
@@ -31,14 +50,3 @@ for qid in qids:
 pipeline.make_needlet_cov(version,qids,target_fwhm,mode,shape,wcs,mask_fn=mask_fn,mask_geometries=mgeos,dfact=dfact)
 
 
-"""
-For each needlet scale,
-there are a subset of qids that get involved.
-So for each scale and involved qid, we need to define a geometry for the ILC.
-
-We start with a full sky geometry with a resolution matched for each needlet scale.
-Then for each qid, we extract a sub-geometry that roughly falls in the bounding box
-of that qid. We save these geometries.
-
-
-"""

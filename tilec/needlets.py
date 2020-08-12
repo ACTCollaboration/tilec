@@ -80,7 +80,11 @@ def get_needlet_map_geometries(dm,df_bounds,qids,pxres,lmins,lmaxs,mask_geometri
 
 def get_bounds(dm,qid,df_bounds):
     adf = df_bounds
-    if qid not in dm.planck_qids: qid = 'act'
+    if qid not in dm.planck_qids: 
+        if qid in dm.coadds:
+            qid = dm.ainfo(qid,'array')
+        else:
+            qid = 'act'
     ellmin = adf[adf['#qid']==qid]['ellmin'].iloc[0]
     ellmax = adf[adf['#qid']==qid]['ellmax'].iloc[0]
     mlmax = adf[adf['#qid']==qid]['mlmax'].iloc[0]
@@ -96,9 +100,10 @@ class BandLimNeedlet(object):
         lmaxs,pxres = np.loadtxt(lmax_file,delimiter=',',unpack=True)
         ells = np.arange(lmaxs.max()+1)
         df_bounds = pd.read_csv(bound_file)
+        # Make the spectral windows based on lmaxs
         lmins,lpeaks,self.filters = bandlim_needlets(ells,lmaxs)
+        # Get needlet map geometries
         self.geometries,self.bounds = get_needlet_map_geometries(dm,df_bounds,qids,pxres,lmins,lmaxs,mask_geometries)
-        print(self.geometries[0].keys())
         if debug_plots: plot_filters(ells,self.filters,dir_path,'linlin')
         self.dm = dm
         self.ells = ells

@@ -942,9 +942,15 @@ def get_smoothing_fwhm_arcmin(lmin,lmax,nsample=20.):
     return 2 * np.arccos(1. - 2.*(M/Nmodes)) / putils.arcmin
 
 
-def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,mask_fn,mask_geometries,dfact=None):
+def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,mask_fn,mask_geometries,dfact=None,overwrite=False):
     from tilec import needlets as nd
     dpath = sints.dconfig['tilec']['save_path']+f'/{version}/'
+
+    try: os.makedirs(dpath)
+    except:
+        if overwrite: pass
+        else: raise
+
     dm0 = sints.DR5()
     lmax_file = f"data/needlet_lmaxs_{mode}.txt"
     bound_file = f"data/needlet_bounds_{mode}.txt"
@@ -958,19 +964,29 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,m
         dm = sints.DR5(region_shape=mask.shape,region_wcs=mask.wcs)
         if (dfact is not None) and (dfact!=1):
             mask = enmap.downgrade(mask,dfact)
+
         # io.hplot(mask,f'{dpath}mask_{qid}',grid=True,ticks=10)
-        splits = dm.get_splits(qid,calibrated=True,
-                               ncomp=1 if (qid in dm.planck_qids) else None)
-        ivars = dm.get_ivars(qid,calibrated=True,
-                             ncomp=1 if (qid in dm.planck_qids) else None)
-        validate_shapes(dm,qid,splits,ivars)
-        # If debugging, we speed up by downsampling
-        if (dfact is not None) and (dfact!=1):
-            splits = enmap.downgrade(splits,dfact)
-            ivars = enmap.downgrade(ivars,dfact,op=np.sum)
-        imap,_ = sints.get_coadd(splits,ivars,axis=0)
+        if qid in dm.coadds:
+            imap = dm.get_splits(qid,calibrated=True)[0] # only 1 split of the coadd maps
+            if (dfact is not None) and (dfact!=1):
+                imap = enmap.downgrade(imap,dfact)
+        else:
+            splits = dm.get_splits(qid,calibrated=True,
+                                   ncomp=1 if (qid in dm.planck_qids) else None)
+            ivars = dm.get_ivars(qid,calibrated=True,
+                                 ncomp=1 if (qid in dm.planck_qids) else None)
+            validate_shapes(dm,qid,splits,ivars)
+            # If debugging, we speed up by downsampling
+            if (dfact is not None) and (dfact!=1):
+                splits = enmap.downgrade(splits,dfact)
+                ivars = enmap.downgrade(ivars,dfact,op=np.sum)
+            # Get coadd map from splits and ivars
+            imap,_ = sints.get_coadd(splits,ivars,axis=0)
+
         # io.hplot(imap*mask,f'{dpath}imap_{qid}',mask=0,grid=True,ticks=10)
+        # Calculate alms
         alms = curvedsky.map2alm(imap*mask,lmax=bandlt.bounds[qid].mlmax,spin=[0,2])
+        # Calculate and save the needlet transforms
         bandlt.transform(qid,'T',alm=alms[0],forward=True,target_fwhm_arcmin=target_fwhm_arcmin)
         if alms.shape[0]>1:
             bandlt.transform(qid,'E',alm=alms[1],forward=True,target_fwhm_arcmin=target_fwhm_arcmin)
@@ -981,58 +997,64 @@ def save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,m
     Smooth them
     That will be our covmat
     """
-    fname = f"{dpath}cov.h5"
-    with h5py.File(fname, 'w') as f:
-        for findex in range(bandlt.nfilters):
-            fqids = bandlt.fqids[findex] # the qids in this filter
-            nqids = len(fqids)
-            for i in range(nqids):
-                for j in range(i,nqids):
-                    qid1 = fqids[i]
-                    qid2 = fqids[j]
+    for findex in range(bandlt.nfilters):
+        fqids = bandlt.fqids[findex] # the qids in this filter
+        nqids = len(fqids)
+        for i in range(nqids):
+            for j in range(i,nqids):
+                qid1 = fqids[i]
+                qid2 = fqids[j]
 
-                    beta1 = bandlt.load_beta(findex,qid1,'T')
-                    if i!=j:
-                        beta2 = bandlt.load_beta(findex,qid2,'T')
-                        if not(np.all(beta1.shape==beta2.shape)):
-                            # we will interpret this as one map being inside the other
-                            # This sets a requirement on the map geometries.
-                            # FIXME: this needs to be in an assert
-                            # which one is the larger one?
-                            # we will run extract on it
-                            if beta1.size>beta2.size:
-                                beta1 = enmap.extract(beta1,beta2.shape,beta2.wcs)
-                            elif beta2.size>beta1.size:
-                                beta2 = enmap.extract(beta2,beta1.shape,beta1.wcs)
-                            else:
-                                raise ValueError
-                        assert np.all(beta1.shape==beta2.shape)
-                        assert wcsutils.equal(beta1.wcs,beta2.wcs)
-                        oshape = beta2.shape
-                        owcs = beta2.wcs
-                    else:
-                        beta2 = beta1
-                        oshape = beta2.shape
-                        owcs = beta2.wcs
+                beta1 = bandlt.load_beta(findex,qid1,'T')
 
-                    lmin = bandlt.lmins[findex]
-                    lmax = bandlt.lmaxs[findex]
-                    sm_fwhm = get_smoothing_fwhm_arcmin(lmin,lmax)
-                    if sm_fwhm < 900:
-                        sm_filt = maps.gauss_beam(bandlt.ells,sm_fwhm)
-                        sht_filter_map = lambda x,fl,mlmax: curvedsky.alm2map(curvedsky.almxfl(curvedsky.map2alm(x,lmax=mlmax),fl=fl),enmap.empty(oshape,owcs))
-                        cov = sht_filter_map(beta1 * beta2,fl=sm_filt,mlmax=max(bandlt.bounds[qid1].mlmax,bandlt.bounds[qid2].mlmax))
-                    else:
-                        # this isn't quite right ; mask has to be recalculated, what does the mean mean
-                        cov = beta1*0 + np.mean(beta1*beta2) / np.mean(mask**2.) # save in a compressed form instead
+                if i!=j:
+                    # These checks are just for covariance calculations
+                    # between maps that span different areas
+                    beta2 = bandlt.load_beta(findex,qid2,'T')
+                    if not(np.all(beta1.shape==beta2.shape)):
+                        # we will interpret this as one map being inside the other
+                        # This sets a requirement on the map geometries.
+                        # FIXME: this needs to be in an assert
+                        # which one is the larger one?
+                        # we will run extract on it
+                        if beta1.size>beta2.size:
+                            beta1 = enmap.extract(beta1,beta2.shape,beta2.wcs)
+                        elif beta2.size>beta1.size:
+                            beta2 = enmap.extract(beta2,beta1.shape,beta1.wcs)
+                        else:
+                            raise ValueError
+                    assert np.all(beta1.shape==beta2.shape)
+                    assert wcsutils.equal(beta1.wcs,beta2.wcs)
+                    oshape = beta2.shape
+                    owcs = beta2.wcs
+                else:
+                    beta2 = beta1
+                    oshape = beta2.shape
+                    owcs = beta2.wcs
 
-                    enmap.write_map_geometry(f'{dpath}cov_geometry_findex_{findex}_{qid1}_{qid2}.fits',oshape,owcs)
-                    f.create_dataset(f'findex_{findex}_{qid1}_{qid2}',data=cov)
-                    io.hplot(cov,f'{dpath}cov_{qid1}_{qid2}_findex_{findex:02d}',mask=0,grid=True,ticks=10)
+                lmin = bandlt.lmins[findex]
+                lmax = bandlt.lmaxs[findex]
+                # Decide on covariance smoothing scale. This is based on 
+                # the requirements for ILC co-adding... you might have to override this if doing
+                # filtering/simulation of existing coadds.
+                sm_fwhm = get_smoothing_fwhm_arcmin(lmin,lmax)
+                if sm_fwhm < 900:
+                    sm_filt = maps.gauss_beam(bandlt.ells,sm_fwhm)
+                    sht_filter_map = lambda x,fl,mlmax: curvedsky.alm2map(hp.almxfl(curvedsky.map2alm(x,lmax=mlmax),fl=fl),enmap.empty(oshape,owcs))
+                    cov = sht_filter_map(beta1 * beta2,fl=sm_filt,mlmax=max(bandlt.bounds[qid1].mlmax,bandlt.bounds[qid2].mlmax))
+                else:
+                    # If the smoothing scale is too large, just calculate the mean (a constant covariance across the map)
+                    # this isn't quite right ; mask has to be recalculated, what does the mean mean
+                    cov = beta1*0 + np.mean(beta1*beta2) / np.mean(mask**2.) # TODO: save in a compressed form instead
+
+
+                fname = f"{dpath}cov_findex_{findex}_{qid1}_{qid2}.fits"
+                enmap.write_map(fname,cov)
+                io.hplot(cov,f'{dpath}cov_{qid1}_{qid2}_findex_{findex:02d}',mask=0,grid=True,ticks=10)
             
 
 def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,
-                     region_shape,region_wcs,mask_fn,mask_geometries,dfact=None):
+                     region_shape,region_wcs,mask_fn,mask_geometries,dfact=None,overwrite=False):
     """
     1. inpaint
     2. apodize
@@ -1048,7 +1070,7 @@ def make_needlet_cov(version,qids,target_fwhm_arcmin,mode,
     """
     # Save the needlet map alms to disk
     save_needlets(version,qids,mode,region_shape,region_wcs,target_fwhm_arcmin,dfact=dfact,
-                  mask_fn=mask_fn,mask_geometries=mask_geometries)
+                  mask_fn=mask_fn,mask_geometries=mask_geometries,overwrite=overwrite)
 
 def make_needlet_ilc(version,cov_version,qids):
     """
