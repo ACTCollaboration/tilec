@@ -3,7 +3,6 @@ import numpy as np
 import yaml
 import os
 from scipy.interpolate import interp1d
-from enlib import bench
 
 """
 Utilities for unit conversions and foreground SED modeling, including Planck and ACT bandpasses.

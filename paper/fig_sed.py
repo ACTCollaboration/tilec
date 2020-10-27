@@ -17,6 +17,7 @@ alpha = 0.5
 
 #comps = ['CMB','rSZ','tSZ','CIB','mu']
 comps = ['CMB','tSZ','CIB']
+#comps = ['CMB','tSZ']
 #comps = ['rSZ','tSZ','mu']
 cols = ['C0','C1','C2','C3','C4']
 pl = io.Plotter(xyscale='loglog',xlabel='$\\nu$ (GHz)',ylabel='$f(\\nu)$',figsize=(6,4))
@@ -74,4 +75,5 @@ for i,comp in enumerate(comps):
 
 pl.hline(y=1)
 pl._ax.set_ylim(5e-2,400)
+#pl.done("fig_sed_nocib.pdf")
 pl.done("fig_sed.pdf")
