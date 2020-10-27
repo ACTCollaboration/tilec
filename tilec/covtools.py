@@ -217,6 +217,30 @@ def noise_block_average(n2d,nsplits,delta_ell,lmin=300,lmax=8000,wnoise_annulus=
     A radial fit is divided out before downsampling (by default by FFT) and then multplied back with the radial fit.
     Watch for ringing in the final output.
     n2d noise power
+
+
+    n2d -- the [...,Ny,Nx] 2d power to smooth
+    nsplits -- the number of splits from which the 2d noise power was estimated. This needs to be known
+    if log is True, in which case the power is log-transformed before smoothing, which changes the statistics
+    of the samples and hence needs a pre-determined correction based on the distribution of the original sample.
+    log -- whether to log transform before smoothing. Should only be used if the power is positive (so should not
+    be used e.g. if this is for the cross-noise of two components)
+    delta_ell -- the block width in ell units for the smoothing. The smoothing effectively gets done in blocks
+    of delta_ell x delta_ell.
+    
+    radial_fit -- if True, divides out a fit to the 1d power
+    lmin -- lmin for the radial fit
+    lmax -- lmax for the radial fit (adjust based on resolution of map)
+    wnoise_annulus -- width of annulus in ell within which to estimate high ell white noise (adjust based on resolution)
+    bin_annulus -- width of 1d bins (IMPORTANT: adjust based on map size)
+    lknee_guess -- guess lknee for fit
+    alpha_guess -- guess alpha for fit
+    nparams -- optionally pass in a radial fit's parameters
+    verbose -- print more
+    fill_lmax -- fill power outside this lmax with the mean of the annulus between fill_lmax and fill_lmax_width
+    fill_lmax_width -- see above
+    isotropic_low_ell -- fill below lmin with an isotropic fit to the 1d power
+    allow_low_wnoise -- allow white noise level to be negative (for debugging)
     """
     assert np.all(np.isfinite(n2d))
     if log: assert np.all(n2d>0), "You can't log smooth a PS with negative or zero power. Use log=False for these."
