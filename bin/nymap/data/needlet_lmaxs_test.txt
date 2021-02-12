@@ -1,0 +1,6 @@
+# Effective low-pass beyond ell=3402
+# lmax,pix_res_arcmin
+100,120
+200,60
+300,40
+400,30

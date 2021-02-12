@@ -1,0 +1,4 @@
+#qid,ellmin,ellmax,mlmax
+p07,0,400,500
+p08,0,400,500
+act,0,400,500
