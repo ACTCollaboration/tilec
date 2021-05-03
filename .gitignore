@@ -125,3 +125,5 @@ paper/*.txt
 weights*txt
 ypower*txt
 cl_K*txt
+.DS_Store
+data/.DS_Store

@@ -57,7 +57,8 @@ def read_param_dict_from_yaml(yaml_file):
     return config
 # default case
 fpath = os.path.dirname(__file__)
-default_dict = read_param_dict_from_yaml(fpath+'/../input/fg_SEDs_default_params.yml')
+#default_dict = read_param_dict_from_yaml(fpath+'/../input/fg_SEDs_default_params.yml')
+default_dict = '/Users/boris/Work/CLASS-SZ/SO-SZ/tilec/input'
 ######################################
 
 
@@ -69,7 +70,7 @@ default_dict = read_param_dict_from_yaml(fpath+'/../input/fg_SEDs_default_params
 ######################################
 def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None,
             dust_beta_param_name='beta_CIB',
-            radio_beta_param_name='beta_radio'): 
+            radio_beta_param_name='beta_radio'):
     #nu_ghz = array of frequencies in GHz; comp = string containing component name; param_dict_file = dictionary of SED parameters and values (optional, and only needed for some SEDs)
     assert (comp != None)
     nu_ghz = np.atleast_1d(nu_ghz) #catch possible scalar input
@@ -154,6 +155,26 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None,
         # TODO: the line below may be wrong for radio maps!
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
+
+    elif (comp == 'galdust'):
+        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr), here converted to uK_CMB)
+        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+        p = _setp()
+        nu = 1.e9*np.asarray(nu_ghz).astype(float)
+        nu0_radio = p['nu0_radio_ghz']*1.e9
+
+        X_DUST = hplanck*nu/(kboltz*(p['Tdust_galdust']))
+        X0_DUST = hplanck*nu0_radio/(kboltz*(p['Tdust_galdust']))
+
+        resp = (nu/nu0_radio)**(3.+p[radio_beta_param_name])* ((np.exp(X0_DUST) - 1.0) / (np.exp(X_DUST) - 1.0)) * (ItoDeltaT(np.asarray(nu_ghz).astype(float))/ItoDeltaT(p['nu0_radio_ghz']))
+        # TODO: the line below may be wrong for radio maps!
+        # print('p[radio_beta_param_name]: ',radio_beta_param_name,p[radio_beta_param_name])
+        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
+        return resp
+
+
+
     elif (comp == 'radio_Jysr'): #same as radio above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
         # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr))
         # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
@@ -166,8 +187,21 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None,
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
 
+    elif (comp == 'galdust_Jysr'): #same as radio above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
+        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr))
+        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+        p = _setp()
+        nu = 1.e9*np.asarray(nu_ghz).astype(float)
+        nu0_radio = p['nu0_radio_ghz']*1.e9
+        resp = (nu/nu0_radio)**(p[radio_beta_param_name])
+        # TODO: the line below may be wrong for radio maps!
+        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
+        return resp
+
+
     else:
-        print("unknown component specified")
+        print("unknown component specified :",comp)
         raise NotImplementedError
 ######################################
 
@@ -182,7 +216,7 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
     ----------
 
     ells : array_like
-        A 1d (nells,) array specifying what multipoles correspond to 
+        A 1d (nells,) array specifying what multipoles correspond to
         beam transfer factors in lbeam
 
     lbeam : array_like
@@ -193,7 +227,7 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
         The "central frequency" in GHz to which lbeam corresponds
 
     nus_ghz : array_like
-        A 1d (nfreqs,) array of frequencies in GHz on to which the 
+        A 1d (nfreqs,) array of frequencies in GHz on to which the
         beam lbeam should be scaled to
 
     ccor_exp : float, optional
@@ -201,10 +235,31 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
         to diffraction limited optics.
 
     """
+
+    # print('   ')
+    # print('   ')
+    # print('   ')
+    # print('[tilec] ############################')
+    # print('[tilec] ############################')
+    # print('[tilec] ############################')
+    # print('[tilec] getting scaled beams')
+    # print('[tilec] importing maps')
     from orphics import maps
+    # print('maps imported')
+    # print('[tilec] iinterpolating maps')
     fbnus = maps.interp(ells,lbeam[None,:],fill_value=(lbeam[0],lbeam[-1]))
+    # print('ells:',ells)
+    # print('lbeam:',lbeam)
+    # print('cen_nu_ghz:',cen_nu_ghz)
+    # print('nu_ghz:',nus_ghz)
+    # print('ccor_exp:',ccor_exp)
+    # print('[tilec] maps interpolated getting bnus')
     bnus = fbnus(((cen_nu_ghz/nus_ghz)**(-ccor_exp))*ells[:,None])[0].swapaxes(0,1)
     bnus = bnus / bnus[:,:1]
+    # print('[tilec] bnus done')
+    # print('[tilec] ############################')
+    # print('[tilec] ############################')
+    # print('[tilec] ############################')
     return bnus
 
 
@@ -217,11 +272,11 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
 # bp_list can contain entries that are None, which correspond to maps that have no CMB-relevant (or CIB) signals in them (e.g., HI maps)
 ######################################
 def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
-                       ccor_cen_nus=None, ccor_beams=None, ccor_exps = None, 
-                       normalize_cib=True,param_dict_override=None,bandpass_exps=None,nus_ghz=None,btrans=None,            
+                       ccor_cen_nus=None, ccor_beams=None, ccor_exps = None,
+                       normalize_cib=True,param_dict_override=None,bandpass_exps=None,nus_ghz=None,btrans=None,
                        dust_beta_param_name='beta_CIB',
                        radio_beta_param_name='beta_radio',
-                       override_lbeam_bnus=None): 
+                       override_lbeam_bnus=None):
 
     """
     Get mixing factors for a given component that have "color corrections" that account for
@@ -239,21 +294,21 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
 
     comp : string
         a string specifying the component whose mixing is requested. Currently, the following are
-        supported (1) CMB or kSZ (considered identical, and always returns ones) 
+        supported (1) CMB or kSZ (considered identical, and always returns ones)
         (2) tSZ (3) mu (4) rSZ (5) CIB (6) radio
 
 
     param_dict_file : string, optional
-        filename of a YAML file used to create a dictionary of SED parameters and values 
-        (only needed for some SEDs). If None, defaults to parameters specified in 
+        filename of a YAML file used to create a dictionary of SED parameters and values
+        (only needed for some SEDs). If None, defaults to parameters specified in
         input/fg_SEDs_default_params.yml.
 
 
     bandpass_shifts : list of floats, optional
-        A list of floats of length [Nfreqs,] specifying how much in GHz to shift the 
+        A list of floats of length [Nfreqs,] specifying how much in GHz to shift the
         entire bandpass. Each value can be positive (shift right) or negative (shift left).
         If None, no shift is applied and the bandpass specified in the files is used as is.
-    
+
 
     ccor_cen_nus : list of floats, optional
         If not None, this indicates that the dependence of the beam on frequency with the
@@ -261,8 +316,8 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         [Nfreqs,] length list of the "central frequencies" of each bandpass in GHz.
         The provided beams in ccor_beams for each channel are then scaled by
         (nu/nu_central)**ccor_exp where ccor_exp defaults to -1.
-    
-    
+
+
     ccor_beams : list of array_like, optional
         Only used if ccor_cen_nus is not None. In that mode, ccor_beams is interpreted as
         an [Nfreqs,] length list where each element is a 1d numpy array specifying the
@@ -271,16 +326,25 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         (nu/nu_central)**ccor_exp where ccor_exp defaults to -1 and nu_central is specified
         through ccor_cen_nus. If any list element is None, no scale dependent color correction
         is applied for that frequency channel. See get_scaled_beams for more information.
-    
+
 
 
     ccor_exps : list of floats, optional
-        Only used if ccor_cen_nus is not None. Defaults to -1 for each frequncy channel. 
-        This controls how the beam specified in ccor_beams for the central frequencies 
+        Only used if ccor_cen_nus is not None. Defaults to -1 for each frequncy channel.
+        This controls how the beam specified in ccor_beams for the central frequencies
         specified in ccor_cen_nus is scaled to other frequencies.
-    
+
 
     """
+    # print('  ')
+    # print('  ')
+    # print('///////////////////////')
+    # print('getting mixed bandpass')
+    # print('///////////////////////')
+    # print('  ')
+    # print('  ')
+    # print('comp:',comp)
+    # print('bp_list:',bp_list)
     if bandpass_shifts is not None and np.any(np.array(bandpass_shifts)!=0):
         print("WARNING: shifted bandpasses provided.")
     assert (comp is not None)
@@ -341,7 +405,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                 if bandpass_shifts is not None: nu_ghz = nu_ghz + bandpass_shifts[i]
                 if bandpass_exps is not None: trans = trans * nu_ghz**bandpass_exps[i]
 
-                
+
                 lbeam = 1
                 bnus = 1
 
@@ -350,7 +414,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                 if override_lbeam_bnus is not None:
                     lbeam,bnus = override_lbeam_bnus
                 else:
-                    if ccor_cen_nus is not None: 
+                    if ccor_cen_nus is not None:
                         if ccor_beams[i] is not None:
                             lbeam = ccor_beams[i]
                             ells = np.arange(lbeam.size)
@@ -358,57 +422,67 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                             bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nu_ghz,ccor_exp=ccor_exps[i]).swapaxes(0,1)
                             assert np.all(np.isfinite(bnus))
 
-                if (comp == 'tSZ' or comp == 'mu' or comp == 'rSZ'): 
+                if (comp == 'tSZ' or comp == 'mu' or comp == 'rSZ'):
                     # Thermal SZ (y-type distortion) or mu-type distortion or relativistic tSZ
-                    # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf 
+                    # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf
                     # -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
-                    mixs = get_mix(nu_ghz, comp, 
+                    mixs = get_mix(nu_ghz, comp,
                                    param_dict_file=param_dict_file, param_dict_override=param_dict_override,
                                    dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
                     val = np.trapz(trans * dBnudT(nu_ghz) * bnus * mixs, nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz) / lbeam
                     # this is the response at each frequency channel in uK_CMB for a signal with y=1 (or mu=1)
                 elif (comp == 'CIB'):
-                    # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf 
+                    # following Sec. 3.2 of https://arxiv.org/pdf/1303.5070.pdf
                     # -- N.B. IMPORTANT TYPO IN THEIR EQ. 35 -- see https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf
                     # CIB SED parameter choices in dict file: Tdust_CIB [K], beta_CIB, nu0_CIB [GHz]
                     # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-                    mixs = get_mix(nu_ghz, 'CIB_Jysr', 
+                    mixs = get_mix(nu_ghz, 'CIB_Jysr',
                                    param_dict_file=param_dict_file, param_dict_override=param_dict_override,
                                    dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
 
                     vnorm = np.trapz(trans * dBnudT(nu_ghz), nu_ghz)
                     val = (np.trapz(trans * mixs * bnus , nu_ghz) / vnorm) / lbeam
 
-                    # N.B. this expression follows from Eqs. 32 and 35 of 
-                    # https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf , 
-                    # and then noting that one also needs to first rescale the CIB emission 
-                    # in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in 
-                    # those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).  
+                    # N.B. this expression follows from Eqs. 32 and 35 of
+                    # https://www.aanda.org/articles/aa/pdf/2014/11/aa21531-13.pdf ,
+                    # and then noting that one also needs to first rescale the CIB emission
+                    # in Jy/sr from nu0_CIB to the "nominal frequency" nu_c that appears in
+                    # those equations (i.e., multiply by get_mix(nu_c, 'CIB_Jysr')).
                     # The resulting cancellation leaves this simple expression which has no dependence on nu_c.
                 elif (comp == 'radio'):
                     # same logic/formalism as used for CIB component immediately above this
                     # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
 
-                    mixs = get_mix(nu_ghz, 'radio_Jysr', 
+                    mixs = get_mix(nu_ghz, 'radio_Jysr',
                                    param_dict_file=param_dict_file, param_dict_override=param_dict_override,
                                    dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
 
                     val = (np.trapz(trans * mixs * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
+                elif (comp == 'galdust'):
+                    # same logic/formalism as used for CIB component immediately above this
+                    # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+
+                    mixs = get_mix(nu_ghz, 'radio_Jysr',
+                                   param_dict_file=param_dict_file, param_dict_override=param_dict_override,
+                                   dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
+
+                    val = (np.trapz(trans * mixs * bnus , nu_ghz) / np.trapz(trans * dBnudT(nu_ghz), nu_ghz)) / lbeam
+
                 else:
-                    print("unknown component specified")
+                    print("unknown component specified : ",comp)
                     raise NotImplementedError
 
                 if (ccor_cen_nus is not None) and (ccor_beams[i] is not None): val[lbeam==0] = 0
                 output[i] = val
                 assert np.all(np.isfinite(val))
 
-            elif (bp_list[i] is None): 
+            elif (bp_list[i] is None):
                 #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in bp_list
-                output[i] = 0.        
+                output[i] = 0.
 
 
         if (comp == 'CIB' or comp == 'radio') and normalize_cib:
-            #overall amplitude not meaningful, so divide by max to get numbers of order unity; 
+            #overall amplitude not meaningful, so divide by max to get numbers of order unity;
             # output gives the relative conversion between CIB (or radio) at different frequencies, for maps in uK_CMB
             omax = output.max(axis=0)
             ret = output / omax
@@ -416,7 +490,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         else:
             ret = output
 
-        
+
         assert np.all(np.isfinite(ret))
         return ret
 
@@ -428,8 +502,8 @@ class ArraySED(object):
         Reads in bandpass and beam files and stores them.
         Returns component response, normalized to some frequency if
         requested.
-        
-        Make sure to flush the cache of a sample SED explicitly if you 
+
+        Make sure to flush the cache of a sample SED explicitly if you
         are using caching.
 
         Parameters
@@ -438,6 +512,12 @@ class ArraySED(object):
         bp_file_dict : dictionary mapping array names to paths to bandpass files
         beam_file_dict : dictionary mapping array names to paths to beam files
         """
+        # print('  ')
+        # print('  ')
+        # print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        # print('initialising ArraySED with beam_file_dict:',beam_file_dict)
+        # print('  ')
+        # print('  ')
         self.cache = {}
         for c in cached_comps:
             self.cache[c] = {}
@@ -449,29 +529,43 @@ class ArraySED(object):
             cexp = -1
 
         for array in arrays:
+            # print('array:',array)
+            # print('cfreq_dict[array]:',cfreq_dict[array])
             self.bps[array] = {}
-            self.bps[array]['cfreq'] = cfreq_dict[array] 
+            self.bps[array]['cfreq'] = cfreq_dict[array]
             self.bps[array]['nus'], self.bps[array]['trans'] = np.loadtxt(bp_file_dict[array], usecols=(0,1), unpack=True)
             if beam_file_dict[array] is not None:
+                # print('loading beam_file_dict[array]:',beam_file_dict[array])
                 ls,bells = np.loadtxt(beam_file_dict[array], usecols=(0,1), unpack=True)
                 assert ls[0]==0,ls[0]==1
-                bells = bells/bells[0]
+                bells = bells/bells[0] # here the beam is normalized
                 self.bps[array]['lbeam'] = bells.copy()
 
                 lbeam = self.bps[array]['lbeam']
                 ells = np.arange(lbeam.size)
-                cen_nu_ghz = cfreq_dict[array] 
+                cen_nu_ghz = cfreq_dict[array]
                 nu_ghz = self.bps[array]['nus']
+
+                # print('   ')
+                # print('nu_ghz:',nu_ghz)
+
+                idnus = np.where((nu_ghz<cen_nu_ghz +50) & (nu_ghz>cen_nu_ghz -50))
+                # print('idnus:',idnus)
+                nu_ghz = nu_ghz[idnus]
+                self.bps[array]['nus'] = nu_ghz
+                self.bps[array]['trans'] = self.bps[array]['trans'][idnus]
+                # exit(0)
                 bnus = get_scaled_beams(ells,lbeam,cen_nu_ghz,nu_ghz,ccor_exp=cexp).swapaxes(0,1)
                 assert np.all(np.isfinite(bnus))
                 self.bps[array]['obnu'] = (lbeam,bnus)
             else:
                 self.bps[array]['obnu'] = None
-                
-        
+
+
     def get_response(self,comp,array=None,norm_freq_ghz=None,eff_freq_ghz=None,params=None,
                      dust_beta_param_name='beta_CIB',
-                     radio_beta_param_name='beta_radio',lmax=None): 
+                     radio_beta_param_name='beta_radio',
+                     lmax=None):
         """
         Parameters
         ----------
@@ -492,11 +586,11 @@ class ArraySED(object):
 
         if eff_freq_ghz is not None:
             ret = get_mix(eff_freq_ghz, comp, param_dict_file=None, param_dict_override=params,
-                          dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)    
+                          dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
         else:
             ret = get_mix_bandpassed(['skip'], comp, param_dict_file=None,bandpass_shifts=bshift,
-                                     ccor_cen_nus=None, 
-                                     ccor_beams=None, ccor_exps = None, 
+                                     ccor_cen_nus=None,
+                                     ccor_beams=None, ccor_exps = None,
                                      normalize_cib=False,param_dict_override=params,bandpass_exps=None,
                                      nus_ghz=self.bps[array]['nus'],btrans=self.bps[array]['trans'],
                                      dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name,
@@ -504,15 +598,15 @@ class ArraySED(object):
         if norm_freq_ghz is not None:
             if (eff_freq_ghz is not None) or comp=='tSZ':
                 fnorm = get_mix(norm_freq_ghz, comp, param_dict_file=None, param_dict_override=params,
-                                dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)    
+                                dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
             else:
                 assert array is not None
-                if comp in ['CIB','radio']:
+                if comp in ['CIB','radio','galdust']:
                     fnorm = get_mix(norm_freq_ghz, comp+"_Jysr", param_dict_file=None, param_dict_override=params,
                                     dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)  / dBnudT(norm_freq_ghz)
                 else:
                     raise ValueError
-                
+
         else:
             fnorm = 1.
 
