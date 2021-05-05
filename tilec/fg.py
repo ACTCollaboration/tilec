@@ -144,6 +144,51 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None,
         resp = (nu/nu0_CIB)**(3.0+(p[dust_beta_param_name])) * ((np.exp(X0_CIB) - 1.0) / (np.exp(X_CIB) - 1.0))
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
+
+    elif (comp == 'galdust'):
+        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr), here converted to uK_CMB)
+        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+        p = _setp()
+        nu = 1.e9*np.asarray(nu_ghz).astype(float)
+        nu0_radio = p['nu0_galdust_ghz']*1.e9
+
+        # X_DUST = hplanck*nu/(kboltz*(p['Tdust_galdust']))
+        # X0_DUST = hplanck*nu0_radio/(kboltz*(p['Tdust_galdust']))
+
+        X_DUST = hplanck*nu/(kboltz*(p['Tdust_galdust']))
+        X0_DUST = hplanck*nu0_radio/(kboltz*(p['Tdust_galdust']))
+
+        resp = (nu/nu0_radio)**(3.+p[dust_beta_param_name])* ((np.exp(X0_DUST) - 1.0) / (np.exp(X_DUST) - 1.0)) * (ItoDeltaT(np.asarray(nu_ghz).astype(float))/ItoDeltaT(p['nu0_galdust_ghz']))
+        # TODO: the line below may be wrong for radio maps!
+        # print('p[radio_beta_param_name]: ',radio_beta_param_name,p[radio_beta_param_name])
+        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
+        return resp
+
+
+    elif (comp == 'galdust_Jysr'): #same as radio above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
+        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr))
+        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
+        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
+        p = _setp()
+        nu = 1.e9*np.asarray(nu_ghz).astype(float)
+        nu0_radio = p['nu0_galdust_ghz']*1.e9
+
+        # X_DUST = hplanck*nu/(kboltz*(p['Tdust_galdust']))
+        # X0_DUST = hplanck*nu0_radio/(kboltz*(p['Tdust_galdust']))
+
+        X_DUST = hplanck*nu/(kboltz*(p['Tdust_galdust']))
+        X0_DUST = hplanck*nu0_radio/(kboltz*(p['Tdust_galdust']))
+
+        resp = (nu/nu0_radio)**(3.+p[dust_beta_param_name])* ((np.exp(X0_DUST) - 1.0) / (np.exp(X_DUST) - 1.0))
+        # TODO: the line below may be wrong for radio maps!
+        # print('p[radio_beta_param_name]: ',radio_beta_param_name,p[radio_beta_param_name])
+        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
+        return resp
+
+
+
+
     elif (comp == 'radio'):
         # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr), here converted to uK_CMB)
         # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
@@ -156,38 +201,9 @@ def get_mix(nu_ghz, comp, param_dict_file=None, param_dict_override=None,
         resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
         return resp
 
-    elif (comp == 'galdust'):
-        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr), here converted to uK_CMB)
-        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
-        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        p = _setp()
-        nu = 1.e9*np.asarray(nu_ghz).astype(float)
-        nu0_radio = p['nu0_radio_ghz']*1.e9
-
-        X_DUST = hplanck*nu/(kboltz*(p['Tdust_galdust']))
-        X0_DUST = hplanck*nu0_radio/(kboltz*(p['Tdust_galdust']))
-
-        resp = (nu/nu0_radio)**(3.+p[radio_beta_param_name])* ((np.exp(X0_DUST) - 1.0) / (np.exp(X_DUST) - 1.0)) * (ItoDeltaT(np.asarray(nu_ghz).astype(float))/ItoDeltaT(p['nu0_radio_ghz']))
-        # TODO: the line below may be wrong for radio maps!
-        # print('p[radio_beta_param_name]: ',radio_beta_param_name,p[radio_beta_param_name])
-        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
-        return resp
-
 
 
     elif (comp == 'radio_Jysr'): #same as radio above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
-        # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr))
-        # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
-        # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
-        p = _setp()
-        nu = 1.e9*np.asarray(nu_ghz).astype(float)
-        nu0_radio = p['nu0_radio_ghz']*1.e9
-        resp = (nu/nu0_radio)**(p[radio_beta_param_name])
-        # TODO: the line below may be wrong for radio maps!
-        resp[np.where(nu_ghz == None)] = 0. #this case is appropriate for HI or other maps that contain no CMB-relevant signals (and also no CIB); they're assumed to be denoted by None in nu_ghz
-        return resp
-
-    elif (comp == 'galdust_Jysr'): #same as radio above but in 1e-26 Jy/sr (with arbitrary overall amplitude!) instead of uK_CMB
         # radio = power-law here (power-law SED in specific intensity units (W/m^2/Hz/sr))
         # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
         # N.B. overall amplitude is not meaningful here; output ILC map (if you tried to preserve this component) would not be in sensible units
@@ -377,7 +393,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
         shape = N_freqs
 
 
-    if (comp == 'CIB' or comp == 'rSZ' or comp == 'radio'):
+    if (comp == 'CIB' or comp == 'rSZ' or comp == 'radio'  or comp == 'galdust'):
         if param_dict_file is None:
             p = default_dict
         else:
@@ -462,7 +478,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
                     # same logic/formalism as used for CIB component immediately above this
                     # radio SED parameter choices in dict file: beta_radio, nu0_radio [GHz]
 
-                    mixs = get_mix(nu_ghz, 'radio_Jysr',
+                    mixs = get_mix(nu_ghz, 'galdust_Jysr',
                                    param_dict_file=param_dict_file, param_dict_override=param_dict_override,
                                    dust_beta_param_name=dust_beta_param_name,radio_beta_param_name=radio_beta_param_name)
 
@@ -497,7 +513,7 @@ def get_mix_bandpassed(bp_list, comp, param_dict_file=None,bandpass_shifts=None,
 
 class ArraySED(object):
     def __init__(self,arrays=None,bp_file_dict=None,beam_file_dict=None,cfreq_dict=None,
-                 cached_comps=['tSZ','radio','CIB']):
+                 cached_comps=['tSZ','radio','CIB','galdust']):
         """
         Reads in bandpass and beam files and stores them.
         Returns component response, normalized to some frequency if
