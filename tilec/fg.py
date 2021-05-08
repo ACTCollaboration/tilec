@@ -260,10 +260,14 @@ def get_scaled_beams(ells,lbeam,cen_nu_ghz,nus_ghz,ccor_exp=-1):
     # print('[tilec] ############################')
     # print('[tilec] getting scaled beams')
     # print('[tilec] importing maps')
-    from orphics import maps
+    # from orphics import maps
     # print('maps imported')
     # print('[tilec] iinterpolating maps')
-    fbnus = maps.interp(ells,lbeam[None,:],fill_value=(lbeam[0],lbeam[-1]))
+    # avoid using orphics here : crashes on stampede2
+    def interp(x,y,bounds_error=False,fill_value=0.,**kwargs):
+        return interp1d(x,y,bounds_error=bounds_error,fill_value=fill_value,**kwargs)
+
+    fbnus = interp(ells,lbeam[None,:],fill_value=(lbeam[0],lbeam[-1]))
     # print('ells:',ells)
     # print('lbeam:',lbeam)
     # print('cen_nu_ghz:',cen_nu_ghz)
